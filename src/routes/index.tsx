@@ -66,20 +66,17 @@ function Home() {
 
       {/* Trust */}
       <section className="container-app grid grid-cols-2 md:grid-cols-4 gap-4 py-6">
-        {[
-          [Truck, "Free shipping", "On orders above ₹999"],
-          [ShieldCheck, "100% Authentic", "Sourced from Vrindavan"],
-          [Sparkles, "Temple blessed", "Energised at ISKCON"],
-          [Flower2, "Easy returns", "7-day return policy"],
-        ].map(([I, t, d], i) => {
-          const Icon = I as typeof Truck;
-          return (
-            <div key={i} className="premium-card p-5 flex items-center gap-3">
-              <Icon className="h-6 w-6 text-primary shrink-0" />
-              <div><p className="font-medium text-sm">{t}</p><p className="text-xs text-muted-foreground">{d}</p></div>
-            </div>
-          );
-        })}
+        {([
+          { Icon: Truck, t: "Free shipping", d: "On orders above ₹999" },
+          { Icon: ShieldCheck, t: "100% Authentic", d: "Sourced from Vrindavan" },
+          { Icon: Sparkles, t: "Temple blessed", d: "Energised at ISKCON" },
+          { Icon: Flower2, t: "Easy returns", d: "7-day return policy" },
+        ]).map(({ Icon, t, d }) => (
+          <div key={t} className="premium-card p-5 flex items-center gap-3">
+            <Icon className="h-6 w-6 text-primary shrink-0" />
+            <div><p className="font-medium text-sm">{t}</p><p className="text-xs text-muted-foreground">{d}</p></div>
+          </div>
+        ))}
       </section>
 
       {/* Featured */}

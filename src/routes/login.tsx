@@ -50,12 +50,17 @@ export function AuthShell({ title, subtitle, children }: { title: string; subtit
   );
 }
 
-export function Field({ icon: Icon, right, ...p }: { icon: typeof Mail; right?: React.ReactNode } & React.InputHTMLAttributes<HTMLInputElement> & { onChange: (v: string) => void; value: string }) {
-  const { onChange, ...rest } = p;
+type FieldProps = Omit<React.InputHTMLAttributes<HTMLInputElement>, "onChange" | "value"> & {
+  icon: React.ComponentType<{ className?: string }>;
+  right?: React.ReactNode;
+  value: string;
+  onChange: (v: string) => void;
+};
+export function Field({ icon: Icon, right, value, onChange, ...rest }: FieldProps) {
   return (
     <div className="relative">
       <Icon className="absolute left-4 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-      <input {...rest} onChange={(e) => onChange(e.target.value)} className="w-full h-12 pl-11 pr-11 rounded-full border bg-card focus:outline-none focus:border-primary" />
+      <input {...rest} value={value} onChange={(e) => onChange(e.target.value)} className="w-full h-12 pl-11 pr-11 rounded-full border bg-card focus:outline-none focus:border-primary" />
       {right && <div className="absolute right-4 top-1/2 -translate-y-1/2">{right}</div>}
     </div>
   );

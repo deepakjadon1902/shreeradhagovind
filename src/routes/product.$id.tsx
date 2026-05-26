@@ -74,10 +74,9 @@ function ProductDetail() {
             </button>
 
             <div className="mt-8 grid grid-cols-3 gap-3 border-t pt-6">
-              {[[Truck,"Free shipping"],[ShieldCheck,"100% Authentic"],[RefreshCw,"7-day returns"]].map(([I,t],i) => {
-                const Icon = I as typeof Truck;
-                return <div key={i} className="text-center"><Icon className="h-5 w-5 mx-auto text-primary" /><p className="text-xs mt-1.5">{t}</p></div>;
-              })}
+              {([{ Icon: Truck, t: "Free shipping" }, { Icon: ShieldCheck, t: "100% Authentic" }, { Icon: RefreshCw, t: "7-day returns" }]).map(({ Icon, t }) => (
+                <div key={t} className="text-center"><Icon className="h-5 w-5 mx-auto text-primary" /><p className="text-xs mt-1.5">{t}</p></div>
+              ))}
             </div>
           </div>
         </div>
