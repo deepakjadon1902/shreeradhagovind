@@ -48,7 +48,7 @@ function Shop() {
             <div>
               <h3 className="font-display text-lg mb-3 flex items-center gap-2"><SlidersHorizontal className="h-4 w-4" /> Categories</h3>
               <div className="flex flex-col gap-1">
-                {CATEGORIES.map((c) => (
+                {CATS.map((c) => (
                   <button key={c} onClick={() => setCat(c)} className={`text-left px-3 py-2 rounded-lg text-sm transition ${cat === c ? "bg-primary text-primary-foreground" : "hover:bg-muted"}`}>{c}</button>
                 ))}
               </div>
