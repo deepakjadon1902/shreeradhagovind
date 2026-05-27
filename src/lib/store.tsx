@@ -107,7 +107,9 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     },
     adminAuthed,
     adminLogin: (u, p) => {
-      if ((u === "deepakjadon1907@gmail.com" && p === "deepakjadon1907@") || (u === "admin" && p === "admin123")) { setAdminAuthed(true); toast.success("Admin authenticated"); return true; }
+      const user = (u ?? "").trim().toLowerCase();
+      const pass = (p ?? "").trim();
+      if ((user === "deepakjadon1907@gmail.com" && pass === "deepakjadon1907@") || (user === "admin" && pass === "admin123")) { setAdminAuthed(true); toast.success("Admin authenticated"); return true; }
       toast.error("Invalid admin credentials"); return false;
     },
     adminLogout: () => setAdminAuthed(false),
