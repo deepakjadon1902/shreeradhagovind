@@ -29,7 +29,7 @@ function AdminRoot() {
               <input value={p} onChange={(e) => setP(e.target.value)} type="password" placeholder="Password" className="w-full h-11 rounded-lg border px-3 bg-background focus:outline-none focus:border-primary" />
               <button type="submit" className="w-full h-11 rounded-lg bg-primary text-primary-foreground font-medium">Sign in</button>
             </form>
-            <p className="text-[11px] text-muted-foreground text-center mt-4">Demo: <code className="bg-muted px-1.5 py-0.5 rounded">admin</code> / <code className="bg-muted px-1.5 py-0.5 rounded">admin123</code></p>
+            <p className="text-[11px] text-muted-foreground text-center mt-4">Demo: <code className="bg-muted px-1.5 py-0.5 rounded">deepakjadon1907@gmail.com</code> / <code className="bg-muted px-1.5 py-0.5 rounded">deepakjadon1907@</code></p>
             <Link to="/" className="block text-center text-xs text-muted-foreground mt-4 hover:text-primary">← Back to store</Link>
           </div>
         </div>
