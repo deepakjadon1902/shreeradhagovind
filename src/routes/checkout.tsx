@@ -8,11 +8,11 @@ import { toast } from "sonner";
 export const Route = createFileRoute("/checkout")({ component: Checkout });
 
 function Checkout() {
-  const { cart, adminProducts, user, placeOrder } = useStore();
+  const { cart, adminProducts, user, placeOrder, settings } = useStore();
   const nav = useNavigate();
   const items = cart.map((c) => ({ ...c, product: adminProducts.find((p) => p.id === c.productId)! })).filter((i) => i.product);
   const subtotal = items.reduce((s, i) => s + i.product.price * i.qty, 0);
-  const shipping = subtotal > 999 ? 0 : 49;
+  const shipping = subtotal >= settings.freeShipThreshold ? 0 : settings.shippingFee;
   const total = subtotal + shipping;
 
   const [form, setForm] = useState({
