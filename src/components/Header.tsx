@@ -4,7 +4,7 @@ import { useState } from "react";
 import { useStore } from "@/lib/store";
 
 export function Header() {
-  const { cart, wishlist, user } = useStore();
+  const { cart, wishlist, user, settings } = useStore();
   const [open, setOpen] = useState(false);
   const [q, setQ] = useState("");
   const nav = useNavigate();
