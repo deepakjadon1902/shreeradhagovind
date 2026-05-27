@@ -2,7 +2,6 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
 import { Layout } from "@/components/Layout";
 import { ProductCard } from "@/components/ProductCard";
-import { CATEGORIES } from "@/lib/products";
 import { useStore } from "@/lib/store";
 import { SlidersHorizontal } from "lucide-react";
 
@@ -18,7 +17,8 @@ export const Route = createFileRoute("/shop")({
 
 function Shop() {
   const search = Route.useSearch();
-  const { adminProducts } = useStore();
+  const { adminProducts, categories } = useStore();
+  const CATS = ["All", ...categories];
   const [cat, setCat] = useState<string>(search.cat ?? "All");
   const [sort, setSort] = useState("featured");
   const [maxPrice, setMaxPrice] = useState(2500);
