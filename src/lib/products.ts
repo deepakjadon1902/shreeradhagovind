@@ -13,8 +13,16 @@ export type Product = {
   stock: number;
 };
 
-const img = (seed: string) =>
-  `https://images.unsplash.com/${seed}?auto=format&fit=crop&w=900&q=80`;
+import poshak from "@/assets/p-poshak.jpg";
+import chandan from "@/assets/p-chandan.jpg";
+import itra from "@/assets/p-itra.jpg";
+import mala from "@/assets/p-mala.jpg";
+import murti from "@/assets/p-murti.jpg";
+import puja from "@/assets/p-puja.jpg";
+import book from "@/assets/p-book.jpg";
+
+const IMG: Record<string, string> = { poshak, chandan, itra, mala, murti, puja, book };
+const img = (key: string) => IMG[key] ?? poshak;
 
 export const PRODUCTS: Product[] = [
   {
