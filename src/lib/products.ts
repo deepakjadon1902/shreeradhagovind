@@ -1,7 +1,7 @@
 export type Product = {
   id: string;
   name: string;
-  category: "Deity Dresses" | "Puja Items" | "Chandan & Tilak" | "Itra & Fragrance" | "Mala & Jewellery" | "Books & Murti";
+  category: string;
   price: number;
   mrp: number;
   rating: number;
@@ -12,6 +12,15 @@ export type Product = {
   details: string[];
   stock: number;
 };
+
+export const DEFAULT_CATEGORIES = [
+  "Deity Dresses",
+  "Puja Items",
+  "Chandan & Tilak",
+  "Itra & Fragrance",
+  "Mala & Jewellery",
+  "Books & Murti",
+];
 
 import poshak from "@/assets/p-poshak.jpg";
 import chandan from "@/assets/p-chandan.jpg";
