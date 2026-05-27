@@ -41,7 +41,7 @@ function Home() {
           </div>
           <div className="relative">
             <div className="aspect-[4/5] rounded-3xl overflow-hidden premium-shadow">
-              <img src="https://images.unsplash.com/photo-1609858351150-2f865c1a8b6e?auto=format&fit=crop&w=900&q=80" alt="Krishna" className="h-full w-full object-cover" />
+              <img src={heroKrishna} alt="Krishna" className="h-full w-full object-cover" />
             </div>
             <div className="absolute -bottom-6 -left-6 bg-card rounded-2xl p-5 premium-shadow hidden md:block">
               <div className="flex items-center gap-3">
