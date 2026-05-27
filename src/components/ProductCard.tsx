@@ -1,10 +1,11 @@
-import { Link } from "@tanstack/react-router";
-import { Heart, Star, ShoppingBag } from "lucide-react";
+import { Link, useNavigate } from "@tanstack/react-router";
+import { Heart, Star, ShoppingBag, Zap } from "lucide-react";
 import { type Product } from "@/lib/products";
 import { useStore, formatINR } from "@/lib/store";
 
 export function ProductCard({ product }: { product: Product }) {
-  const { wishlist, toggleWishlist, addToCart } = useStore();
+  const { wishlist, toggleWishlist, addToCart, buyNow } = useStore();
+  const nav = useNavigate();
   const wished = wishlist.includes(product.id);
   const off = Math.round(((product.mrp - product.price) / product.mrp) * 100);
   return (
