@@ -24,9 +24,15 @@ function AdminRoot() {
             <Lock className="h-8 w-8 text-primary mx-auto" />
             <h1 className="font-display text-2xl text-center mt-3">Secure Admin Access</h1>
             <p className="text-sm text-muted-foreground text-center mt-1">Authorized personnel only</p>
-            <form onSubmit={(e) => { e.preventDefault(); adminLogin(u, p); }} className="space-y-3 mt-6">
-              <input value={u} onChange={(e) => setU(e.target.value)} placeholder="Username" className="w-full h-11 rounded-lg border px-3 bg-background focus:outline-none focus:border-primary" />
-              <input value={p} onChange={(e) => setP(e.target.value)} type="password" placeholder="Password" className="w-full h-11 rounded-lg border px-3 bg-background focus:outline-none focus:border-primary" />
+            <form onSubmit={(e) => {
+              e.preventDefault();
+              const fd = new FormData(e.currentTarget);
+              const user = String(fd.get("user") ?? u).trim();
+              const pass = String(fd.get("pass") ?? p);
+              adminLogin(user, pass);
+            }} className="space-y-3 mt-6">
+              <input name="user" autoComplete="username" value={u} onChange={(e) => setU(e.target.value)} placeholder="Email or username" className="w-full h-11 rounded-lg border px-3 bg-background focus:outline-none focus:border-primary" />
+              <input name="pass" autoComplete="current-password" value={p} onChange={(e) => setP(e.target.value)} type="password" placeholder="Password" className="w-full h-11 rounded-lg border px-3 bg-background focus:outline-none focus:border-primary" />
               <button type="submit" className="w-full h-11 rounded-lg bg-primary text-primary-foreground font-medium">Sign in</button>
             </form>
             <p className="text-[11px] text-muted-foreground text-center mt-4">Demo: <code className="bg-muted px-1.5 py-0.5 rounded">deepakjadon1907@gmail.com</code> / <code className="bg-muted px-1.5 py-0.5 rounded">deepakjadon1907@</code></p>
