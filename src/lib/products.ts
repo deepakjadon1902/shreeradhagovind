@@ -156,14 +156,6 @@ export const PRODUCTS: Product[] = [
   },
 ];
 
-export const CATEGORIES = [
-  "All",
-  "Deity Dresses",
-  "Puja Items",
-  "Chandan & Tilak",
-  "Itra & Fragrance",
-  "Mala & Jewellery",
-  "Books & Murti",
-] as const;
+export const CATEGORIES = ["All", ...DEFAULT_CATEGORIES] as const;
 
 export const getProduct = (id: string) => PRODUCTS.find((p) => p.id === id);
