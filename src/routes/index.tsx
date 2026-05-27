@@ -3,6 +3,7 @@ import { Layout } from "@/components/Layout";
 import { ProductCard } from "@/components/ProductCard";
 import { PRODUCTS, CATEGORIES } from "@/lib/products";
 import { ArrowRight, Sparkles, Truck, ShieldCheck, Flower2 } from "lucide-react";
+import heroKrishna from "@/assets/hero-krishna.jpg";
 
 export const Route = createFileRoute("/")({ component: Home });
 
