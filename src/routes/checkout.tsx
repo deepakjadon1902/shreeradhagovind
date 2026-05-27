@@ -8,11 +8,11 @@ import { toast } from "sonner";
 export const Route = createFileRoute("/checkout")({ component: Checkout });
 
 function Checkout() {
-  const { cart, adminProducts, user, placeOrder } = useStore();
+  const { cart, adminProducts, user, placeOrder, settings } = useStore();
   const nav = useNavigate();
   const items = cart.map((c) => ({ ...c, product: adminProducts.find((p) => p.id === c.productId)! })).filter((i) => i.product);
   const subtotal = items.reduce((s, i) => s + i.product.price * i.qty, 0);
-  const shipping = subtotal > 999 ? 0 : 49;
+  const shipping = subtotal >= settings.freeShipThreshold ? 0 : settings.shippingFee;
   const total = subtotal + shipping;
 
   const [form, setForm] = useState({
@@ -68,7 +68,7 @@ function Checkout() {
               <h2 className="font-display text-2xl mb-4 flex items-center gap-2"><CreditCard className="h-5 w-5 text-primary" /> Payment Method</h2>
               <div className="space-y-3">
                 <PayOption checked={method === "razorpay"} onClick={() => setMethod("razorpay")} title="Razorpay — Cards, UPI, Netbanking, Wallets" desc="Pay securely via Razorpay. All major payment methods supported." />
-                <PayOption checked={method === "cod"} onClick={() => setMethod("cod")} title="Cash on Delivery" desc="Pay with cash when your order arrives." />
+                {settings.codEnabled && <PayOption checked={method === "cod"} onClick={() => setMethod("cod")} title="Cash on Delivery" desc="Pay with cash when your order arrives." />}
               </div>
             </section>
           </div>

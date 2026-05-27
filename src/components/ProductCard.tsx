@@ -1,10 +1,11 @@
-import { Link } from "@tanstack/react-router";
-import { Heart, Star, ShoppingBag } from "lucide-react";
+import { Link, useNavigate } from "@tanstack/react-router";
+import { Heart, Star, ShoppingBag, Zap } from "lucide-react";
 import { type Product } from "@/lib/products";
 import { useStore, formatINR } from "@/lib/store";
 
 export function ProductCard({ product }: { product: Product }) {
-  const { wishlist, toggleWishlist, addToCart } = useStore();
+  const { wishlist, toggleWishlist, addToCart, buyNow } = useStore();
+  const nav = useNavigate();
   const wished = wishlist.includes(product.id);
   const off = Math.round(((product.mrp - product.price) / product.mrp) * 100);
   return (
@@ -35,12 +36,20 @@ export function ProductCard({ product }: { product: Product }) {
           <span className="font-semibold text-base">{formatINR(product.price)}</span>
           <span className="text-xs text-muted-foreground line-through">{formatINR(product.mrp)}</span>
         </div>
-        <button
-          onClick={() => addToCart(product.id)}
-          className="mt-2 inline-flex items-center justify-center gap-2 h-9 rounded-full bg-foreground text-background text-xs font-medium hover:bg-primary transition"
-        >
-          <ShoppingBag className="h-3.5 w-3.5" /> Add to cart
-        </button>
+        <div className="grid grid-cols-2 gap-2 mt-2">
+          <button
+            onClick={() => addToCart(product.id)}
+            className="inline-flex items-center justify-center gap-1.5 h-9 rounded-full border border-foreground/80 text-foreground text-xs font-medium hover:bg-foreground hover:text-background transition"
+          >
+            <ShoppingBag className="h-3.5 w-3.5" /> Add
+          </button>
+          <button
+            onClick={() => { buyNow(product.id); nav({ to: "/checkout" }); }}
+            className="inline-flex items-center justify-center gap-1.5 h-9 rounded-full bg-primary text-primary-foreground text-xs font-medium hover:opacity-90 transition"
+          >
+            <Zap className="h-3.5 w-3.5" /> Buy Now
+          </button>
+        </div>
       </div>
     </div>
   );

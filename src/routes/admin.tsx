@@ -1,16 +1,19 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useState } from "react";
-import { useStore, formatINR, type Order } from "@/lib/store";
+import { useStore, formatINR, type Order, type Settings } from "@/lib/store";
 import { type Product } from "@/lib/products";
-import { Lock, LayoutDashboard, Package, ShoppingCart, LogOut, Plus, Pencil, Trash2, IndianRupee, TrendingUp, Users } from "lucide-react";
+import { Lock, LayoutDashboard, Package, ShoppingCart, LogOut, Plus, Pencil, Trash2, IndianRupee, TrendingUp, Users, Tag, CreditCard, Settings as SettingsIcon } from "lucide-react";
 
 export const Route = createFileRoute("/admin")({ component: AdminRoot });
 
+type Tab = "dash" | "products" | "orders" | "categories" | "users" | "payments" | "settings";
+
 function AdminRoot() {
-  const { adminAuthed, adminLogin, adminLogout, adminProducts, saveProduct, deleteProduct, orders, updateOrderStatus } = useStore();
+  const { adminAuthed, adminLogin, adminLogout, adminProducts, saveProduct, deleteProduct, orders, updateOrderStatus, categories, addCategory, renameCategory, deleteCategory, customers, settings, updateSettings } = useStore();
   const [u, setU] = useState(""); const [p, setP] = useState("");
-  const [tab, setTab] = useState<"dash" | "products" | "orders">("dash");
+  const [tab, setTab] = useState<Tab>("dash");
   const [editing, setEditing] = useState<Product | null>(null);
+  const [pickCat, setPickCat] = useState<string | null>(null);
 
   if (!adminAuthed) {
     return (
@@ -46,6 +49,13 @@ function AdminRoot() {
   const revenue = orders.reduce((s, o) => s + o.total, 0);
   const pending = orders.filter((o) => o.status !== "Delivered").length;
 
+  const openNewProduct = () => setPickCat("");
+
+  const createWithCategory = (category: string) => {
+    setPickCat(null);
+    setEditing({ id: "", name: "", category, price: 0, mrp: 0, rating: 4.5, reviews: 0, image: "https://images.unsplash.com/photo-1604608672516-f1b9b1d1f1f4?auto=format&fit=crop&w=900&q=80", description: "", details: [], stock: 0 });
+  };
+
   return (
     <div className="min-h-screen flex bg-muted/30">
       <aside className="w-60 bg-foreground text-background p-5 flex flex-col">
@@ -55,8 +65,12 @@ function AdminRoot() {
         </div>
         <nav className="space-y-1 flex-1">
           <NavBtn active={tab === "dash"} onClick={() => setTab("dash")} icon={LayoutDashboard}>Dashboard</NavBtn>
+          <NavBtn active={tab === "categories"} onClick={() => setTab("categories")} icon={Tag}>Categories</NavBtn>
           <NavBtn active={tab === "products"} onClick={() => setTab("products")} icon={Package}>Products</NavBtn>
           <NavBtn active={tab === "orders"} onClick={() => setTab("orders")} icon={ShoppingCart}>Orders</NavBtn>
+          <NavBtn active={tab === "payments"} onClick={() => setTab("payments")} icon={CreditCard}>Payments</NavBtn>
+          <NavBtn active={tab === "users"} onClick={() => setTab("users")} icon={Users}>Customers</NavBtn>
+          <NavBtn active={tab === "settings"} onClick={() => setTab("settings")} icon={SettingsIcon}>Settings</NavBtn>
         </nav>
         <button onClick={adminLogout} className="flex items-center gap-2 text-sm text-background/70 hover:text-background py-2"><LogOut className="h-4 w-4" /> Logout</button>
         <Link to="/" className="text-xs text-background/50 hover:text-background mt-2">← View store</Link>
@@ -91,11 +105,41 @@ function AdminRoot() {
           </div>
         )}
 
+        {tab === "categories" && (
+          <div>
+            <h1 className="font-display text-3xl">Categories</h1>
+            <p className="text-sm text-muted-foreground">Manage the categories shown across the store.</p>
+            <form onSubmit={(e) => { e.preventDefault(); const fd = new FormData(e.currentTarget); const name = String(fd.get("cat") ?? "").trim(); if (name) { addCategory(name); e.currentTarget.reset(); } }} className="flex gap-2 mt-6 max-w-md">
+              <input name="cat" placeholder="New category name" className="flex-1 h-11 rounded-lg border px-3 bg-card focus:outline-none focus:border-primary" />
+              <button className="h-11 px-5 rounded-lg bg-primary text-primary-foreground text-sm font-medium inline-flex items-center gap-2"><Plus className="h-4 w-4" /> Add</button>
+            </form>
+            <div className="mt-6 grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
+              {categories.map((c) => {
+                const count = adminProducts.filter((p) => p.category === c).length;
+                return (
+                  <div key={c} className="bg-card rounded-2xl p-5 premium-shadow">
+                    <div className="flex items-start justify-between gap-3">
+                      <div>
+                        <p className="font-display text-lg">{c}</p>
+                        <p className="text-xs text-muted-foreground mt-1">{count} product{count === 1 ? "" : "s"}</p>
+                      </div>
+                      <div className="flex gap-1">
+                        <button onClick={() => { const n = prompt("Rename category", c); if (n) renameCategory(c, n); }} className="p-2 hover:bg-muted rounded-lg" aria-label="Rename"><Pencil className="h-4 w-4" /></button>
+                        <button onClick={() => { if (confirm(`Delete category "${c}" and its ${count} product(s)?`)) deleteCategory(c); }} className="p-2 hover:bg-destructive/10 hover:text-destructive rounded-lg" aria-label="Delete"><Trash2 className="h-4 w-4" /></button>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
         {tab === "products" && (
           <div>
             <div className="flex items-center justify-between">
               <h1 className="font-display text-3xl">Products</h1>
-              <button onClick={() => setEditing({ id: "", name: "", category: "Puja Items", price: 0, mrp: 0, rating: 4.5, reviews: 0, image: "https://images.unsplash.com/photo-1604608672516-f1b9b1d1f1f4?auto=format&fit=crop&w=900&q=80", description: "", details: [], stock: 0 })} className="inline-flex items-center gap-2 h-10 px-5 rounded-full bg-primary text-primary-foreground text-sm font-medium"><Plus className="h-4 w-4" /> Add Product</button>
+              <button onClick={openNewProduct} className="inline-flex items-center gap-2 h-10 px-5 rounded-full bg-primary text-primary-foreground text-sm font-medium"><Plus className="h-4 w-4" /> Add Product</button>
             </div>
             <div className="mt-6 bg-card rounded-2xl premium-shadow overflow-hidden">
               <table className="w-full text-sm">
@@ -120,7 +164,10 @@ function AdminRoot() {
                 </tbody>
               </table>
             </div>
-            {editing && <ProductEditor product={editing} onClose={() => setEditing(null)} onSave={(p) => { saveProduct(p); setEditing(null); }} />}
+            {pickCat !== null && (
+              <CategoryPicker categories={categories} onPick={createWithCategory} onClose={() => setPickCat(null)} />
+            )}
+            {editing && <ProductEditor product={editing} categories={categories} onClose={() => setEditing(null)} onSave={(p) => { saveProduct(p); setEditing(null); }} />}
           </div>
         )}
 
@@ -146,6 +193,66 @@ function AdminRoot() {
             </div>
           </div>
         )}
+
+        {tab === "payments" && (
+          <div>
+            <h1 className="font-display text-3xl">Payments</h1>
+            <p className="text-sm text-muted-foreground">All transactions recorded against orders.</p>
+            <div className="grid sm:grid-cols-3 gap-4 mt-6">
+              <Stat icon={IndianRupee} label="Total Received" value={formatINR(orders.filter((o) => o.payment.status === "paid").reduce((s, o) => s + o.total, 0))} />
+              <Stat icon={IndianRupee} label="Pending (COD)" value={formatINR(orders.filter((o) => o.payment.status === "pending").reduce((s, o) => s + o.total, 0))} />
+              <Stat icon={CreditCard} label="Transactions" value={String(orders.length)} />
+            </div>
+            <div className="mt-6 bg-card rounded-2xl premium-shadow overflow-hidden">
+              <table className="w-full text-sm">
+                <thead className="text-left text-muted-foreground text-xs uppercase tracking-wider bg-muted/40">
+                  <tr><th className="p-4">Txn ID</th><th>Order</th><th>Customer</th><th>Method</th><th>Amount</th><th>Status</th><th>Date</th></tr>
+                </thead>
+                <tbody>
+                  {orders.length === 0 && <tr><td colSpan={7} className="p-6 text-center text-muted-foreground">No payments yet.</td></tr>}
+                  {orders.map((o) => (
+                    <tr key={o.id} className="border-t">
+                      <td className="p-4 font-mono text-xs">TXN{o.id.slice(2)}</td>
+                      <td>#{o.id}</td>
+                      <td>{o.address.name}</td>
+                      <td className="uppercase text-xs">{o.payment.method}</td>
+                      <td className="font-medium">{formatINR(o.total)}</td>
+                      <td><span className={`px-2 py-0.5 rounded-full text-xs ${o.payment.status === "paid" ? "bg-green-600/10 text-green-700" : "bg-amber-500/10 text-amber-700"}`}>{o.payment.status}</span></td>
+                      <td className="text-xs text-muted-foreground">{new Date(o.createdAt).toLocaleDateString()}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
+
+        {tab === "users" && (
+          <div>
+            <h1 className="font-display text-3xl">Customers</h1>
+            <p className="text-sm text-muted-foreground">Unique customers who placed orders.</p>
+            <div className="mt-6 bg-card rounded-2xl premium-shadow overflow-hidden">
+              <table className="w-full text-sm">
+                <thead className="text-left text-muted-foreground text-xs uppercase tracking-wider bg-muted/40">
+                  <tr><th className="p-4">Name</th><th>Phone</th><th>Orders</th><th>Total Spent</th></tr>
+                </thead>
+                <tbody>
+                  {customers.length === 0 && <tr><td colSpan={4} className="p-6 text-center text-muted-foreground">No customers yet.</td></tr>}
+                  {customers.map((c, i) => (
+                    <tr key={i} className="border-t">
+                      <td className="p-4 flex items-center gap-3"><span className="h-9 w-9 rounded-full bg-primary/10 text-primary grid place-items-center font-medium">{c.name.charAt(0).toUpperCase()}</span>{c.name}</td>
+                      <td>{c.phone || "—"}</td>
+                      <td>{c.orders}</td>
+                      <td className="font-medium">{formatINR(c.spent)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
+
+        {tab === "settings" && <SettingsPanel settings={settings} onSave={updateSettings} />}
       </main>
     </div>
   );
@@ -158,12 +265,34 @@ function Stat({ icon: Icon, label, value }: { icon: typeof Users; label: string;
   return <div className="bg-card rounded-2xl p-5 premium-shadow"><Icon className="h-6 w-6 text-primary" /><p className="text-xs uppercase tracking-wider text-muted-foreground mt-3">{label}</p><p className="font-display text-2xl mt-1">{value}</p></div>;
 }
 
-function ProductEditor({ product, onClose, onSave }: { product: Product; onClose: () => void; onSave: (p: Product) => void }) {
+function CategoryPicker({ categories, onPick, onClose }: { categories: string[]; onPick: (c: string) => void; onClose: () => void }) {
+  return (
+    <div className="fixed inset-0 bg-black/50 z-50 grid place-items-center p-4" onClick={onClose}>
+      <div className="bg-card rounded-2xl p-6 w-full max-w-md" onClick={(e) => e.stopPropagation()}>
+        <h2 className="font-display text-2xl mb-2">Select a category</h2>
+        <p className="text-sm text-muted-foreground mb-4">Choose the category this new product belongs to.</p>
+        {categories.length === 0 ? (
+          <p className="text-sm text-muted-foreground py-6 text-center">No categories yet. Add one from the Categories tab first.</p>
+        ) : (
+          <div className="grid grid-cols-2 gap-2 max-h-80 overflow-y-auto">
+            {categories.map((c) => (
+              <button key={c} onClick={() => onPick(c)} className="p-4 rounded-xl border-2 border-border hover:border-primary hover:bg-primary/5 text-sm font-medium text-left transition">{c}</button>
+            ))}
+          </div>
+        )}
+        <div className="flex justify-end mt-5"><button onClick={onClose} className="h-10 px-5 rounded-full border text-sm">Cancel</button></div>
+      </div>
+    </div>
+  );
+}
+
+function ProductEditor({ product, categories, onClose, onSave }: { product: Product; categories: string[]; onClose: () => void; onSave: (p: Product) => void }) {
   const [p, setP] = useState<Product>(product);
   return (
     <div className="fixed inset-0 bg-black/50 z-50 grid place-items-center p-4" onClick={onClose}>
       <div className="bg-card rounded-2xl p-6 w-full max-w-lg max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
-        <h2 className="font-display text-2xl mb-4">{product.id ? "Edit Product" : "New Product"}</h2>
+        <h2 className="font-display text-2xl mb-1">{product.id ? "Edit Product" : "New Product"}</h2>
+        <p className="text-xs text-muted-foreground mb-4">Category: <span className="font-medium text-foreground">{p.category}</span></p>
         <div className="space-y-3">
           <In label="Name" value={p.name} onChange={(v) => setP({ ...p, name: v })} />
           <div className="grid grid-cols-2 gap-3">
@@ -171,8 +300,8 @@ function ProductEditor({ product, onClose, onSave }: { product: Product; onClose
             <In label="MRP (₹)" type="number" value={String(p.mrp)} onChange={(v) => setP({ ...p, mrp: +v })} />
             <In label="Stock" type="number" value={String(p.stock)} onChange={(v) => setP({ ...p, stock: +v })} />
             <label className="text-sm"><span className="text-muted-foreground text-xs">Category</span>
-              <select value={p.category} onChange={(e) => setP({ ...p, category: e.target.value as Product["category"] })} className="mt-1 w-full h-11 rounded-lg border px-3 bg-background">
-                {["Deity Dresses","Puja Items","Chandan & Tilak","Itra & Fragrance","Mala & Jewellery","Books & Murti"].map((c) => <option key={c}>{c}</option>)}
+              <select value={p.category} onChange={(e) => setP({ ...p, category: e.target.value })} className="mt-1 w-full h-11 rounded-lg border px-3 bg-background">
+                {categories.map((c) => <option key={c}>{c}</option>)}
               </select>
             </label>
           </div>
@@ -191,4 +320,43 @@ function ProductEditor({ product, onClose, onSave }: { product: Product; onClose
 }
 function In({ label, value, onChange, type = "text" }: { label: string; value: string; onChange: (v: string) => void; type?: string }) {
   return <label className="text-sm block"><span className="text-muted-foreground text-xs">{label}</span><input type={type} value={value} onChange={(e) => onChange(e.target.value)} className="mt-1 w-full h-11 rounded-lg border px-3 bg-background focus:outline-none focus:border-primary" /></label>;
+}
+
+function SettingsPanel({ settings, onSave }: { settings: Settings; onSave: (p: Partial<Settings>) => void }) {
+  const [s, setS] = useState<Settings>(settings);
+  return (
+    <div>
+      <h1 className="font-display text-3xl">Settings</h1>
+      <p className="text-sm text-muted-foreground">Tune the storefront — changes reflect immediately across the app.</p>
+      <div className="grid lg:grid-cols-2 gap-6 mt-6">
+        <section className="bg-card rounded-2xl p-6 premium-shadow space-y-3">
+          <h2 className="font-display text-xl">Brand</h2>
+          <In label="Site Name" value={s.siteName} onChange={(v) => setS({ ...s, siteName: v })} />
+          <In label="Tagline" value={s.tagline} onChange={(v) => setS({ ...s, tagline: v })} />
+          <In label="Announcement Bar" value={s.announcement} onChange={(v) => setS({ ...s, announcement: v })} />
+        </section>
+        <section className="bg-card rounded-2xl p-6 premium-shadow space-y-3">
+          <h2 className="font-display text-xl">Contact</h2>
+          <In label="Support Email" value={s.supportEmail} onChange={(v) => setS({ ...s, supportEmail: v })} />
+          <In label="Support Phone" value={s.supportPhone} onChange={(v) => setS({ ...s, supportPhone: v })} />
+        </section>
+        <section className="bg-card rounded-2xl p-6 premium-shadow space-y-3">
+          <h2 className="font-display text-xl">Shipping</h2>
+          <In label="Free Shipping Above (₹)" type="number" value={String(s.freeShipThreshold)} onChange={(v) => setS({ ...s, freeShipThreshold: +v })} />
+          <In label="Default Shipping Fee (₹)" type="number" value={String(s.shippingFee)} onChange={(v) => setS({ ...s, shippingFee: +v })} />
+        </section>
+        <section className="bg-card rounded-2xl p-6 premium-shadow space-y-3">
+          <h2 className="font-display text-xl">Payments</h2>
+          <In label="Razorpay Key ID" value={s.razorpayKeyId} onChange={(v) => setS({ ...s, razorpayKeyId: v })} />
+          <label className="flex items-center gap-3 text-sm pt-2">
+            <input type="checkbox" checked={s.codEnabled} onChange={(e) => setS({ ...s, codEnabled: e.target.checked })} className="h-4 w-4 accent-primary" />
+            Enable Cash on Delivery
+          </label>
+        </section>
+      </div>
+      <div className="flex justify-end mt-6">
+        <button onClick={() => onSave(s)} className="h-11 px-6 rounded-full bg-primary text-primary-foreground font-medium">Save Settings</button>
+      </div>
+    </div>
+  );
 }

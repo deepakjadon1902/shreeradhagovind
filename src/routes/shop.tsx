@@ -2,7 +2,6 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
 import { Layout } from "@/components/Layout";
 import { ProductCard } from "@/components/ProductCard";
-import { CATEGORIES } from "@/lib/products";
 import { useStore } from "@/lib/store";
 import { SlidersHorizontal } from "lucide-react";
 
@@ -18,7 +17,8 @@ export const Route = createFileRoute("/shop")({
 
 function Shop() {
   const search = Route.useSearch();
-  const { adminProducts } = useStore();
+  const { adminProducts, categories } = useStore();
+  const CATS = ["All", ...categories];
   const [cat, setCat] = useState<string>(search.cat ?? "All");
   const [sort, setSort] = useState("featured");
   const [maxPrice, setMaxPrice] = useState(2500);
@@ -48,7 +48,7 @@ function Shop() {
             <div>
               <h3 className="font-display text-lg mb-3 flex items-center gap-2"><SlidersHorizontal className="h-4 w-4" /> Categories</h3>
               <div className="flex flex-col gap-1">
-                {CATEGORIES.map((c) => (
+                {CATS.map((c) => (
                   <button key={c} onClick={() => setCat(c)} className={`text-left px-3 py-2 rounded-lg text-sm transition ${cat === c ? "bg-primary text-primary-foreground" : "hover:bg-muted"}`}>{c}</button>
                 ))}
               </div>

@@ -4,7 +4,7 @@ import { useState } from "react";
 import { useStore } from "@/lib/store";
 
 export function Header() {
-  const { cart, wishlist, user } = useStore();
+  const { cart, wishlist, user, settings } = useStore();
   const [open, setOpen] = useState(false);
   const [q, setQ] = useState("");
   const nav = useNavigate();
@@ -19,7 +19,7 @@ export function Header() {
     <header className="sticky top-0 z-40 bg-background/85 backdrop-blur-md border-b border-border/60">
       <div className="bg-primary/95 text-primary-foreground text-xs">
         <div className="container-app py-1.5 text-center tracking-wide">
-          ॥ Radhe Radhe ॥ &nbsp;·&nbsp; Free shipping above ₹999 across India
+          {settings.announcement}
         </div>
       </div>
       <div className="container-app flex h-16 items-center gap-4">
@@ -28,7 +28,7 @@ export function Header() {
         </button>
         <Link to="/" className="flex items-center gap-2">
           <span className="h-9 w-9 rounded-full gold-accent grid place-items-center text-white font-display text-lg">वृ</span>
-          <span className="font-display text-2xl leading-none">Vrindavan<span className="text-primary">.</span></span>
+          <span className="font-display text-2xl leading-none">{settings.siteName}<span className="text-primary">.</span></span>
         </Link>
         <nav className="hidden md:flex items-center gap-6 ml-6 text-sm">
           <Link to="/" className="hover:text-primary" activeProps={{ className: "text-primary" }} activeOptions={{ exact: true }}>Home</Link>
