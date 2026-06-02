@@ -73,7 +73,7 @@ type Store = {
 };
 
 const Ctx = createContext<Store | null>(null);
-const KEY = "vrindavan_v1";
+const KEY = "shri_radha_govind_v1";
 
 function load<T>(k: string, fallback: T): T {
   if (typeof window === "undefined") return fallback;
