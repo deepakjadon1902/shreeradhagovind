@@ -2,6 +2,7 @@ import { Link, useNavigate } from "@tanstack/react-router";
 import { Heart, Search, ShoppingBag, User, Menu, X } from "lucide-react";
 import { useState } from "react";
 import { useStore } from "@/lib/store";
+import logo from "@/assets/logo.jpeg.asset.json";
 
 export function Header() {
   const { cart, wishlist, user, settings } = useStore();
