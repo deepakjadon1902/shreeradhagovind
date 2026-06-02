@@ -2,6 +2,7 @@ import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useState } from "react";
 import { useStore } from "@/lib/store";
 import { Mail, Lock, Eye, EyeOff } from "lucide-react";
+import logo from "@/assets/logo.jpeg.asset.json";
 
 export const Route = createFileRoute("/login")({ component: Login });
 
