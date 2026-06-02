@@ -28,16 +28,16 @@ export type Settings = {
 };
 
 const DEFAULT_SETTINGS: Settings = {
-  siteName: "Vrindavan",
-  tagline: "Sacred goods from the land of Krishna",
-  supportEmail: "support@vrindavan.shop",
+  siteName: "Shri Radha Govind Store",
+  tagline: "Made With Love From The Heart Of Vrindavan",
+  supportEmail: "support@shriradhagovind.store",
   supportPhone: "+91 98765 43210",
   currency: "INR",
   freeShipThreshold: 999,
   shippingFee: 49,
   razorpayKeyId: "rzp_test_XXXXXXXXXXXXXX",
   codEnabled: true,
-  announcement: "॥ Radhe Radhe ॥ · Free shipping above ₹999 across India",
+  announcement: "॥ Radhe Radhe ॥ · Made With Love From The Heart Of Vrindavan · Free shipping above ₹999",
 };
 
 type Store = {
@@ -73,7 +73,7 @@ type Store = {
 };
 
 const Ctx = createContext<Store | null>(null);
-const KEY = "vrindavan_v1";
+const KEY = "shri_radha_govind_v1";
 
 function load<T>(k: string, fallback: T): T {
   if (typeof window === "undefined") return fallback;

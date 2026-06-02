@@ -2,6 +2,7 @@ import { Link, useNavigate } from "@tanstack/react-router";
 import { Heart, Search, ShoppingBag, User, Menu, X } from "lucide-react";
 import { useState } from "react";
 import { useStore } from "@/lib/store";
+import logo from "@/assets/logo.jpeg.asset.json";
 
 export function Header() {
   const { cart, wishlist, user, settings } = useStore();
@@ -26,9 +27,9 @@ export function Header() {
         <button className="md:hidden" onClick={() => setOpen(!open)} aria-label="Menu">
           {open ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
         </button>
-        <Link to="/" className="flex items-center gap-2">
-          <span className="h-9 w-9 rounded-full gold-accent grid place-items-center text-white font-display text-lg">वृ</span>
-          <span className="font-display text-2xl leading-none">{settings.siteName}<span className="text-primary">.</span></span>
+        <Link to="/" className="flex items-center gap-2.5 min-w-0">
+          <img src={logo.url} alt="Shri Radha Govind Store" className="h-11 w-11 rounded-full object-cover ring-1 ring-primary/30 shadow-sm" />
+          <span className="font-display text-lg md:text-xl leading-tight truncate">{settings.siteName}</span>
         </Link>
         <nav className="hidden md:flex items-center gap-6 ml-6 text-sm">
           <Link to="/" className="hover:text-primary" activeProps={{ className: "text-primary" }} activeOptions={{ exact: true }}>Home</Link>

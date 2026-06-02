@@ -2,6 +2,7 @@ import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useState } from "react";
 import { useStore } from "@/lib/store";
 import { Mail, Lock, Eye, EyeOff } from "lucide-react";
+import logo from "@/assets/logo.jpeg.asset.json";
 
 export const Route = createFileRoute("/login")({ component: Login });
 
@@ -37,9 +38,9 @@ export function AuthShell({ title, subtitle, children }: { title: string; subtit
       </div>
       <div className="flex items-center justify-center p-6 sm:p-10">
         <div className="w-full max-w-md">
-          <Link to="/" className="flex items-center gap-2 mb-8">
-            <span className="h-9 w-9 rounded-full gold-accent grid place-items-center text-white font-display text-lg">वृ</span>
-            <span className="font-display text-2xl">Vrindavan.</span>
+          <Link to="/" className="flex items-center gap-2.5 mb-8">
+            <img src={logo.url} alt="Shri Radha Govind Store" className="h-10 w-10 rounded-full object-cover ring-1 ring-primary/30" />
+            <span className="font-display text-xl">Shri Radha Govind Store</span>
           </Link>
           <h1 className="font-display text-4xl">{title}</h1>
           <p className="text-muted-foreground mt-2 mb-8">{subtitle}</p>
