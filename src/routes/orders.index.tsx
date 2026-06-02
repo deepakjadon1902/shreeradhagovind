@@ -3,7 +3,7 @@ import { Layout } from "@/components/Layout";
 import { useStore, formatINR } from "@/lib/store";
 import { Package } from "lucide-react";
 
-export const Route = createFileRoute("/orders")({ component: OrdersPage });
+export const Route = createFileRoute("/orders/")({ component: OrdersPage });
 
 function OrdersPage() {
   const { orders } = useStore();
