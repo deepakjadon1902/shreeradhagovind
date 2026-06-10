@@ -10,7 +10,7 @@ function Login() {
   const { login, loginGoogle } = useStore();
   const nav = useNavigate();
   const [email, setEmail] = useState(""); const [pw, setPw] = useState(""); const [show, setShow] = useState(false);
-  const submit = (e: React.FormEvent) => { e.preventDefault(); if (!email || !pw) return; login(email); nav({ to: "/" }); };
+  const submit = async (e: React.FormEvent) => { e.preventDefault(); if (!email || !pw) return; try { await login(email, pw); nav({ to: "/" }); } catch { /* toast shown in store */ } };
   return <AuthShell title="Welcome back" subtitle="Sign in to continue your sacred journey">
     <button onClick={() => { loginGoogle(); nav({ to: "/" }); }} className="w-full h-12 rounded-full border border-border bg-card flex items-center justify-center gap-3 hover:border-primary transition font-medium">
       <GoogleIcon /> Continue with Google
