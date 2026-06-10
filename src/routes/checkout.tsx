@@ -50,6 +50,8 @@ function Checkout() {
     } finally {
       setProcessing(false);
     }
+  };
+
 
   return (
     <Layout>
