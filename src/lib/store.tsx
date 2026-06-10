@@ -94,13 +94,14 @@ const mapProduct = (p: any): Product => ({
   name: p.name,
   description: p.description ?? "",
   price: p.price,
-  compareAtPrice: p.compareAtPrice ?? 0,
+  mrp: p.mrp ?? p.compareAtPrice ?? 0,
   image: p.image ?? "",
   images: p.images ?? [],
   category: p.category,
   stock: p.stock ?? 100,
-  badge: p.badge ?? "",
   rating: p.rating ?? 4.7,
+  reviews: p.reviews ?? 0,
+  details: p.details ?? [],
 });
 
 const mapSettings = (s: any): Partial<Settings> => ({
@@ -115,23 +116,25 @@ const mapSettings = (s: any): Partial<Settings> => ({
   announcement: s.announcement,
 });
 
+const fallbackProduct = (i: any): Product => ({
+  id: String(i.productId ?? i.id ?? ""),
+  name: i.name ?? "Product",
+  description: "",
+  price: i.price ?? 0,
+  mrp: 0,
+  image: i.image ?? "",
+  images: [],
+  category: "",
+  stock: 0,
+  rating: 5,
+  reviews: 0,
+  details: [],
+});
+
 const mapOrder = (o: any, productLookup: Map<string, Product>): Order => ({
   id: String(o._id ?? o.id),
   items: (o.items ?? []).map((i: any) => ({
-    product:
-      productLookup.get(String(i.productId)) ?? ({
-        id: String(i.productId),
-        name: i.name ?? "Product",
-        description: "",
-        price: i.price ?? 0,
-        compareAtPrice: 0,
-        image: i.image ?? "",
-        images: [],
-        category: "",
-        stock: 0,
-        badge: "",
-        rating: 5,
-      } as Product),
+    product: productLookup.get(String(i.productId)) ?? fallbackProduct(i),
     qty: i.qty,
   })),
   total: o.total,

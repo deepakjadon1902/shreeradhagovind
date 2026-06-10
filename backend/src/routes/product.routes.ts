@@ -39,12 +39,14 @@ const productSchema = z.object({
   name: z.string().min(1),
   description: z.string().optional().default(""),
   price: z.number().min(0),
-  compareAtPrice: z.number().min(0).optional().default(0),
-  image: z.string().url().optional().default(""),
-  images: z.array(z.string().url()).optional().default([]),
+  mrp: z.number().min(0).optional().default(0),
+  image: z.string().optional().default(""),
+  images: z.array(z.string()).optional().default([]),
   category: z.string().min(1),
   stock: z.number().min(0).optional().default(100),
-  badge: z.string().optional().default(""),
+  rating: z.number().min(0).max(5).optional(),
+  reviews: z.number().min(0).optional(),
+  details: z.array(z.string()).optional().default([]),
   isActive: z.boolean().optional().default(true),
 });
 
