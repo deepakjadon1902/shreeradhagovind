@@ -52,9 +52,9 @@ r.get("/payments", async (_req, res, next) => {
         id: o._id,
         user: o.user,
         amount: o.total,
-        method: o.payment.method,
-        status: o.payment.status,
-        razorpayPaymentId: o.payment.razorpayPaymentId,
+        method: o.payment?.method,
+        status: o.payment?.status,
+        razorpayPaymentId: o.payment?.razorpayPaymentId,
         createdAt: o.createdAt,
       })),
     });
