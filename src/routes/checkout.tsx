@@ -36,15 +36,22 @@ function Checkout() {
       toast("Opening Razorpay secure checkout…");
       await new Promise((r) => setTimeout(r, 1500));
     }
-    const order = placeOrder({
-      items: items.map((i) => ({ product: i.product, qty: i.qty })),
-      total,
-      address: form,
-      payment: { method, status: method === "razorpay" ? "paid" : "pending" },
-    });
-    toast.success("Order placed successfully!");
-    nav({ to: "/orders/$id", params: { id: order.id } });
+    try {
+      const order = await placeOrder({
+        items: items.map((i) => ({ product: i.product, qty: i.qty })),
+        total,
+        address: form,
+        payment: { method, status: method === "razorpay" ? "paid" : "pending" },
+      });
+      toast.success("Order placed successfully!");
+      nav({ to: "/orders/$id", params: { id: order.id } });
+    } catch {
+      // toast already shown
+    } finally {
+      setProcessing(false);
+    }
   };
+
 
   return (
     <Layout>

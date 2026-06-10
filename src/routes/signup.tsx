@@ -7,10 +7,10 @@ import { AuthShell, Field, Divider, GoogleIcon } from "./login";
 export const Route = createFileRoute("/signup")({ component: Signup });
 
 function Signup() {
-  const { login, loginGoogle } = useStore();
+  const { signup, loginGoogle } = useStore();
   const nav = useNavigate();
   const [name, setName] = useState(""); const [email, setEmail] = useState(""); const [pw, setPw] = useState(""); const [show, setShow] = useState(false);
-  const submit = (e: React.FormEvent) => { e.preventDefault(); if (!email || !pw || !name) return; login(email, name); nav({ to: "/" }); };
+  const submit = async (e: React.FormEvent) => { e.preventDefault(); if (!email || !pw || !name) return; try { await signup(name, email, pw); nav({ to: "/" }); } catch { /* toast shown in store */ } };
   return <AuthShell title="Create account" subtitle="Begin your divine shopping journey">
     <button onClick={() => { loginGoogle(); nav({ to: "/" }); }} className="w-full h-12 rounded-full border border-border bg-card flex items-center justify-center gap-3 hover:border-primary transition font-medium">
       <GoogleIcon /> Sign up with Google
