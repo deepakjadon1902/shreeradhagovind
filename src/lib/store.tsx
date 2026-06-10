@@ -344,12 +344,14 @@ export function StoreProvider({ children }: { children: ReactNode }) {
           name: p.name,
           description: p.description,
           price: Number(p.price),
-          compareAtPrice: Number(p.compareAtPrice ?? 0),
+          mrp: Number(p.mrp ?? 0),
           image: p.image,
           images: p.images ?? [],
           category: p.category,
           stock: Number(p.stock ?? 100),
-          badge: p.badge ?? "",
+          rating: Number(p.rating ?? 4.7),
+          reviews: Number(p.reviews ?? 0),
+          details: p.details ?? [],
         };
         const isExisting = p.id && adminProducts.some((x) => x.id === p.id);
         const r = isExisting
@@ -438,7 +440,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     const n = newName.trim(); if (!n || oldName === n) return;
     if (apiEnabled) {
       const id = categoryIds[oldName];
-      if (!id) return toast.error("Unknown category");
+      if (!id) { toast.error("Unknown category"); return; }
       try {
         await api(`/categories/${id}`, { method: "PATCH", body: { name: n } });
         setCategoryIds((m) => { const x = { ...m }; delete x[oldName]; x[n] = id; return x; });
@@ -456,7 +458,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   const deleteCategory: Store["deleteCategory"] = async (name) => {
     if (apiEnabled) {
       const id = categoryIds[name];
-      if (!id) return toast.error("Unknown category");
+      if (!id) { toast.error("Unknown category"); return; }
       try {
         await api(`/categories/${id}`, { method: "DELETE" });
         setCategoryIds((m) => { const x = { ...m }; delete x[name]; return x; });
