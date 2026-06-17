@@ -56,6 +56,7 @@ function OrderDetail() {
             ))}
           </div>
         </div>
+        )}
 
         <div className="grid lg:grid-cols-[1fr_360px] gap-6 mt-6">
           <div className="premium-card p-6">
