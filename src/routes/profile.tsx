@@ -3,7 +3,10 @@ import { Layout } from "@/components/Layout";
 import { useStore } from "@/lib/store";
 import { User, ShoppingBag, Heart, MapPin, LogOut } from "lucide-react";
 
-export const Route = createFileRoute("/profile")({ component: Profile });
+export const Route = createFileRoute("/profile")({
+  component: Profile,
+  head: () => ({ meta: [{ title: "My Profile — Shri Radha Govind Store" }, { name: "robots", content: "noindex" }] }),
+});
 
 function Profile() {
   const { user, logout, orders, wishlist } = useStore();

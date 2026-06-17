@@ -3,7 +3,10 @@ import { Layout } from "@/components/Layout";
 import { useStore, formatINR, type Order } from "@/lib/store";
 import { Check, Package, Truck, Home, CreditCard } from "lucide-react";
 
-export const Route = createFileRoute("/orders/$id")({ component: OrderDetail });
+export const Route = createFileRoute("/orders/$id")({
+  component: OrderDetail,
+  head: () => ({ meta: [{ title: "Order Details — Shri Radha Govind Store" }, { name: "robots", content: "noindex" }] }),
+});
 
 const STAGES: Order["status"][] = ["Placed", "Packed", "Shipped", "Out for delivery", "Delivered"];
 
@@ -15,6 +18,7 @@ function OrderDetail() {
   if (!order) return <Layout><div className="container-app py-20 text-center"><h1 className="font-display text-3xl">Order not found</h1><Link to="/orders" className="text-primary mt-4 inline-block">← All orders</Link></div></Layout>;
 
   const idx = STAGES.indexOf(order.status);
+  const cancelled = order.status === "Cancelled";
   return (
     <Layout>
       <div className="container-app py-10">
@@ -22,6 +26,21 @@ function OrderDetail() {
         <h1 className="font-display text-4xl mt-2">Order #{order.id}</h1>
         <p className="text-muted-foreground text-sm">Placed on {new Date(order.createdAt).toLocaleString()}</p>
 
+        {order.trackingId && (
+          <div className="premium-card p-5 mt-4 flex flex-wrap items-center gap-4">
+            <div className="flex-1 min-w-0">
+              <p className="text-xs uppercase tracking-wider text-muted-foreground">Tracking ID</p>
+              <p className="font-display text-xl text-primary">{order.trackingId}</p>
+            </div>
+            <div>
+              <p className="text-xs uppercase tracking-wider text-muted-foreground">Courier</p>
+              <p className="font-medium">{order.courier ?? "To be assigned"}</p>
+            </div>
+            <Link to="/track" search={{ id: order.trackingId } as never} className="h-10 px-5 rounded-full bg-primary text-primary-foreground text-sm inline-flex items-center">Open public tracker</Link>
+          </div>
+        )}
+
+        {!cancelled && (
         <div className="premium-card p-6 mt-6">
           <h2 className="font-display text-xl mb-6">Track your order</h2>
           <div className="flex items-center justify-between relative">
@@ -37,6 +56,7 @@ function OrderDetail() {
             ))}
           </div>
         </div>
+        )}
 
         <div className="grid lg:grid-cols-[1fr_360px] gap-6 mt-6">
           <div className="premium-card p-6">

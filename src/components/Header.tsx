@@ -34,6 +34,7 @@ export function Header() {
         <nav className="hidden md:flex items-center gap-6 ml-6 text-sm">
           <Link to="/" className="hover:text-primary" activeProps={{ className: "text-primary" }} activeOptions={{ exact: true }}>Home</Link>
           <Link to="/shop" className="hover:text-primary" activeProps={{ className: "text-primary" }}>Shop</Link>
+          <Link to="/track" className="hover:text-primary" activeProps={{ className: "text-primary" }}>Track Order</Link>
           <Link to="/orders" className="hover:text-primary" activeProps={{ className: "text-primary" }}>Orders</Link>
         </nav>
         <form onSubmit={submit} className="hidden md:flex flex-1 max-w-md mx-4 relative">
@@ -66,7 +67,7 @@ export function Header() {
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
               <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search…" className="w-full h-10 pl-10 pr-4 rounded-full bg-muted/60 text-sm focus:outline-none" />
             </form>
-            {[["/","Home"],["/shop","Shop"],["/orders","Orders"],["/profile","Profile"]].map(([to,l]) => (
+            {[["/","Home"],["/shop","Shop"],["/track","Track Order"],["/orders","Orders"],["/profile","Profile"]].map(([to,l]) => (
               <Link key={to} to={to} onClick={() => setOpen(false)} className="py-2 text-sm hover:text-primary">{l}</Link>
             ))}
           </div>

@@ -13,6 +13,16 @@ export const Route = createFileRoute("/shop")({
     cat: typeof s.cat === "string" ? s.cat : undefined,
   }),
   component: Shop,
+  head: () => ({
+    meta: [
+      { title: "Shop Sacred Vrindavan Essentials — Shri Radha Govind Store" },
+      { name: "description", content: "Browse the full collection of Krishna & Radha Rani poshak, gopi chandan, itra, mala, puja items and Janmashtami specials." },
+      { property: "og:title", content: "Shop — Shri Radha Govind Store" },
+      { property: "og:description", content: "Browse authentic sacred essentials hand-curated from Vrindavan." },
+      { property: "og:url", content: "https://shreeradhagovind.lovable.app/shop" },
+    ],
+    links: [{ rel: "canonical", href: "https://shreeradhagovind.lovable.app/shop" }],
+  }),
 });
 
 function Shop() {

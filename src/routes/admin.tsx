@@ -1,19 +1,23 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useState } from "react";
-import { useStore, formatINR, type Order, type Settings } from "@/lib/store";
+import { useStore, formatINR, type Order, type Settings, type Courier, COURIERS } from "@/lib/store";
 import { type Product } from "@/lib/products";
-import { Lock, LayoutDashboard, Package, ShoppingCart, LogOut, Plus, Pencil, Trash2, IndianRupee, TrendingUp, Users, Tag, CreditCard, Settings as SettingsIcon } from "lucide-react";
+import { Lock, LayoutDashboard, Package, ShoppingCart, LogOut, Plus, Pencil, Trash2, IndianRupee, TrendingUp, Users, Tag, CreditCard, Settings as SettingsIcon, Truck, Check, X as XIcon } from "lucide-react";
 
-export const Route = createFileRoute("/admin")({ component: AdminRoot });
+export const Route = createFileRoute("/admin")({
+  component: AdminRoot,
+  head: () => ({ meta: [{ title: "Admin · Shri Radha Govind Store" }, { name: "robots", content: "noindex,nofollow" }] }),
+});
 
 type Tab = "dash" | "products" | "orders" | "categories" | "users" | "payments" | "settings";
 
 function AdminRoot() {
-  const { adminAuthed, adminLogin, adminLogout, adminProducts, saveProduct, deleteProduct, orders, updateOrderStatus, categories, addCategory, renameCategory, deleteCategory, customers, settings, updateSettings } = useStore();
+  const { adminAuthed, adminLogin, adminLogout, adminProducts, saveProduct, deleteProduct, orders, updateOrderStatus, updateOrderTracking, verifyOrderPayment, categories, addCategory, renameCategory, deleteCategory, customers, settings, updateSettings } = useStore();
   const [u, setU] = useState(""); const [p, setP] = useState("");
   const [tab, setTab] = useState<Tab>("dash");
   const [editing, setEditing] = useState<Product | null>(null);
   const [pickCat, setPickCat] = useState<string | null>(null);
+  const [editingOrder, setEditingOrder] = useState<Order | null>(null);
 
   if (!adminAuthed) {
     return (
@@ -174,23 +178,25 @@ function AdminRoot() {
         {tab === "orders" && (
           <div>
             <h1 className="font-display text-3xl">Orders</h1>
+            <p className="text-sm text-muted-foreground">Set tracking ID, courier and status. Customer gets an email on every update.</p>
             <div className="mt-6 space-y-3">
               {orders.length === 0 ? <p className="text-sm text-muted-foreground">No orders yet.</p> : orders.map((o) => (
                 <div key={o.id} className="bg-card rounded-xl p-5 premium-shadow flex flex-wrap items-center gap-4">
                   <div className="flex-1 min-w-0">
                     <p className="font-medium">#{o.id} · {o.address.name}</p>
                     <p className="text-xs text-muted-foreground">{new Date(o.createdAt).toLocaleString()} · {o.items.length} items · {o.address.city}</p>
+                    {o.trackingId && <p className="text-xs mt-1"><span className="text-muted-foreground">Tracking:</span> <span className="font-mono text-primary">{o.trackingId}</span>{o.courier ? ` · ${o.courier}` : ""}</p>}
                   </div>
                   <div className="text-right">
                     <p className="font-semibold">{formatINR(o.total)}</p>
-                    <p className={`text-xs ${o.payment.status === "paid" ? "text-green-700" : "text-amber-700"}`}>{o.payment.method.toUpperCase()} · {o.payment.status}</p>
+                    <p className={`text-xs ${o.payment.status === "paid" ? "text-green-700" : o.payment.status === "failed" ? "text-destructive" : "text-amber-700"}`}>{o.payment.method.toUpperCase()} · {o.payment.status}</p>
                   </div>
-                  <select value={o.status} onChange={(e) => updateOrderStatus(o.id, e.target.value as Order["status"])} className="h-10 rounded-lg border px-3 text-sm bg-background">
-                    {(["Placed","Packed","Shipped","Out for delivery","Delivered"] as Order["status"][]).map((s) => <option key={s}>{s}</option>)}
-                  </select>
+                  <span className="px-2 py-1 rounded-full bg-primary/10 text-primary text-xs">{o.status}</span>
+                  <button onClick={() => setEditingOrder(o)} className="h-10 px-4 rounded-lg bg-primary text-primary-foreground text-sm inline-flex items-center gap-2"><Truck className="h-4 w-4" /> Manage</button>
                 </div>
               ))}
             </div>
+            {editingOrder && <OrderManager order={editingOrder} onClose={() => setEditingOrder(null)} onSave={(patch) => { updateOrderTracking(editingOrder.id, patch); setEditingOrder(null); }} />}
           </div>
         )}
 
@@ -206,18 +212,24 @@ function AdminRoot() {
             <div className="mt-6 bg-card rounded-2xl premium-shadow overflow-hidden">
               <table className="w-full text-sm">
                 <thead className="text-left text-muted-foreground text-xs uppercase tracking-wider bg-muted/40">
-                  <tr><th className="p-4">Txn ID</th><th>Order</th><th>Customer</th><th>Method</th><th>Amount</th><th>Status</th><th>Date</th></tr>
+                  <tr><th className="p-4">Txn ID</th><th>Order</th><th>Customer</th><th>Method</th><th>Amount</th><th>Status</th><th>Verify</th><th>Date</th></tr>
                 </thead>
                 <tbody>
-                  {orders.length === 0 && <tr><td colSpan={7} className="p-6 text-center text-muted-foreground">No payments yet.</td></tr>}
+                  {orders.length === 0 && <tr><td colSpan={8} className="p-6 text-center text-muted-foreground">No payments yet.</td></tr>}
                   {orders.map((o) => (
                     <tr key={o.id} className="border-t">
-                      <td className="p-4 font-mono text-xs">TXN{o.id.slice(2)}</td>
+                      <td className="p-4 font-mono text-xs">TXN{o.id.slice(-6)}</td>
                       <td>#{o.id}</td>
                       <td>{o.address.name}</td>
                       <td className="uppercase text-xs">{o.payment.method}</td>
                       <td className="font-medium">{formatINR(o.total)}</td>
-                      <td><span className={`px-2 py-0.5 rounded-full text-xs ${o.payment.status === "paid" ? "bg-green-600/10 text-green-700" : "bg-amber-500/10 text-amber-700"}`}>{o.payment.status}</span></td>
+                      <td><span className={`px-2 py-0.5 rounded-full text-xs ${o.payment.status === "paid" ? "bg-green-600/10 text-green-700" : o.payment.status === "failed" ? "bg-destructive/10 text-destructive" : "bg-amber-500/10 text-amber-700"}`}>{o.payment.status}</span></td>
+                      <td>
+                        <div className="flex gap-1">
+                          <button onClick={() => { if (confirm("Mark as PAID and send invoice email?")) verifyOrderPayment(o.id, "paid"); }} disabled={o.payment.status === "paid"} className="p-1.5 rounded-md bg-green-600/10 text-green-700 hover:bg-green-600/20 disabled:opacity-30" title="Mark paid"><Check className="h-3.5 w-3.5" /></button>
+                          <button onClick={() => { if (confirm("Mark as FAILED, auto-cancel order, and email user?")) verifyOrderPayment(o.id, "failed"); }} disabled={o.payment.status === "failed"} className="p-1.5 rounded-md bg-destructive/10 text-destructive hover:bg-destructive/20 disabled:opacity-30" title="Mark failed"><XIcon className="h-3.5 w-3.5" /></button>
+                        </div>
+                      </td>
                       <td className="text-xs text-muted-foreground">{new Date(o.createdAt).toLocaleDateString()}</td>
                     </tr>
                   ))}

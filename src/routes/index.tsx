@@ -5,7 +5,29 @@ import { PRODUCTS, CATEGORIES } from "@/lib/products";
 import { ArrowRight, Sparkles, Truck, ShieldCheck, Flower2 } from "lucide-react";
 import heroKrishna from "@/assets/hero-krishna.jpg";
 
-export const Route = createFileRoute("/")({ component: Home });
+export const Route = createFileRoute("/")({
+  component: Home,
+  head: () => ({
+    meta: [
+      { title: "Shri Radha Govind Store — Sacred Vrindavan Essentials Online" },
+      { name: "description", content: "Authentic Krishna & Radha Rani poshak, gopi chandan, itra, mala and puja items — handcrafted in Vrindavan and delivered across India." },
+      { property: "og:title", content: "Shri Radha Govind Store — Sacred Vrindavan Essentials" },
+      { property: "og:description", content: "Shop authentic Vrindavan products — poshak, chandan, itra, mala, puja items. Free shipping above ₹999." },
+      { property: "og:url", content: "https://shreeradhagovind.lovable.app/" },
+    ],
+    links: [{ rel: "canonical", href: "https://shreeradhagovind.lovable.app/" }],
+    scripts: [{
+      type: "application/ld+json",
+      children: JSON.stringify({
+        "@context": "https://schema.org",
+        "@type": "Organization",
+        name: "Shri Radha Govind Store",
+        url: "https://shreeradhagovind.lovable.app/",
+        description: "Sacred essentials from Vrindavan — poshak, chandan, itra, mala, puja items.",
+      }),
+    }],
+  }),
+});
 
 function Home() {
   const featured = PRODUCTS.slice(0, 8);

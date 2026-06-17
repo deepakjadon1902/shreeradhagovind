@@ -4,13 +4,18 @@ import { toast } from "sonner";
 import { api, isApiEnabled, setToken, getToken } from "./api";
 
 export type CartItem = { productId: string; qty: number };
+export type Courier = "Ekart" | "DTDC" | "Shree Murti" | "India Post" | "Delhivery" | "Bluedart";
+export const COURIERS: Courier[] = ["Ekart", "DTDC", "Shree Murti", "India Post", "Delhivery", "Bluedart"];
 export type Order = {
   id: string;
+  trackingId?: string;
+  courier?: Courier | null;
+  courierTrackingUrl?: string;
   items: { product: Product; qty: number }[];
   total: number;
   address: { name: string; phone: string; line1: string; city: string; state: string; pincode: string };
-  payment: { method: "razorpay" | "cod"; status: "paid" | "pending" };
-  status: "Placed" | "Packed" | "Shipped" | "Out for delivery" | "Delivered";
+  payment: { method: "razorpay" | "cod"; status: "paid" | "pending" | "failed" };
+  status: "Placed" | "Packed" | "Shipped" | "Out for delivery" | "Delivered" | "Cancelled";
   createdAt: number;
 };
 export type User = { id?: string; name: string; email: string; phone?: string; avatar?: string; role?: "user" | "admin" } | null;
@@ -66,6 +71,8 @@ type Store = {
   saveProduct: (p: Product) => Promise<void> | void;
   deleteProduct: (id: string) => Promise<void> | void;
   updateOrderStatus: (id: string, status: Order["status"]) => Promise<void> | void;
+  updateOrderTracking: (id: string, patch: { trackingId?: string; courier?: Courier | null; courierTrackingUrl?: string; status?: Order["status"] }) => Promise<void> | void;
+  verifyOrderPayment: (id: string, status: "paid" | "failed") => Promise<void> | void;
   categories: string[];
   addCategory: (name: string) => Promise<void> | void;
   renameCategory: (oldName: string, newName: string) => Promise<void> | void;
@@ -133,13 +140,16 @@ const fallbackProduct = (i: any): Product => ({
 
 const mapOrder = (o: any, productLookup: Map<string, Product>): Order => ({
   id: String(o._id ?? o.id),
+  trackingId: o.trackingId ?? undefined,
+  courier: o.courier ?? null,
+  courierTrackingUrl: o.courierTrackingUrl ?? "",
   items: (o.items ?? []).map((i: any) => ({
     product: productLookup.get(String(i.productId)) ?? fallbackProduct(i),
     qty: i.qty,
   })),
   total: o.total,
   address: o.address ?? { name: "", phone: "", line1: "", city: "", state: "", pincode: "" },
-  payment: { method: o.payment?.method ?? "cod", status: (o.payment?.status === "paid" ? "paid" : "pending") },
+  payment: { method: o.payment?.method ?? "cod", status: (o.payment?.status as any) ?? "pending" },
   status: o.status ?? "Placed",
   createdAt: o.createdAt ? new Date(o.createdAt).getTime() : Date.now(),
 });
@@ -420,6 +430,37 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     setOrders((arr) => arr.map((o) => o.id === id ? { ...o, status } : o));
   };
 
+  const updateOrderTracking: Store["updateOrderTracking"] = async (id, patch) => {
+    if (apiEnabled) {
+      try {
+        const r = await api<{ order: any }>(`/admin/orders/${id}`, { method: "PATCH", body: patch });
+        const lookup = new Map(adminProducts.map((p) => [p.id, p]));
+        const updated = mapOrder(r.order, lookup);
+        setOrders((arr) => arr.map((o) => o.id === id ? updated : o));
+        toast.success("Order updated");
+        return;
+      } catch (e: any) { toast.error(e?.message); return; }
+    }
+    setOrders((arr) => arr.map((o) => o.id === id ? { ...o, ...patch } : o));
+    toast.success("Order updated");
+  };
+
+  const verifyOrderPayment: Store["verifyOrderPayment"] = async (id, status) => {
+    if (apiEnabled) {
+      try {
+        const r = await api<{ order: any }>(`/admin/orders/${id}/payment`, { method: "PATCH", body: { status } });
+        const lookup = new Map(adminProducts.map((p) => [p.id, p]));
+        const updated = mapOrder(r.order, lookup);
+        setOrders((arr) => arr.map((o) => o.id === id ? updated : o));
+        toast.success(status === "paid" ? "Payment marked paid · email sent" : "Payment marked failed · order cancelled");
+        return;
+      } catch (e: any) { toast.error(e?.message); return; }
+    }
+    setOrders((arr) => arr.map((o) => o.id === id ? { ...o, payment: { ...o.payment, status }, status: status === "failed" ? "Cancelled" : o.status } : o));
+    toast.success(status === "paid" ? "Marked paid" : "Marked failed · cancelled");
+  };
+
+
   // ---- categories ----
   const addCategory: Store["addCategory"] = async (name) => {
     const n = name.trim(); if (!n) return;
@@ -519,6 +560,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     saveProduct,
     deleteProduct,
     updateOrderStatus,
+    updateOrderTracking,
+    verifyOrderPayment,
     categories,
     addCategory,
     renameCategory,

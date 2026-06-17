@@ -1,4 +1,5 @@
 import { Router } from "express";
+import crypto from "crypto";
 import { z } from "zod";
 import { Order } from "../models/Order";
 import { Product } from "../models/Product";
@@ -7,8 +8,33 @@ import { User } from "../models/User";
 import { requireAuth } from "../middleware/auth";
 import { HttpError } from "../middleware/error";
 import { sendEmail, tpl } from "../utils/email";
+import { generateTrackingId } from "../utils/trackingId";
+import { env } from "../config/env";
 
 const r = Router();
+
+// ---- public tracking (no auth) ----
+r.get("/track/:trackingId", async (req, res, next) => {
+  try {
+    const o = await Order.findOne({ trackingId: req.params.trackingId.toUpperCase() });
+    if (!o) throw new HttpError(404, "No order found for this tracking ID");
+    res.json({
+      order: {
+        trackingId: o.trackingId,
+        status: o.status,
+        courier: o.courier,
+        courierTrackingUrl: o.courierTrackingUrl,
+        createdAt: o.createdAt,
+        items: o.items.map((i: any) => ({ name: i.name, image: i.image, qty: i.qty, price: i.price })),
+        total: o.total,
+        address: { city: o.address?.city, state: o.address?.state, pincode: o.address?.pincode, name: o.address?.name },
+        payment: { method: o.payment?.method, status: o.payment?.status },
+      },
+    });
+  } catch (e) {
+    next(e);
+  }
+});
 
 r.get("/", requireAuth, async (req, res, next) => {
   try {
@@ -53,6 +79,31 @@ const createSchema = z.object({
 r.post("/", requireAuth, async (req, res, next) => {
   try {
     const body = createSchema.parse(req.body);
+
+    // Razorpay signature verification (server-side) when method = razorpay
+    if (body.payment.method === "razorpay") {
+      const { razorpayOrderId, razorpayPaymentId, razorpaySignature } = body.payment;
+      if (env.RAZORPAY_KEY_SECRET && razorpayOrderId && razorpayPaymentId && razorpaySignature) {
+        const expected = crypto
+          .createHmac("sha256", env.RAZORPAY_KEY_SECRET)
+          .update(`${razorpayOrderId}|${razorpayPaymentId}`)
+          .digest("hex");
+        const ok =
+          expected.length === razorpaySignature.length &&
+          crypto.timingSafeEqual(Buffer.from(expected), Buffer.from(razorpaySignature));
+        if (!ok) {
+          const user = await User.findById(req.user!.sub);
+          if (user?.email)
+            sendEmail({
+              to: user.email,
+              ...tpl.paymentFailed(user.name, razorpayOrderId.slice(-6).toUpperCase(), 0, "Signature mismatch"),
+            }).catch(() => {});
+          throw new HttpError(400, "Payment signature verification failed; order cancelled");
+        }
+      }
+      // if keys unset (dev/demo), skip server verify but accept the front-end-reported status
+    }
+
     const products = await Product.find({ _id: { $in: body.items.map((i) => i.productId) } });
     if (products.length !== body.items.length) throw new HttpError(400, "Invalid product in cart");
     const items = body.items.map((i) => {
@@ -65,8 +116,13 @@ r.post("/", requireAuth, async (req, res, next) => {
     const shipping = subtotal >= settings.freeShipThreshold ? 0 : settings.shippingFee;
     const total = subtotal + shipping;
 
+    // unique tracking id
+    let trackingId = generateTrackingId();
+    for (let i = 0; i < 5 && (await Order.exists({ trackingId })); i++) trackingId = generateTrackingId();
+
     const order = await Order.create({
       user: req.user!.sub,
+      trackingId,
       items,
       subtotal,
       shipping,
@@ -83,9 +139,49 @@ r.post("/", requireAuth, async (req, res, next) => {
     });
 
     const user = await User.findById(req.user!.sub);
-    if (user?.email) sendEmail({ to: user.email, ...tpl.orderPlaced(user.name, String(order._id), total) }).catch(() => {});
+    if (user?.email && order.payment.status === "paid") {
+      sendEmail({
+        to: user.email,
+        ...tpl.orderConfirmed(user.name, {
+          _id: order._id,
+          trackingId: order.trackingId ?? undefined,
+          courier: order.courier,
+          items,
+          subtotal,
+          shipping,
+          total,
+          address: body.address,
+          payment: { method: order.payment.method!, status: order.payment.status!, razorpayPaymentId: order.payment.razorpayPaymentId },
+        }),
+      }).catch(() => {});
+    } else if (user?.email) {
+      sendEmail({ to: user.email, ...tpl.orderPlaced(user.name, String(order._id), total) }).catch(() => {});
+    }
 
     res.status(201).json({ order });
+  } catch (e) {
+    next(e);
+  }
+});
+
+// Frontend reports a payment failure (Razorpay modal closed / failed)
+r.post("/payment-failed", requireAuth, async (req, res, next) => {
+  try {
+    const { razorpayOrderId, amount, reason } = z
+      .object({
+        razorpayOrderId: z.string().optional().default("N/A"),
+        amount: z.number().optional().default(0),
+        reason: z.string().optional().default("Payment was not completed"),
+      })
+      .parse(req.body);
+    const user = await User.findById(req.user!.sub);
+    if (user?.email) {
+      await sendEmail({
+        to: user.email,
+        ...tpl.paymentFailed(user.name, razorpayOrderId.slice(-6).toUpperCase(), amount, reason),
+      });
+    }
+    res.json({ ok: true });
   } catch (e) {
     next(e);
   }

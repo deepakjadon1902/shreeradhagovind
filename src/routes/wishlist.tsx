@@ -4,7 +4,10 @@ import { ProductCard } from "@/components/ProductCard";
 import { useStore } from "@/lib/store";
 import { Heart } from "lucide-react";
 
-export const Route = createFileRoute("/wishlist")({ component: WishlistPage });
+export const Route = createFileRoute("/wishlist")({
+  component: WishlistPage,
+  head: () => ({ meta: [{ title: "My Wishlist — Shri Radha Govind Store" }, { name: "description", content: "Your saved sacred essentials from Vrindavan." }, { name: "robots", content: "noindex" }] }),
+});
 
 function WishlistPage() {
   const { wishlist, adminProducts } = useStore();

@@ -7,6 +7,17 @@ import { ProductCard } from "@/components/ProductCard";
 
 export const Route = createFileRoute("/product/$id")({
   component: ProductDetail,
+  head: ({ params }) => ({
+    meta: [
+      { title: `Product · Shri Radha Govind Store` },
+      { name: "description", content: "Authentic sacred essentials from Vrindavan — handpicked product details, pricing, and devotee reviews." },
+      { property: "og:title", content: "Sacred essentials from Vrindavan" },
+      { property: "og:description", content: "Handcrafted poshak, chandan, itra and puja items." },
+      { property: "og:type", content: "product" },
+      { property: "og:url", content: `https://shreeradhagovind.lovable.app/product/${params.id}` },
+    ],
+    links: [{ rel: "canonical", href: `https://shreeradhagovind.lovable.app/product/${params.id}` }],
+  }),
 });
 
 function ProductDetail() {

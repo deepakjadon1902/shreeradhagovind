@@ -3,7 +3,10 @@ import { Layout } from "@/components/Layout";
 import { useStore, formatINR } from "@/lib/store";
 import { Minus, Plus, Trash2, ShoppingBag } from "lucide-react";
 
-export const Route = createFileRoute("/cart")({ component: CartPage });
+export const Route = createFileRoute("/cart")({
+  component: CartPage,
+  head: () => ({ meta: [{ title: "Your Cart — Shri Radha Govind Store" }, { name: "description", content: "Review items in your cart and proceed to secure checkout." }, { name: "robots", content: "noindex" }] }),
+});
 
 function CartPage() {
   const { cart, adminProducts, updateQty, removeFromCart } = useStore();
