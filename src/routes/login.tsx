@@ -4,7 +4,18 @@ import { useStore } from "@/lib/store";
 import { Mail, Lock, Eye, EyeOff } from "lucide-react";
 import logo from "@/assets/logo.jpeg.asset.json";
 
-export const Route = createFileRoute("/login")({ component: Login });
+export const Route = createFileRoute("/login")({
+  component: Login,
+  head: () => ({
+    meta: [
+      { title: "Sign In — Shri Radha Govind Store" },
+      { name: "description", content: "Sign in to your Shri Radha Govind Store account to view orders, wishlist and track shipments." },
+      { property: "og:title", content: "Sign In — Shri Radha Govind Store" },
+      { property: "og:url", content: "https://shreeradhagovind.lovable.app/login" },
+    ],
+    links: [{ rel: "canonical", href: "https://shreeradhagovind.lovable.app/login" }],
+  }),
+});
 
 function Login() {
   const { login, loginGoogle } = useStore();
