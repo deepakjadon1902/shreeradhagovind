@@ -3,7 +3,10 @@ import { Layout } from "@/components/Layout";
 import { useStore, formatINR, type Order } from "@/lib/store";
 import { Check, Package, Truck, Home, CreditCard } from "lucide-react";
 
-export const Route = createFileRoute("/orders/$id")({ component: OrderDetail });
+export const Route = createFileRoute("/orders/$id")({
+  component: OrderDetail,
+  head: () => ({ meta: [{ title: "Order Details — Shri Radha Govind Store" }, { name: "robots", content: "noindex" }] }),
+});
 
 const STAGES: Order["status"][] = ["Placed", "Packed", "Shipped", "Out for delivery", "Delivered"];
 

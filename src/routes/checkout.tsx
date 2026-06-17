@@ -5,7 +5,10 @@ import { useState } from "react";
 import { CreditCard, Truck, Lock, Check } from "lucide-react";
 import { toast } from "sonner";
 
-export const Route = createFileRoute("/checkout")({ component: Checkout });
+export const Route = createFileRoute("/checkout")({
+  component: Checkout,
+  head: () => ({ meta: [{ title: "Secure Checkout — Shri Radha Govind Store" }, { name: "description", content: "Complete your order with secure Razorpay payment or Cash on Delivery." }, { name: "robots", content: "noindex" }] }),
+});
 
 function Checkout() {
   const { cart, adminProducts, user, placeOrder, settings } = useStore();

@@ -4,7 +4,10 @@ import { useStore, formatINR, type Order, type Settings } from "@/lib/store";
 import { type Product } from "@/lib/products";
 import { Lock, LayoutDashboard, Package, ShoppingCart, LogOut, Plus, Pencil, Trash2, IndianRupee, TrendingUp, Users, Tag, CreditCard, Settings as SettingsIcon } from "lucide-react";
 
-export const Route = createFileRoute("/admin")({ component: AdminRoot });
+export const Route = createFileRoute("/admin")({
+  component: AdminRoot,
+  head: () => ({ meta: [{ title: "Admin · Shri Radha Govind Store" }, { name: "robots", content: "noindex,nofollow" }] }),
+});
 
 type Tab = "dash" | "products" | "orders" | "categories" | "users" | "payments" | "settings";
 

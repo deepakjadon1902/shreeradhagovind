@@ -3,7 +3,10 @@ import { Layout } from "@/components/Layout";
 import { useStore, formatINR } from "@/lib/store";
 import { Package } from "lucide-react";
 
-export const Route = createFileRoute("/orders/")({ component: OrdersPage });
+export const Route = createFileRoute("/orders/")({
+  component: OrdersPage,
+  head: () => ({ meta: [{ title: "My Orders — Shri Radha Govind Store" }, { name: "description", content: "View your order history, payment status and delivery progress." }, { name: "robots", content: "noindex" }] }),
+});
 
 function OrdersPage() {
   const { orders } = useStore();
