@@ -238,27 +238,6 @@ function AdminRoot() {
             </div>
           </div>
         )}
-        {/* legacy table removed */}
-        {false && (<>
-                  <tr><th>x</th></tr>
-                <tbody>
-                  {orders.length === 0 && <tr><td colSpan={7} className="p-6 text-center text-muted-foreground">No payments yet.</td></tr>}
-                  {orders.map((o) => (
-                    <tr key={o.id} className="border-t">
-                      <td className="p-4 font-mono text-xs">TXN{o.id.slice(2)}</td>
-                      <td>#{o.id}</td>
-                      <td>{o.address.name}</td>
-                      <td className="uppercase text-xs">{o.payment.method}</td>
-                      <td className="font-medium">{formatINR(o.total)}</td>
-                      <td><span className={`px-2 py-0.5 rounded-full text-xs ${o.payment.status === "paid" ? "bg-green-600/10 text-green-700" : "bg-amber-500/10 text-amber-700"}`}>{o.payment.status}</span></td>
-                      <td className="text-xs text-muted-foreground">{new Date(o.createdAt).toLocaleDateString()}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </div>
-        )}
 
         {tab === "users" && (
           <div>
