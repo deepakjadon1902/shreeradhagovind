@@ -14,6 +14,13 @@ const orderItemSchema = new Schema(
 const orderSchema = new Schema(
   {
     user: { type: Schema.Types.ObjectId, ref: "User", required: true, index: true },
+    trackingId: { type: String, unique: true, sparse: true, index: true },
+    courier: {
+      type: String,
+      enum: ["Ekart", "DTDC", "Shree Murti", "India Post", "Delhivery", "Bluedart", null],
+      default: null,
+    },
+    courierTrackingUrl: { type: String, default: "" },
     items: { type: [orderItemSchema], required: true },
     subtotal: { type: Number, required: true },
     shipping: { type: Number, default: 0 },
@@ -32,6 +39,7 @@ const orderSchema = new Schema(
       razorpayOrderId: String,
       razorpayPaymentId: String,
       razorpaySignature: String,
+      failureReason: String,
     },
     status: {
       type: String,
