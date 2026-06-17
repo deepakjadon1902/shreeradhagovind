@@ -1,8 +1,8 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useState } from "react";
-import { useStore, formatINR, type Order, type Settings } from "@/lib/store";
+import { useStore, formatINR, type Order, type Settings, type Courier, COURIERS } from "@/lib/store";
 import { type Product } from "@/lib/products";
-import { Lock, LayoutDashboard, Package, ShoppingCart, LogOut, Plus, Pencil, Trash2, IndianRupee, TrendingUp, Users, Tag, CreditCard, Settings as SettingsIcon } from "lucide-react";
+import { Lock, LayoutDashboard, Package, ShoppingCart, LogOut, Plus, Pencil, Trash2, IndianRupee, TrendingUp, Users, Tag, CreditCard, Settings as SettingsIcon, Truck, Check, X as XIcon } from "lucide-react";
 
 export const Route = createFileRoute("/admin")({
   component: AdminRoot,
@@ -12,11 +12,12 @@ export const Route = createFileRoute("/admin")({
 type Tab = "dash" | "products" | "orders" | "categories" | "users" | "payments" | "settings";
 
 function AdminRoot() {
-  const { adminAuthed, adminLogin, adminLogout, adminProducts, saveProduct, deleteProduct, orders, updateOrderStatus, categories, addCategory, renameCategory, deleteCategory, customers, settings, updateSettings } = useStore();
+  const { adminAuthed, adminLogin, adminLogout, adminProducts, saveProduct, deleteProduct, orders, updateOrderStatus, updateOrderTracking, verifyOrderPayment, categories, addCategory, renameCategory, deleteCategory, customers, settings, updateSettings } = useStore();
   const [u, setU] = useState(""); const [p, setP] = useState("");
   const [tab, setTab] = useState<Tab>("dash");
   const [editing, setEditing] = useState<Product | null>(null);
   const [pickCat, setPickCat] = useState<string | null>(null);
+  const [editingOrder, setEditingOrder] = useState<Order | null>(null);
 
   if (!adminAuthed) {
     return (
