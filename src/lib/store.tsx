@@ -430,6 +430,37 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     setOrders((arr) => arr.map((o) => o.id === id ? { ...o, status } : o));
   };
 
+  const updateOrderTracking: Store["updateOrderTracking"] = async (id, patch) => {
+    if (apiEnabled) {
+      try {
+        const r = await api<{ order: any }>(`/admin/orders/${id}`, { method: "PATCH", body: patch });
+        const lookup = new Map(adminProducts.map((p) => [p.id, p]));
+        const updated = mapOrder(r.order, lookup);
+        setOrders((arr) => arr.map((o) => o.id === id ? updated : o));
+        toast.success("Order updated");
+        return;
+      } catch (e: any) { toast.error(e?.message); return; }
+    }
+    setOrders((arr) => arr.map((o) => o.id === id ? { ...o, ...patch } : o));
+    toast.success("Order updated");
+  };
+
+  const verifyOrderPayment: Store["verifyOrderPayment"] = async (id, status) => {
+    if (apiEnabled) {
+      try {
+        const r = await api<{ order: any }>(`/admin/orders/${id}/payment`, { method: "PATCH", body: { status } });
+        const lookup = new Map(adminProducts.map((p) => [p.id, p]));
+        const updated = mapOrder(r.order, lookup);
+        setOrders((arr) => arr.map((o) => o.id === id ? updated : o));
+        toast.success(status === "paid" ? "Payment marked paid · email sent" : "Payment marked failed · order cancelled");
+        return;
+      } catch (e: any) { toast.error(e?.message); return; }
+    }
+    setOrders((arr) => arr.map((o) => o.id === id ? { ...o, payment: { ...o.payment, status }, status: status === "failed" ? "Cancelled" : o.status } : o));
+    toast.success(status === "paid" ? "Marked paid" : "Marked failed · cancelled");
+  };
+
+
   // ---- categories ----
   const addCategory: Store["addCategory"] = async (name) => {
     const n = name.trim(); if (!n) return;
@@ -529,6 +560,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     saveProduct,
     deleteProduct,
     updateOrderStatus,
+    updateOrderTracking,
+    verifyOrderPayment,
     categories,
     addCategory,
     renameCategory,
