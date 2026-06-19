@@ -4,7 +4,7 @@ import { Order } from "../models/Order";
 import { User } from "../models/User";
 import { requireAuth, requireAdmin } from "../middleware/auth";
 import { HttpError } from "../middleware/error";
-import { sendEmail, tpl } from "../utils/email";
+import { sendEmail, sendOrderConfirmationWithInvoice, tpl } from "../utils/email";
 
 const r = Router();
 r.use(requireAuth, requireAdmin);
