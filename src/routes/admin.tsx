@@ -397,10 +397,23 @@ function OrderManager({
     onSave(patch);
   };
 
+  // ----- timeline derived from current status + timestamps -----
+  const TIMELINE: Order["status"][] = ["Placed", "Packed", "Shipped", "Out for delivery", "Delivered"];
+  const isCancelled = order.status === "Cancelled";
+  const currentIdx = isCancelled ? -1 : Math.max(0, TIMELINE.indexOf(order.status));
+  const fmt = (ts: number) => new Date(ts).toLocaleString("en-IN", { dateStyle: "medium", timeStyle: "short" });
+
+  const payBadge =
+    order.payment.status === "paid"
+      ? "bg-green-600/10 text-green-700 border-green-600/20"
+      : order.payment.status === "failed"
+      ? "bg-destructive/10 text-destructive border-destructive/20"
+      : "bg-amber-500/10 text-amber-700 border-amber-500/20";
+
   return (
     <div className="fixed inset-0 bg-black/50 z-50 grid place-items-center p-4" onClick={onClose}>
-      <div className="bg-card rounded-2xl p-6 w-full max-w-lg max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
-        <div className="flex items-start justify-between gap-3 mb-1">
+      <div className="bg-card rounded-2xl p-6 w-full max-w-2xl max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
+        <div className="flex items-start justify-between gap-3 mb-2">
           <div>
             <h2 className="font-display text-2xl">Manage Order</h2>
             <p className="text-xs text-muted-foreground mt-0.5">#{order.id} · {order.address.name} · {formatINR(order.total)}</p>
@@ -408,7 +421,86 @@ function OrderManager({
           <button onClick={onClose} className="p-2 rounded-lg hover:bg-muted" aria-label="Close"><XIcon className="h-4 w-4" /></button>
         </div>
 
-        <div className="mt-4 space-y-3">
+        {/* ---- Quick facts: payment + courier snapshot ---- */}
+        <div className="grid sm:grid-cols-3 gap-3 mt-4">
+          <div className={`rounded-xl border p-3 ${payBadge}`}>
+            <p className="text-[10px] uppercase tracking-wider opacity-80">Payment</p>
+            <p className="font-semibold text-sm mt-0.5">{order.payment.method.toUpperCase()} · {order.payment.status}</p>
+            <p className="text-[11px] opacity-70 mt-0.5">{formatINR(order.total)}</p>
+          </div>
+          <div className="rounded-xl border bg-muted/30 p-3">
+            <p className="text-[10px] uppercase tracking-wider text-muted-foreground">Courier</p>
+            <p className="font-semibold text-sm mt-0.5">{order.courier ?? "Not assigned"}</p>
+            <p className="text-[11px] text-muted-foreground mt-0.5 truncate">{order.trackingId ?? "No tracking ID"}</p>
+          </div>
+          <div className="rounded-xl border bg-muted/30 p-3">
+            <p className="text-[10px] uppercase tracking-wider text-muted-foreground">Latest Status</p>
+            <p className={`font-semibold text-sm mt-0.5 ${isCancelled ? "text-destructive" : "text-primary"}`}>{order.status}</p>
+            <p className="text-[11px] text-muted-foreground mt-0.5">Placed {fmt(order.createdAt)}</p>
+          </div>
+        </div>
+
+        {/* ---- Timeline ---- */}
+        <div className="mt-5 rounded-xl border bg-card p-4">
+          <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground mb-3">Order Timeline</p>
+          {isCancelled ? (
+            <div className="flex items-center gap-3 text-destructive">
+              <span className="h-7 w-7 rounded-full bg-destructive/10 grid place-items-center"><XIcon className="h-3.5 w-3.5" /></span>
+              <div>
+                <p className="text-sm font-medium">Order cancelled</p>
+                <p className="text-[11px] text-muted-foreground">Customer was notified by email.</p>
+              </div>
+            </div>
+          ) : (
+            <ol className="space-y-3">
+              {TIMELINE.map((step, i) => {
+                const done = i <= currentIdx;
+                const active = i === currentIdx;
+                return (
+                  <li key={step} className="flex items-start gap-3">
+                    <span className={`mt-0.5 h-5 w-5 rounded-full grid place-items-center text-[10px] font-semibold shrink-0 ${done ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground"}`}>
+                      {done ? <Check className="h-3 w-3" /> : i + 1}
+                    </span>
+                    <div className="flex-1 min-w-0 -mt-0.5">
+                      <p className={`text-sm ${active ? "font-semibold text-primary" : done ? "font-medium" : "text-muted-foreground"}`}>{step}</p>
+                      {i === 0 && <p className="text-[11px] text-muted-foreground">{fmt(order.createdAt)}</p>}
+                      {active && i !== 0 && <p className="text-[11px] text-muted-foreground">Updated just now · email sent</p>}
+                    </div>
+                  </li>
+                );
+              })}
+            </ol>
+          )}
+
+          {/* Courier latest event */}
+          {order.courier && (
+            <div className="mt-4 pt-3 border-t">
+              <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground mb-2">Latest courier event</p>
+              <div className="flex items-start gap-3">
+                <Truck className="h-4 w-4 text-primary mt-0.5 shrink-0" />
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm">
+                    {order.status === "Delivered"
+                      ? `Delivered by ${order.courier} to ${order.address.city}.`
+                      : order.status === "Out for delivery"
+                      ? `${order.courier} agent is out for delivery in ${order.address.city}.`
+                      : order.status === "Shipped"
+                      ? `Shipped via ${order.courier}. In transit to ${order.address.city}.`
+                      : order.status === "Packed"
+                      ? `Handed over to ${order.courier} for pickup.`
+                      : `Assigned to ${order.courier}. Awaiting pickup.`}
+                  </p>
+                  {order.courierTrackingUrl && (
+                    <a href={order.courierTrackingUrl} target="_blank" rel="noreferrer" className="text-xs text-primary hover:underline">View live tracking on {order.courier} →</a>
+                  )}
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* ---- Editable fields ---- */}
+        <div className="mt-5 space-y-3">
           <label className="text-sm block">
             <span className="text-muted-foreground text-xs">Tracking ID</span>
             <input value={trackingId} onChange={(e) => setTrackingId(e.target.value)} placeholder="SRG-XXXXXXXX" className="mt-1 w-full h-11 rounded-lg border px-3 bg-background font-mono uppercase focus:outline-none focus:border-primary" />
