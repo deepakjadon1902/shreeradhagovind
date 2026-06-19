@@ -7,7 +7,7 @@ import { Settings } from "../models/Settings";
 import { User } from "../models/User";
 import { requireAuth } from "../middleware/auth";
 import { HttpError } from "../middleware/error";
-import { sendEmail, tpl } from "../utils/email";
+import { sendEmail, sendOrderConfirmationWithInvoice, tpl } from "../utils/email";
 import { generateTrackingId } from "../utils/trackingId";
 import { env } from "../config/env";
 
