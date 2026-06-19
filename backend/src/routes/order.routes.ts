@@ -140,19 +140,17 @@ r.post("/", requireAuth, async (req, res, next) => {
 
     const user = await User.findById(req.user!.sub);
     if (user?.email && order.payment.status === "paid") {
-      sendEmail({
-        to: user.email,
-        ...tpl.orderConfirmed(user.name, {
-          _id: order._id,
-          trackingId: order.trackingId ?? undefined,
-          courier: order.courier,
-          items,
-          subtotal,
-          shipping,
-          total,
-          address: body.address,
-          payment: { method: order.payment.method!, status: order.payment.status!, razorpayPaymentId: order.payment.razorpayPaymentId },
-        }),
+      sendOrderConfirmationWithInvoice(user.email, user.name, {
+        _id: order._id,
+        trackingId: order.trackingId ?? undefined,
+        courier: order.courier,
+        items,
+        subtotal,
+        shipping,
+        total,
+        address: body.address,
+        payment: { method: order.payment.method!, status: order.payment.status!, razorpayPaymentId: order.payment.razorpayPaymentId },
+        createdAt: order.createdAt,
       }).catch(() => {});
     } else if (user?.email) {
       sendEmail({ to: user.email, ...tpl.orderPlaced(user.name, String(order._id), total) }).catch(() => {});
