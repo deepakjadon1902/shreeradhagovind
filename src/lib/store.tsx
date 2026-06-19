@@ -14,7 +14,7 @@ export type Order = {
   items: { product: Product; qty: number }[];
   total: number;
   address: { name: string; phone: string; line1: string; city: string; state: string; pincode: string };
-  payment: { method: "razorpay" | "cod"; status: "paid" | "pending" | "failed" };
+  payment: { method: "razorpay" | "cod"; status: "paid" | "pending" | "failed"; razorpayOrderId?: string; razorpayPaymentId?: string; razorpaySignature?: string };
   status: "Placed" | "Packed" | "Shipped" | "Out for delivery" | "Delivered" | "Cancelled";
   createdAt: number;
 };
