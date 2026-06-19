@@ -372,3 +372,79 @@ function SettingsPanel({ settings, onSave }: { settings: Settings; onSave: (p: P
     </div>
   );
 }
+
+function OrderManager({
+  order,
+  onClose,
+  onSave,
+}: {
+  order: Order;
+  onClose: () => void;
+  onSave: (patch: { trackingId?: string; courier?: Courier | null; courierTrackingUrl?: string; status?: Order["status"] }) => void;
+}) {
+  const [trackingId, setTrackingId] = useState(order.trackingId ?? "");
+  const [courier, setCourier] = useState<Courier | "">(order.courier ?? "");
+  const [courierTrackingUrl, setCourierTrackingUrl] = useState(order.courierTrackingUrl ?? "");
+  const [status, setStatus] = useState<Order["status"]>(order.status);
+
+  const STATUSES: Order["status"][] = ["Placed", "Packed", "Shipped", "Out for delivery", "Delivered", "Cancelled"];
+
+  const submit = () => {
+    const patch: Parameters<typeof onSave>[0] = { status };
+    if (trackingId.trim()) patch.trackingId = trackingId.trim().toUpperCase();
+    patch.courier = (courier || null) as Courier | null;
+    patch.courierTrackingUrl = courierTrackingUrl.trim();
+    onSave(patch);
+  };
+
+  return (
+    <div className="fixed inset-0 bg-black/50 z-50 grid place-items-center p-4" onClick={onClose}>
+      <div className="bg-card rounded-2xl p-6 w-full max-w-lg max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
+        <div className="flex items-start justify-between gap-3 mb-1">
+          <div>
+            <h2 className="font-display text-2xl">Manage Order</h2>
+            <p className="text-xs text-muted-foreground mt-0.5">#{order.id} · {order.address.name} · {formatINR(order.total)}</p>
+          </div>
+          <button onClick={onClose} className="p-2 rounded-lg hover:bg-muted" aria-label="Close"><XIcon className="h-4 w-4" /></button>
+        </div>
+
+        <div className="mt-4 space-y-3">
+          <label className="text-sm block">
+            <span className="text-muted-foreground text-xs">Tracking ID</span>
+            <input value={trackingId} onChange={(e) => setTrackingId(e.target.value)} placeholder="SRG-XXXXXXXX" className="mt-1 w-full h-11 rounded-lg border px-3 bg-background font-mono uppercase focus:outline-none focus:border-primary" />
+          </label>
+
+          <div className="grid grid-cols-2 gap-3">
+            <label className="text-sm block">
+              <span className="text-muted-foreground text-xs">Courier</span>
+              <select value={courier} onChange={(e) => setCourier(e.target.value as Courier | "")} className="mt-1 w-full h-11 rounded-lg border px-3 bg-background focus:outline-none focus:border-primary">
+                <option value="">— Not assigned —</option>
+                {COURIERS.map((c) => <option key={c} value={c}>{c}</option>)}
+              </select>
+            </label>
+            <label className="text-sm block">
+              <span className="text-muted-foreground text-xs">Delivery Status</span>
+              <select value={status} onChange={(e) => setStatus(e.target.value as Order["status"])} className="mt-1 w-full h-11 rounded-lg border px-3 bg-background focus:outline-none focus:border-primary">
+                {STATUSES.map((s) => <option key={s} value={s}>{s}</option>)}
+              </select>
+            </label>
+          </div>
+
+          <label className="text-sm block">
+            <span className="text-muted-foreground text-xs">Courier Tracking URL (optional)</span>
+            <input value={courierTrackingUrl} onChange={(e) => setCourierTrackingUrl(e.target.value)} placeholder="https://courier.com/track/..." className="mt-1 w-full h-11 rounded-lg border px-3 bg-background focus:outline-none focus:border-primary" />
+          </label>
+
+          <div className="rounded-lg bg-muted/40 p-3 text-xs text-muted-foreground">
+            Saving sends an automatic status-update email to the customer with the tracking ID, courier name and link.
+          </div>
+        </div>
+
+        <div className="flex gap-3 mt-6 justify-end">
+          <button onClick={onClose} className="h-10 px-5 rounded-full border text-sm">Cancel</button>
+          <button onClick={submit} className="h-10 px-5 rounded-full bg-primary text-primary-foreground text-sm font-medium inline-flex items-center gap-2"><Truck className="h-4 w-4" /> Save & Notify</button>
+        </div>
+      </div>
+    </div>
+  );
+}

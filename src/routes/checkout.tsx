@@ -4,11 +4,29 @@ import { useStore, formatINR } from "@/lib/store";
 import { useState } from "react";
 import { CreditCard, Truck, Lock, Check } from "lucide-react";
 import { toast } from "sonner";
+import { api, isApiEnabled, getToken, API_URL } from "@/lib/api";
 
 export const Route = createFileRoute("/checkout")({
   component: Checkout,
   head: () => ({ meta: [{ title: "Secure Checkout — Shri Radha Govind Store" }, { name: "description", content: "Complete your order with secure Razorpay payment or Cash on Delivery." }, { name: "robots", content: "noindex" }] }),
 });
+
+declare global {
+  interface Window { Razorpay?: any }
+}
+
+function loadRazorpayScript(): Promise<boolean> {
+  return new Promise((resolve) => {
+    if (typeof window === "undefined") return resolve(false);
+    if (window.Razorpay) return resolve(true);
+    const s = document.createElement("script");
+    s.src = "https://checkout.razorpay.com/v1/checkout.js";
+    s.async = true;
+    s.onload = () => resolve(true);
+    s.onerror = () => resolve(false);
+    document.body.appendChild(s);
+  });
+}
 
 function Checkout() {
   const { cart, adminProducts, user, placeOrder, settings } = useStore();
@@ -28,33 +46,125 @@ function Checkout() {
     return <Layout><div className="container-app py-20 text-center"><h1 className="font-display text-3xl">Your cart is empty</h1><Link to="/shop" className="text-primary mt-4 inline-block">← Continue shopping</Link></div></Layout>;
   }
 
+  const finalizeOrder = async (paymentExtras?: { razorpayOrderId: string; razorpayPaymentId: string; razorpaySignature: string }) => {
+    const order = await placeOrder({
+      items: items.map((i) => ({ product: i.product, qty: i.qty })),
+      total,
+      address: form,
+      payment: {
+        method,
+        status: method === "razorpay" ? "paid" : "pending",
+        ...paymentExtras,
+      },
+    });
+    toast.success("Order placed successfully!");
+    nav({ to: "/orders/$id", params: { id: order.id } });
+  };
+
+  const reportPaymentFailed = async (razorpayOrderId: string | undefined, reason: string) => {
+    if (!isApiEnabled() || !getToken()) return;
+    try {
+      await api("/orders/payment-failed", {
+        method: "POST",
+        body: { razorpayOrderId: razorpayOrderId ?? "N/A", amount: total, reason },
+      });
+    } catch { /* ignore */ }
+  };
+
+  const payWithRazorpay = async () => {
+    const useRealRazorpay =
+      isApiEnabled() &&
+      !!getToken() &&
+      settings.razorpayKeyId &&
+      !settings.razorpayKeyId.includes("XXXX");
+
+    if (!useRealRazorpay) {
+      // Demo / local mode — simulate a successful payment
+      toast("Opening Razorpay secure checkout…");
+      await new Promise((r) => setTimeout(r, 1200));
+      await finalizeOrder();
+      return;
+    }
+
+    const ok = await loadRazorpayScript();
+    if (!ok) {
+      toast.error("Could not load Razorpay. Check your connection.");
+      throw new Error("razorpay script failed");
+    }
+
+    // Create a Razorpay order on the backend
+    let rzpOrder: { id: string; amount: number; currency: string };
+    let keyId: string;
+    try {
+      const r = await api<{ order: any; keyId: string }>("/payments/razorpay/order", {
+        method: "POST",
+        body: { amount: total },
+      });
+      rzpOrder = r.order;
+      keyId = r.keyId ?? settings.razorpayKeyId;
+    } catch (e: any) {
+      toast.error(e?.message ?? "Could not start payment");
+      throw e;
+    }
+
+    await new Promise<void>((resolve, reject) => {
+      const rzp = new window.Razorpay({
+        key: keyId,
+        amount: rzpOrder.amount,
+        currency: rzpOrder.currency || "INR",
+        order_id: rzpOrder.id,
+        name: settings.siteName,
+        description: `Order payment · ${items.length} item${items.length === 1 ? "" : "s"}`,
+        prefill: { name: form.name, contact: form.phone, email: user?.email ?? "" },
+        theme: { color: "#b45309" },
+        handler: async (resp: any) => {
+          try {
+            await finalizeOrder({
+              razorpayOrderId: resp.razorpay_order_id,
+              razorpayPaymentId: resp.razorpay_payment_id,
+              razorpaySignature: resp.razorpay_signature,
+            });
+            resolve();
+          } catch (err: any) {
+            await reportPaymentFailed(resp.razorpay_order_id, err?.message ?? "Order creation failed after payment");
+            reject(err);
+          }
+        },
+        modal: {
+          ondismiss: async () => {
+            await reportPaymentFailed(rzpOrder.id, "Payment dismissed by user");
+            toast.error("Payment cancelled · order not placed. An email has been sent.");
+            reject(new Error("dismissed"));
+          },
+        },
+      });
+      rzp.on("payment.failed", async (resp: any) => {
+        await reportPaymentFailed(rzpOrder.id, resp?.error?.description ?? "Payment failed");
+        toast.error("Payment failed · order cancelled. We've emailed you the details.");
+        reject(new Error(resp?.error?.description ?? "payment failed"));
+      });
+      rzp.open();
+    });
+  };
+
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!form.name || !form.phone || !form.line1 || !form.city || !form.pincode) {
       toast.error("Please complete shipping details"); return;
     }
     setProcessing(true);
-    if (method === "razorpay") {
-      // Simulated Razorpay flow — UI integration ready
-      toast("Opening Razorpay secure checkout…");
-      await new Promise((r) => setTimeout(r, 1500));
-    }
     try {
-      const order = await placeOrder({
-        items: items.map((i) => ({ product: i.product, qty: i.qty })),
-        total,
-        address: form,
-        payment: { method, status: method === "razorpay" ? "paid" : "pending" },
-      });
-      toast.success("Order placed successfully!");
-      nav({ to: "/orders/$id", params: { id: order.id } });
+      if (method === "razorpay") {
+        await payWithRazorpay();
+      } else {
+        await finalizeOrder();
+      }
     } catch {
-      // toast already shown
+      // toasts already shown
     } finally {
       setProcessing(false);
     }
   };
-
 
   return (
     <Layout>
@@ -77,9 +187,10 @@ function Checkout() {
             <section className="premium-card p-6">
               <h2 className="font-display text-2xl mb-4 flex items-center gap-2"><CreditCard className="h-5 w-5 text-primary" /> Payment Method</h2>
               <div className="space-y-3">
-                <PayOption checked={method === "razorpay"} onClick={() => setMethod("razorpay")} title="Razorpay — Cards, UPI, Netbanking, Wallets" desc="Pay securely via Razorpay. All major payment methods supported." />
+                <PayOption checked={method === "razorpay"} onClick={() => setMethod("razorpay")} title="Razorpay — Cards, UPI, Netbanking, Wallets" desc="Pay securely via Razorpay. Verified server-side; failed payments auto-cancel." />
                 {settings.codEnabled && <PayOption checked={method === "cod"} onClick={() => setMethod("cod")} title="Cash on Delivery" desc="Pay with cash when your order arrives." />}
               </div>
+              {!API_URL && <p className="text-[11px] text-amber-700 mt-3">Demo mode · payments are simulated. Set VITE_API_URL to enable live Razorpay.</p>}
             </section>
           </div>
 
