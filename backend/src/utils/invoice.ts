@@ -144,21 +144,28 @@ export function generateInvoicePDF(data: InvoiceData): Promise<Buffer> {
       totalRow("Total Paid", rupee(data.total), true, ACCENT);
 
       // ---- Footer ----
+      // Disable auto-pagination so absolutely-positioned footer text near the
+      // bottom of the page does not spill onto extra blank pages.
+      doc.page.margins.bottom = 0;
       const footerY = doc.page.height - 90;
       doc.moveTo(left, footerY).lineTo(right, footerY).strokeColor(BORDER).stroke();
-      doc.font("Helvetica-Bold").fontSize(10).fillColor("#111827").text("Thank you for your order!", left, footerY + 10);
-      doc.font("Helvetica").fontSize(9).fillColor(MUTED).text(
-        `Track your order at https://shreeradhagovind.lovable.app/track${data.trackingId ? `?id=${data.trackingId}` : ""}`,
-        left,
-        footerY + 26
-      );
+      doc.font("Helvetica-Bold").fontSize(10).fillColor("#111827")
+        .text("Thank you for your order!", left, footerY + 10, { lineBreak: false });
+      doc.font("Helvetica").fontSize(9).fillColor(MUTED)
+        .text(
+          `Track your order at https://shreeradhagovind.lovable.app/track${data.trackingId ? `?id=${data.trackingId}` : ""}`,
+          left,
+          footerY + 26,
+          { width: usable, lineBreak: false, ellipsis: true }
+        );
       doc.text(
         `For any queries write to ${SUPPORT_EMAIL}. This is a system-generated invoice and does not require a signature.`,
         left,
         footerY + 42,
         { width: usable }
       );
-      doc.fontSize(8).fillColor(MUTED).text(`© ${new Date().getFullYear()} ${BRAND} · Radhe Radhe`, left, footerY + 70, { width: usable, align: "center" });
+      doc.fontSize(8).fillColor(MUTED)
+        .text(`© ${new Date().getFullYear()} ${BRAND} · Radhe Radhe`, left, footerY + 70, { width: usable, align: "center", lineBreak: false });
 
       doc.end();
     } catch (e) {
