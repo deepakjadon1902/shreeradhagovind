@@ -1,12 +1,20 @@
 import { Resend } from "resend";
 import { env } from "../config/env";
+import { generateInvoicePDF, type InvoiceData } from "./invoice";
 
 const resend = env.RESEND_API_KEY ? new Resend(env.RESEND_API_KEY) : null;
 
-export async function sendEmail(opts: { to: string; subject: string; html: string }) {
+export type EmailAttachment = { filename: string; content: Buffer };
+
+export async function sendEmail(opts: {
+  to: string;
+  subject: string;
+  html: string;
+  attachments?: EmailAttachment[];
+}) {
   if (!resend) {
     // eslint-disable-next-line no-console
-    console.log("[email:disabled]", opts.subject, "→", opts.to);
+    console.log("[email:disabled]", opts.subject, "→", opts.to, opts.attachments?.length ? `(+${opts.attachments.length} attachment)` : "");
     return { skipped: true };
   }
   try {
@@ -15,6 +23,7 @@ export async function sendEmail(opts: { to: string; subject: string; html: strin
       to: opts.to,
       subject: opts.subject,
       html: opts.html,
+      attachments: opts.attachments?.map((a) => ({ filename: a.filename, content: a.content })),
     });
   } catch (e) {
     // eslint-disable-next-line no-console
@@ -22,6 +31,43 @@ export async function sendEmail(opts: { to: string; subject: string; html: strin
     return { error: String(e) };
   }
 }
+
+/**
+ * Sends an order-confirmation email with a PDF invoice attached.
+ * Always use this helper for successful orders so the invoice is generated once.
+ */
+export async function sendOrderConfirmationWithInvoice(
+  to: string,
+  name: string,
+  order: Parameters<typeof tpl.orderConfirmed>[1] & { customerEmail?: string; createdAt?: Date | string | number }
+) {
+  const built = tpl.orderConfirmed(name, order);
+  let attachments: EmailAttachment[] | undefined;
+  try {
+    const invoiceData: InvoiceData = {
+      orderId: String(order._id),
+      trackingId: order.trackingId,
+      courier: order.courier ?? null,
+      customerName: name,
+      customerEmail: to,
+      items: order.items,
+      subtotal: order.subtotal,
+      shipping: order.shipping,
+      total: order.total,
+      address: order.address,
+      payment: order.payment,
+      createdAt: order.createdAt,
+    };
+    const pdf = await generateInvoicePDF(invoiceData);
+    const fname = `Invoice-${order.trackingId ?? String(order._id).slice(-8).toUpperCase()}.pdf`;
+    attachments = [{ filename: fname, content: pdf }];
+  } catch (e) {
+    // eslint-disable-next-line no-console
+    console.error("[invoice:error]", e);
+  }
+  return sendEmail({ to, subject: built.subject, html: built.html, attachments });
+}
+
 
 const BRAND = "Shri Radha Govind Store";
 const ACCENT = "#0f766e";

@@ -4,7 +4,7 @@ import { Order } from "../models/Order";
 import { User } from "../models/User";
 import { requireAuth, requireAdmin } from "../middleware/auth";
 import { HttpError } from "../middleware/error";
-import { sendEmail, tpl } from "../utils/email";
+import { sendEmail, sendOrderConfirmationWithInvoice, tpl } from "../utils/email";
 
 const r = Router();
 r.use(requireAuth, requireAdmin);
@@ -87,19 +87,17 @@ r.patch("/orders/:id/payment", async (req, res, next) => {
     const u: any = o.user;
     if (u?.email) {
       if (status === "paid") {
-        sendEmail({
-          to: u.email,
-          ...tpl.orderConfirmed(u.name, {
-            _id: o._id,
-            trackingId: o.trackingId ?? undefined,
-            courier: o.courier,
-            items: o.items as any,
-            subtotal: o.subtotal!,
-            shipping: o.shipping!,
-            total: o.total!,
-            address: o.address as any,
-            payment: { method: o.payment!.method!, status: "paid", razorpayPaymentId: o.payment!.razorpayPaymentId },
-          }),
+        sendOrderConfirmationWithInvoice(u.email, u.name, {
+          _id: o._id,
+          trackingId: o.trackingId ?? undefined,
+          courier: o.courier,
+          items: o.items as any,
+          subtotal: o.subtotal!,
+          shipping: o.shipping!,
+          total: o.total!,
+          address: o.address as any,
+          payment: { method: o.payment!.method!, status: "paid", razorpayPaymentId: o.payment!.razorpayPaymentId },
+          createdAt: o.createdAt,
         }).catch(() => {});
       } else if (status === "failed") {
         sendEmail({
