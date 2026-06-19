@@ -403,7 +403,13 @@ export function StoreProvider({ children }: { children: ReactNode }) {
           body: {
             items: o.items.map((i) => ({ productId: i.product.id, qty: i.qty })),
             address: o.address,
-            payment: { method: o.payment.method, status: o.payment.status },
+            payment: {
+              method: o.payment.method,
+              status: o.payment.status,
+              razorpayOrderId: o.payment.razorpayOrderId,
+              razorpayPaymentId: o.payment.razorpayPaymentId,
+              razorpaySignature: o.payment.razorpaySignature,
+            },
           },
         });
         const lookup = new Map(adminProducts.map((p) => [p.id, p]));
