@@ -419,20 +419,53 @@ function SettingsPanel({ settings, onSave }: { settings: Settings; onSave: (p: P
 }
 
 function OrderManager({
-  order,
+  order: initialOrder,
+  fetchEvents,
   onClose,
   onSave,
 }: {
   order: Order;
+  fetchEvents?: (id: string) => Promise<{ events: CourierEvent[]; order: Order } | null>;
   onClose: () => void;
   onSave: (patch: { trackingId?: string; courier?: Courier | null; courierTrackingUrl?: string; status?: Order["status"] }) => void;
 }) {
-  const [trackingId, setTrackingId] = useState(order.trackingId ?? "");
-  const [courier, setCourier] = useState<Courier | "">(order.courier ?? "");
-  const [courierTrackingUrl, setCourierTrackingUrl] = useState(order.courierTrackingUrl ?? "");
-  const [status, setStatus] = useState<Order["status"]>(order.status);
+  const [order, setOrder] = useState<Order>(initialOrder);
+  const [events, setEvents] = useState<CourierEvent[]>([]);
+  const [lastSync, setLastSync] = useState<number | null>(null);
+  const [syncing, setSyncing] = useState(false);
+  const [trackingId, setTrackingId] = useState(initialOrder.trackingId ?? "");
+  const [courier, setCourier] = useState<Courier | "">(initialOrder.courier ?? "");
+  const [courierTrackingUrl, setCourierTrackingUrl] = useState(initialOrder.courierTrackingUrl ?? "");
+  const [status, setStatus] = useState<Order["status"]>(initialOrder.status);
 
   const STATUSES: Order["status"][] = ["Placed", "Packed", "Shipped", "Out for delivery", "Delivered", "Cancelled"];
+
+  // ---- Auto courier event sync (poll backend every 15s) ----
+  useEffect(() => {
+    if (!fetchEvents) return;
+    let alive = true;
+    const sync = async () => {
+      setSyncing(true);
+      const r = await fetchEvents(initialOrder.id);
+      if (alive && r) {
+        setEvents(r.events);
+        setOrder(r.order);
+        setLastSync(Date.now());
+      }
+      if (alive) setSyncing(false);
+    };
+    sync();
+    const t = setInterval(sync, 15000);
+    return () => { alive = false; clearInterval(t); };
+  }, [fetchEvents, initialOrder.id]);
+
+  const manualRefresh = async () => {
+    if (!fetchEvents) return;
+    setSyncing(true);
+    const r = await fetchEvents(initialOrder.id);
+    if (r) { setEvents(r.events); setOrder(r.order); setLastSync(Date.now()); }
+    setSyncing(false);
+  };
 
   const submit = () => {
     const patch: Parameters<typeof onSave>[0] = { status };
@@ -446,7 +479,7 @@ function OrderManager({
   const TIMELINE: Order["status"][] = ["Placed", "Packed", "Shipped", "Out for delivery", "Delivered"];
   const isCancelled = order.status === "Cancelled";
   const currentIdx = isCancelled ? -1 : Math.max(0, TIMELINE.indexOf(order.status));
-  const fmt = (ts: number) => new Date(ts).toLocaleString("en-IN", { dateStyle: "medium", timeStyle: "short" });
+  const fmt = (ts: number | string) => new Date(ts).toLocaleString("en-IN", { dateStyle: "medium", timeStyle: "short" });
 
   const payBadge =
     order.payment.status === "paid"
