@@ -1,7 +1,9 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useState } from "react";
 import { useStore } from "@/lib/store";
-import { Mail, Lock, User, Eye, EyeOff } from "lucide-react";
+import { api, setToken, isApiEnabled } from "@/lib/api";
+import { toast } from "sonner";
+import { Mail, Lock, User, Eye, EyeOff, Phone, MapPin } from "lucide-react";
 import { AuthShell, Field, Divider, GoogleIcon } from "./login";
 
 export const Route = createFileRoute("/signup")({
@@ -18,10 +20,36 @@ export const Route = createFileRoute("/signup")({
 });
 
 function Signup() {
-  const { signup, loginGoogle } = useStore();
+  const { loginGoogle, signup } = useStore();
   const nav = useNavigate();
-  const [name, setName] = useState(""); const [email, setEmail] = useState(""); const [pw, setPw] = useState(""); const [show, setShow] = useState(false);
-  const submit = async (e: React.FormEvent) => { e.preventDefault(); if (!email || !pw || !name) return; try { await signup(name, email, pw); nav({ to: "/" }); } catch { /* toast shown in store */ } };
+  const [name, setName] = useState(""); const [email, setEmail] = useState("");
+  const [pw, setPw] = useState(""); const [show, setShow] = useState(false);
+  const [phone, setPhone] = useState("");
+  const [line1, setLine1] = useState(""); const [city, setCity] = useState("");
+  const [state, setState] = useState(""); const [pincode, setPincode] = useState("");
+
+  const submit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!email || !pw || !name) return;
+    try {
+      if (isApiEnabled()) {
+        const r = await api<{ token: string; user: any }>("/auth/signup", {
+          method: "POST",
+          body: { name, email, password: pw, phone, address: { line1, city, state, pincode } },
+        });
+        setToken(r.token);
+        toast.success(`Welcome, ${r.user.name}!`);
+        // mimic store finishAuth: refresh page state by simple reload-free nav
+        window.location.assign("/");
+      } else {
+        await signup(name, email, pw);
+        nav({ to: "/" });
+      }
+    } catch (err: any) {
+      toast.error(err?.message ?? "Signup failed");
+    }
+  };
+
   return <AuthShell title="Create account" subtitle="Begin your divine shopping journey">
     <button onClick={() => { loginGoogle(); nav({ to: "/" }); }} className="w-full h-12 rounded-full border border-border bg-card flex items-center justify-center gap-3 hover:border-primary transition font-medium">
       <GoogleIcon /> Sign up with Google
@@ -30,7 +58,21 @@ function Signup() {
     <form onSubmit={submit} className="space-y-3">
       <Field icon={User} placeholder="Full name" value={name} onChange={setName} />
       <Field icon={Mail} type="email" placeholder="Email address" value={email} onChange={setEmail} />
+      <Field icon={Phone} type="tel" placeholder="Phone (e.g. +91 98765 43210)" value={phone} onChange={setPhone} />
       <Field icon={Lock} type={show ? "text" : "password"} placeholder="Create password" value={pw} onChange={setPw} right={<button type="button" onClick={() => setShow(!show)} className="text-muted-foreground">{show ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}</button>} />
+      <details className="rounded-xl border border-border bg-card/60">
+        <summary className="px-4 py-3 text-sm cursor-pointer flex items-center gap-2 text-foreground/80 hover:text-primary">
+          <MapPin className="h-4 w-4" /> Add shipping address (optional)
+        </summary>
+        <div className="p-3 space-y-3 border-t border-border">
+          <Field icon={MapPin} placeholder="Street, area" value={line1} onChange={setLine1} />
+          <div className="grid grid-cols-2 gap-3">
+            <Field icon={MapPin} placeholder="City" value={city} onChange={setCity} />
+            <Field icon={MapPin} placeholder="State" value={state} onChange={setState} />
+          </div>
+          <Field icon={MapPin} placeholder="Pincode" value={pincode} onChange={setPincode} />
+        </div>
+      </details>
       <button type="submit" className="w-full h-12 rounded-full bg-primary text-primary-foreground font-medium hover:opacity-90">Create account</button>
     </form>
     <p className="text-center text-sm text-muted-foreground mt-6">Already a devotee? <Link to="/login" className="text-primary font-medium">Sign in</Link></p>
