@@ -187,6 +187,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   // backend category name → id
   const [categoryIds, setCategoryIds] = useState<Record<string, string>>({});
   const [settings, setSettings] = useState<Settings>(DEFAULT_SETTINGS);
+  const [registeredUsers, setRegisteredUsers] = useState<RegisteredUser[]>([]);
 
   // ---- initial load (local + remote) ----
   useEffect(() => {
