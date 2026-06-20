@@ -496,7 +496,18 @@ function OrderManager({
             <h2 className="font-display text-2xl">Manage Order</h2>
             <p className="text-xs text-muted-foreground mt-0.5">#{order.id} · {order.address.name} · {formatINR(order.total)}</p>
           </div>
-          <button onClick={onClose} className="p-2 rounded-lg hover:bg-muted" aria-label="Close"><XIcon className="h-4 w-4" /></button>
+          <div className="flex items-center gap-2">
+            {fetchEvents && (
+              <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-green-600/10 text-green-700 text-[11px]" title="Auto-syncs every 15s">
+                <span className={`h-1.5 w-1.5 rounded-full bg-green-600 ${syncing ? "animate-pulse" : ""}`} />
+                Live · {lastSync ? new Date(lastSync).toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit", second: "2-digit" }) : "syncing…"}
+              </div>
+            )}
+            {fetchEvents && (
+              <button onClick={manualRefresh} disabled={syncing} className="p-2 rounded-lg hover:bg-muted disabled:opacity-50" aria-label="Refresh"><RefreshCw className={`h-4 w-4 ${syncing ? "animate-spin" : ""}`} /></button>
+            )}
+            <button onClick={onClose} className="p-2 rounded-lg hover:bg-muted" aria-label="Close"><XIcon className="h-4 w-4" /></button>
+          </div>
         </div>
 
         {/* ---- Quick facts: payment + courier snapshot ---- */}
