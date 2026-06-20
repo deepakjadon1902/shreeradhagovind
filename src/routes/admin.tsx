@@ -79,7 +79,7 @@ function AdminRoot() {
           <NavBtn active={tab === "products"} onClick={() => setTab("products")} icon={Package}>Products</NavBtn>
           <NavBtn active={tab === "orders"} onClick={() => setTab("orders")} icon={ShoppingCart}>Orders</NavBtn>
           <NavBtn active={tab === "payments"} onClick={() => setTab("payments")} icon={CreditCard}>Payments</NavBtn>
-          <NavBtn active={tab === "users"} onClick={() => setTab("users")} icon={Users}>Customers</NavBtn>
+          <NavBtn active={tab === "users"} onClick={() => setTab("users")} icon={Users}>Users</NavBtn>
           <NavBtn active={tab === "settings"} onClick={() => setTab("settings")} icon={SettingsIcon}>Settings</NavBtn>
         </nav>
         <button onClick={adminLogout} className="flex items-center gap-2 text-sm text-background/70 hover:text-background py-2"><LogOut className="h-4 w-4" /> Logout</button>
