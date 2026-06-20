@@ -586,6 +586,25 @@ function OrderManager({
               </div>
             </div>
           )}
+
+          {/* Live synced event feed */}
+          {events.length > 0 && (
+            <div className="mt-4 pt-3 border-t">
+              <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground mb-2">Courier event history (auto-synced)</p>
+              <ol className="space-y-2.5">
+                {[...events].reverse().map((ev, i) => (
+                  <li key={`${ev.at}-${i}`} className="flex items-start gap-3">
+                    <span className={`mt-1 h-2 w-2 rounded-full shrink-0 ${i === 0 ? "bg-primary ring-2 ring-primary/30" : "bg-muted-foreground/40"}`} />
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium">{ev.label}</p>
+                      <p className="text-xs text-muted-foreground">{ev.description}</p>
+                      <p className="text-[10px] text-muted-foreground/70 mt-0.5">{fmt(ev.at)}</p>
+                    </div>
+                  </li>
+                ))}
+              </ol>
+            </div>
+          )}
         </div>
 
         {/* ---- Editable fields ---- */}
