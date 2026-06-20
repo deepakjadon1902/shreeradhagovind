@@ -1,78 +1,43 @@
-## Goal
-Wire backend ↔ frontend tightly, add SEO basics, and ship a real order-tracking + payment-verification flow with email invoices.
+## Goals
 
-## 1. Backend ↔ Frontend wiring audit
-- Verify `src/lib/store.tsx` calls every API: auth, products, categories, orders, admin, payments, uploads, settings.
-- Add missing client helpers in `src/lib/api.ts` for: `getOrderByTrackingId`, `adminUpdateOrder` (tracking id, courier, status), `adminVerifyPayment`, `adminCancelOrder`.
-- Confirm `VITE_API_URL` fallback still works (demo localStorage mode), but real mode goes through backend.
-- Fix any response-shape mismatches (`_id` vs `id`, `mrp` vs `price`) in mappers.
+1. **Auto courier event syncing** in admin OrderManager (polling-based; no real courier API integration since carrier API keys not provided — simulate event derivation + auto-refresh).
+2. **Admin Users page** — list registered users, view full details, activate/block.
+3. **Store address & contact update** site-wide to:
+   - Shri Radha Govind Store, 155, 2nd Floor, Madan Mohan Ghera, Vrindavan, Mathura, UP – 281121
+   - Phone +91 7500533505, support@shriradhagovindstore.com, shriradhagovindstore@gmail.com
+4. **Content pages** — create About Us, Contact Us, Privacy Policy, Terms & Conditions, Shipping Policy, Refund & Returns routes using uploaded text content (cleaned & restyled with project tokens, not raw HTML strings).
 
-## 2. SEO
-- `public/robots.txt` — allow all, point to sitemap.
-- `src/routes/sitemap[.]xml.ts` server route listing: `/`, `/shop`, `/cart`, `/wishlist`, `/checkout`, `/orders`, `/track`, `/login`, `/signup`, `/profile`.
-- `head()` per route: unique title + description + og:title/description/url + canonical for index, shop, product, cart, wishlist, checkout, orders, profile, track, login, signup, admin (noindex).
-- Root `__root.tsx` keeps sitewide defaults + Organization JSON-LD.
-
-## 3. Order tracking system
+## Implementation
 
 ### Backend
-- Extend `models/Order.ts`:
-  - `trackingId: string` (unique, indexed, generated on order create — e.g. `SRG-XXXXXXXX`)
-  - `courier: enum ['Ekart','DTDC','Shree Murti','India Post','Delhivery'] | null`
-  - `courierTrackingUrl?: string`
-  - keep existing `status` enum
-- Auto-generate `trackingId` in `order.routes.ts` on POST.
-- New `admin.routes.ts` endpoint: `PATCH /admin/orders/:id` → `{ status?, courier?, trackingId? (override), courierTrackingUrl? }`. Emits status-update email.
-- New public endpoint: `GET /orders/track/:trackingId` → returns sanitized order (no PII beyond city/state, items, status, courier, timeline).
+- `User` model: add `isBlocked: boolean`, `phone`, `address` (already may have). Verify and extend.
+- `admin.routes.ts`:
+  - `GET /admin/users` → list with full registration data
+  - `PATCH /admin/users/:id/status` → block/unblock (sets `isBlocked`)
+- `auth.routes.ts` login: reject if `isBlocked`.
+- `order.routes.ts`: add `GET /orders/:id/events` returning derived courier events array based on current status + timestamps (lightweight derivation since no real courier API).
+- Update site address constants in `email.ts` and `invoice.ts` footers/headers.
 
 ### Frontend
-- New route `src/routes/track.tsx` — input box for tracking id → calls `/orders/track/:id` → renders timeline (Placed → Packed → Shipped → Out for delivery → Delivered) + courier name + courier tracking URL link.
-- Header: add "Track Order" link.
-- Admin Orders tab: edit modal with `Tracking ID` (auto-filled, editable), `Courier` (dropdown), `Courier tracking URL`, `Status` (dropdown). Save → PATCH.
-- Existing `/orders/$id` page also shows tracking id + courier.
+- `src/lib/store.tsx`: add `users` state, `fetchUsers`, `toggleUserBlock`. Already-known `settings` defaults updated to new address/phone/email.
+- `src/routes/admin.tsx`:
+  - New **Users** tab — table with name, email, phone, address, joined date, status, block/unblock action, details modal.
+  - OrderManager: `useEffect` polling every 15s via `setInterval` to refetch the open order's events; show "Live" indicator + last synced time.
+- New routes:
+  - `src/routes/about.tsx`
+  - `src/routes/contact.tsx`
+  - `src/routes/privacy.tsx`
+  - `src/routes/terms.tsx`
+  - `src/routes/shipping.tsx`
+  - `src/routes/returns.tsx`
+  Each with proper SEO `head()`, semantic HTML using design tokens (NOT raw uploaded inline styles).
+- `Footer.tsx`: update address/phone/email + link to new policy pages.
+- `Header.tsx`: keep existing nav; policy links live in footer.
 
-## 4. Payment verification + emails
+### Notes / Limitations
+- True real-time courier sync requires per-courier API credentials (Ekart/DTDC/etc.) which aren't available. Implementation uses **derived events from status + timestamps** with auto-polling so the modal updates without manual refresh. When real courier API keys are provided later, only `/orders/:id/events` backend handler needs swapping.
 
-### Backend
-- On order POST when `method=razorpay`: require `razorpayOrderId/paymentId/signature`; verify signature server-side (already in `payment.routes.ts` — reuse helper). If verify fails → don't create order, return 400. If success → create order with `payment.status='paid'`, send `orderConfirmed` email with HTML invoice (items table, totals, tracking id, courier="To be assigned", address). Auto-cancel + email is for the failure path: if frontend reports `payment_failed`, call `POST /orders/payment-failed` with `{ razorpayOrderId, reason }` → log + email user.
-- Admin manual verification endpoint: `PATCH /admin/orders/:id/payment` → `{ status: 'paid'|'failed'|'refunded' }`. If set to `failed` → auto-set order `status='Cancelled'` and email user. If set to `paid` → email confirmation + invoice.
-- Templates added to `utils/email.ts`:
-  - `orderConfirmed(name, order)` — full HTML invoice with line items, totals, tracking id, courier, shipping address.
-  - `paymentFailed(name, orderRef, amount, reason)` — apology + retry CTA.
-  - `orderCancelled(name, orderRef, reason)`
-  - `statusUpdate(name, orderRef, status, trackingId, courier, url)`
+## Files
 
-### Frontend
-- Checkout: when Razorpay selected, open Razorpay checkout → on success POST order with payment fields; on dismiss/failure call `payment-failed` endpoint + toast "Order cancelled, email sent".
-- COD: order created with `payment.status='pending'`; admin verifies later manually.
-- Admin Payments tab: each row gets "Mark Paid" / "Mark Failed" buttons.
-
-## 5. Files
-
-### New
-- `src/routes/track.tsx`
-- `src/routes/sitemap[.]xml.ts`
-- `public/robots.txt`
-
-### Edited (backend)
-- `backend/src/models/Order.ts` — trackingId, courier, courierTrackingUrl
-- `backend/src/routes/order.routes.ts` — trackingId gen, payment verify on create, public track endpoint, payment-failed endpoint
-- `backend/src/routes/admin.routes.ts` — PATCH order (status/courier/tracking), PATCH payment
-- `backend/src/utils/email.ts` — invoice + new templates
-- `backend/src/utils/trackingId.ts` (new) — id generator
-
-### Edited (frontend)
-- `src/lib/api.ts` — new helpers
-- `src/lib/store.tsx` — wire new admin updaters + Razorpay flow
-- `src/routes/__root.tsx` — sitewide defaults, Organization JSON-LD
-- `src/routes/index.tsx`, `shop.tsx`, `cart.tsx`, `wishlist.tsx`, `checkout.tsx`, `orders.index.tsx`, `orders.$id.tsx`, `profile.tsx`, `login.tsx`, `signup.tsx`, `product.$id.tsx`, `admin.tsx` — `head()` metadata
-- `src/components/Header.tsx` — "Track Order" link
-- `src/routes/admin.tsx` — Orders tab edit modal, Payments tab verify buttons
-- `src/routes/checkout.tsx` — Razorpay integration with fail-handling
-
-## Notes
-- Real Razorpay sandbox needs `RAZORPAY_KEY_ID/SECRET` in `backend/.env` and the script `https://checkout.razorpay.com/v1/checkout.js` loaded on demand.
-- Email invoices only send when `RESEND_API_KEY` is set; otherwise they log and skip silently (already handled).
-- Admin-set tracking id overrides the auto-generated one if provided.
-
-Shall I proceed?
+**Created:** 6 route files (about/contact/privacy/terms/shipping/returns).
+**Edited:** `backend/src/models/User.ts`, `backend/src/routes/admin.routes.ts`, `backend/src/routes/auth.routes.ts`, `backend/src/routes/order.routes.ts`, `backend/src/utils/email.ts`, `backend/src/utils/invoice.ts`, `src/lib/store.tsx`, `src/lib/api.ts`, `src/routes/admin.tsx`, `src/components/Footer.tsx`.

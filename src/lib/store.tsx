@@ -36,8 +36,8 @@ export type Settings = {
 const DEFAULT_SETTINGS: Settings = {
   siteName: "Shri Radha Govind Store",
   tagline: "Made With Love From The Heart Of Vrindavan",
-  supportEmail: "support@shriradhagovind.store",
-  supportPhone: "+91 98765 43210",
+  supportEmail: "support@shriradhagovindstore.com",
+  supportPhone: "+91 7500533505",
   currency: "INR",
   freeShipThreshold: 999,
   shippingFee: 49,
@@ -45,6 +45,24 @@ const DEFAULT_SETTINGS: Settings = {
   codEnabled: true,
   announcement: "॥ Radhe Radhe ॥ · Made With Love From The Heart Of Vrindavan · Free shipping above ₹999",
 };
+
+export type RegisteredUser = {
+  id: string;
+  name: string;
+  email: string;
+  phone?: string;
+  avatar?: string;
+  role: "user" | "admin";
+  provider?: "password" | "google";
+  isBlocked: boolean;
+  address?: { line1?: string; city?: string; state?: string; pincode?: string };
+  ordersCount?: number;
+  totalSpent?: number;
+  createdAt?: string;
+  lastLoginAt?: string | null;
+};
+
+export type CourierEvent = { at: string; label: string; description: string };
 
 type Store = {
   apiEnabled: boolean;
@@ -80,6 +98,10 @@ type Store = {
   settings: Settings;
   updateSettings: (patch: Partial<Settings>) => Promise<void> | void;
   customers: { name: string; email: string; phone: string; orders: number; spent: number }[];
+  registeredUsers: RegisteredUser[];
+  fetchRegisteredUsers: () => Promise<void>;
+  toggleUserBlock: (id: string, isBlocked: boolean) => Promise<void>;
+  fetchOrderEvents: (id: string) => Promise<{ events: CourierEvent[]; order: Order } | null>;
 };
 
 const Ctx = createContext<Store | null>(null);
@@ -165,6 +187,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   // backend category name → id
   const [categoryIds, setCategoryIds] = useState<Record<string, string>>({});
   const [settings, setSettings] = useState<Settings>(DEFAULT_SETTINGS);
+  const [registeredUsers, setRegisteredUsers] = useState<RegisteredUser[]>([]);
 
   // ---- initial load (local + remote) ----
   useEffect(() => {
@@ -530,6 +553,59 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     }
   };
 
+  // ---- registered users (admin) ----
+  const fetchRegisteredUsers: Store["fetchRegisteredUsers"] = async () => {
+    if (!apiEnabled) return;
+    try {
+      const r = await api<{ users: any[] }>("/admin/users");
+      setRegisteredUsers(
+        r.users.map((u: any) => ({
+          id: String(u._id ?? u.id),
+          name: u.name,
+          email: u.email,
+          phone: u.phone ?? "",
+          avatar: u.avatar ?? "",
+          role: u.role ?? "user",
+          provider: u.provider ?? "password",
+          isBlocked: !!u.isBlocked,
+          address: u.address ?? {},
+          ordersCount: u.ordersCount ?? 0,
+          totalSpent: u.totalSpent ?? 0,
+          createdAt: u.createdAt,
+          lastLoginAt: u.lastLoginAt ?? null,
+        }))
+      );
+    } catch (e: any) {
+      toast.error(e?.message ?? "Failed to load users");
+    }
+  };
+
+  const toggleUserBlock: Store["toggleUserBlock"] = async (id, isBlocked) => {
+    if (!apiEnabled) {
+      setRegisteredUsers((arr) => arr.map((u) => (u.id === id ? { ...u, isBlocked } : u)));
+      return;
+    }
+    try {
+      await api(`/admin/users/${id}/status`, { method: "PATCH", body: { isBlocked } });
+      setRegisteredUsers((arr) => arr.map((u) => (u.id === id ? { ...u, isBlocked } : u)));
+      toast.success(isBlocked ? "User blocked" : "User activated");
+    } catch (e: any) {
+      toast.error(e?.message ?? "Action failed");
+    }
+  };
+
+  const fetchOrderEvents: Store["fetchOrderEvents"] = async (id) => {
+    if (!apiEnabled) return null;
+    try {
+      const r = await api<{ order: any; events: CourierEvent[] }>(`/admin/orders/${id}`);
+      const lookup = new Map(adminProducts.map((p) => [p.id, p]));
+      return { events: r.events ?? [], order: mapOrder(r.order, lookup) };
+    } catch {
+      return null;
+    }
+  };
+
+
   const value: Store = {
     apiEnabled,
     user,
@@ -575,6 +651,10 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     settings,
     updateSettings,
     customers,
+    registeredUsers,
+    fetchRegisteredUsers,
+    toggleUserBlock,
+    fetchOrderEvents,
   };
 
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;

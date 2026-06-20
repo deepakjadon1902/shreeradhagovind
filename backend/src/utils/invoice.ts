@@ -19,11 +19,13 @@ export type InvoiceData = {
 };
 
 const BRAND = "Shri Radha Govind Store";
-const TAGLINE = "Made with love from the heart of Vrindavan";
+
 const ACCENT = "#0f766e";
 const MUTED = "#6b7280";
 const BORDER = "#e5e7eb";
-const SUPPORT_EMAIL = "support@shriradhagovind.store";
+const SUPPORT_EMAIL = "support@shriradhagovindstore.com";
+const SUPPORT_PHONE = "+91 7500533505";
+const STORE_ADDRESS = "155, 2nd Floor, Madan Mohan Ghera, Vrindavan, Mathura, UP - 281121";
 
 const rupee = (n: number) => `Rs. ${Number(n || 0).toLocaleString("en-IN")}`;
 
@@ -46,9 +48,9 @@ export function generateInvoicePDF(data: InvoiceData): Promise<Buffer> {
 
       // ---- Header bar ----
       doc.rect(0, 0, pageW, 90).fill(ACCENT);
-      doc.fillColor("#ffffff").font("Helvetica-Bold").fontSize(22).text(BRAND, left, 28);
-      doc.font("Helvetica").fontSize(10).fillColor("#d1faf3").text(TAGLINE, left, 56);
-      doc.fontSize(9).fillColor("#d1faf3").text(SUPPORT_EMAIL, left, 70);
+      doc.fillColor("#ffffff").font("Helvetica-Bold").fontSize(22).text(BRAND, left, 24);
+      doc.font("Helvetica").fontSize(9).fillColor("#d1faf3").text(STORE_ADDRESS, left, 50, { width: usable * 0.6 });
+      doc.fontSize(9).fillColor("#d1faf3").text(`${SUPPORT_EMAIL}  ·  ${SUPPORT_PHONE}`, left, 72);
 
       doc.fillColor("#ffffff").font("Helvetica-Bold").fontSize(20).text("INVOICE", left, 28, { width: usable, align: "right" });
       doc.font("Helvetica").fontSize(9).fillColor("#d1faf3").text(`#${data.trackingId ?? data.orderId.slice(-8).toUpperCase()}`, left, 56, { width: usable, align: "right" });

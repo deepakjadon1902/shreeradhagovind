@@ -1,8 +1,8 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { useState } from "react";
-import { useStore, formatINR, type Order, type Settings, type Courier, COURIERS } from "@/lib/store";
+import { useEffect, useState } from "react";
+import { useStore, formatINR, type Order, type Settings, type Courier, type RegisteredUser, type CourierEvent, COURIERS } from "@/lib/store";
 import { type Product } from "@/lib/products";
-import { Lock, LayoutDashboard, Package, ShoppingCart, LogOut, Plus, Pencil, Trash2, IndianRupee, TrendingUp, Users, Tag, CreditCard, Settings as SettingsIcon, Truck, Check, X as XIcon } from "lucide-react";
+import { Lock, LayoutDashboard, Package, ShoppingCart, LogOut, Plus, Pencil, Trash2, IndianRupee, TrendingUp, Users, Tag, CreditCard, Settings as SettingsIcon, Truck, Check, X as XIcon, ShieldOff, ShieldCheck, RefreshCw, Mail, Phone } from "lucide-react";
 
 export const Route = createFileRoute("/admin")({
   component: AdminRoot,
@@ -12,12 +12,18 @@ export const Route = createFileRoute("/admin")({
 type Tab = "dash" | "products" | "orders" | "categories" | "users" | "payments" | "settings";
 
 function AdminRoot() {
-  const { adminAuthed, adminLogin, adminLogout, adminProducts, saveProduct, deleteProduct, orders, updateOrderStatus, updateOrderTracking, verifyOrderPayment, categories, addCategory, renameCategory, deleteCategory, customers, settings, updateSettings } = useStore();
+  const { adminAuthed, adminLogin, adminLogout, adminProducts, saveProduct, deleteProduct, orders, updateOrderTracking, verifyOrderPayment, categories, addCategory, renameCategory, deleteCategory, registeredUsers, fetchRegisteredUsers, toggleUserBlock, fetchOrderEvents, settings, updateSettings } = useStore();
   const [u, setU] = useState(""); const [p, setP] = useState("");
   const [tab, setTab] = useState<Tab>("dash");
   const [editing, setEditing] = useState<Product | null>(null);
   const [pickCat, setPickCat] = useState<string | null>(null);
   const [editingOrder, setEditingOrder] = useState<Order | null>(null);
+  const [viewUser, setViewUser] = useState<RegisteredUser | null>(null);
+
+  useEffect(() => {
+    if (adminAuthed && tab === "users") fetchRegisteredUsers();
+  }, [adminAuthed, tab, fetchRegisteredUsers]);
+
 
   if (!adminAuthed) {
     return (
@@ -73,7 +79,7 @@ function AdminRoot() {
           <NavBtn active={tab === "products"} onClick={() => setTab("products")} icon={Package}>Products</NavBtn>
           <NavBtn active={tab === "orders"} onClick={() => setTab("orders")} icon={ShoppingCart}>Orders</NavBtn>
           <NavBtn active={tab === "payments"} onClick={() => setTab("payments")} icon={CreditCard}>Payments</NavBtn>
-          <NavBtn active={tab === "users"} onClick={() => setTab("users")} icon={Users}>Customers</NavBtn>
+          <NavBtn active={tab === "users"} onClick={() => setTab("users")} icon={Users}>Users</NavBtn>
           <NavBtn active={tab === "settings"} onClick={() => setTab("settings")} icon={SettingsIcon}>Settings</NavBtn>
         </nav>
         <button onClick={adminLogout} className="flex items-center gap-2 text-sm text-background/70 hover:text-background py-2"><LogOut className="h-4 w-4" /> Logout</button>
@@ -196,7 +202,7 @@ function AdminRoot() {
                 </div>
               ))}
             </div>
-            {editingOrder && <OrderManager order={editingOrder} onClose={() => setEditingOrder(null)} onSave={(patch) => { updateOrderTracking(editingOrder.id, patch); setEditingOrder(null); }} />}
+            {editingOrder && <OrderManager order={editingOrder} fetchEvents={fetchOrderEvents} onClose={() => setEditingOrder(null)} onSave={(patch) => { updateOrderTracking(editingOrder.id, patch); setEditingOrder(null); }} />}
           </div>
         )}
 
@@ -241,28 +247,67 @@ function AdminRoot() {
 
         {tab === "users" && (
           <div>
-            <h1 className="font-display text-3xl">Customers</h1>
-            <p className="text-sm text-muted-foreground">Unique customers who placed orders.</p>
-            <div className="mt-6 bg-card rounded-2xl premium-shadow overflow-hidden">
-              <table className="w-full text-sm">
+            <div className="flex items-center justify-between flex-wrap gap-2">
+              <div>
+                <h1 className="font-display text-3xl">Users</h1>
+                <p className="text-sm text-muted-foreground">All registered accounts. Activate or block them and view full profile details.</p>
+              </div>
+              <button onClick={() => fetchRegisteredUsers()} className="h-10 px-4 rounded-full border text-sm inline-flex items-center gap-2 hover:border-primary"><RefreshCw className="h-4 w-4" /> Refresh</button>
+            </div>
+            <div className="grid sm:grid-cols-3 gap-4 mt-6">
+              <Stat icon={Users} label="Total Users" value={String(registeredUsers.length)} />
+              <Stat icon={ShieldCheck} label="Active" value={String(registeredUsers.filter((x) => !x.isBlocked).length)} />
+              <Stat icon={ShieldOff} label="Blocked" value={String(registeredUsers.filter((x) => x.isBlocked).length)} />
+            </div>
+            <div className="mt-6 bg-card rounded-2xl premium-shadow overflow-x-auto">
+              <table className="w-full text-sm min-w-[760px]">
                 <thead className="text-left text-muted-foreground text-xs uppercase tracking-wider bg-muted/40">
-                  <tr><th className="p-4">Name</th><th>Phone</th><th>Orders</th><th>Total Spent</th></tr>
+                  <tr><th className="p-4">User</th><th>Contact</th><th>Joined</th><th>Orders</th><th>Spent</th><th>Status</th><th className="text-right pr-4">Actions</th></tr>
                 </thead>
                 <tbody>
-                  {customers.length === 0 && <tr><td colSpan={4} className="p-6 text-center text-muted-foreground">No customers yet.</td></tr>}
-                  {customers.map((c, i) => (
-                    <tr key={i} className="border-t">
-                      <td className="p-4 flex items-center gap-3"><span className="h-9 w-9 rounded-full bg-primary/10 text-primary grid place-items-center font-medium">{c.name.charAt(0).toUpperCase()}</span>{c.name}</td>
-                      <td>{c.phone || "—"}</td>
-                      <td>{c.orders}</td>
-                      <td className="font-medium">{formatINR(c.spent)}</td>
+                  {registeredUsers.length === 0 && <tr><td colSpan={7} className="p-6 text-center text-muted-foreground">No registered users yet.</td></tr>}
+                  {registeredUsers.map((ru) => (
+                    <tr key={ru.id} className="border-t">
+                      <td className="p-4">
+                        <div className="flex items-center gap-3">
+                          <span className="h-9 w-9 rounded-full bg-primary/10 text-primary grid place-items-center font-medium">{ru.name.charAt(0).toUpperCase()}</span>
+                          <div className="min-w-0">
+                            <p className="font-medium truncate max-w-[180px]">{ru.name}</p>
+                            <p className="text-xs text-muted-foreground truncate max-w-[180px]">{ru.email}</p>
+                          </div>
+                        </div>
+                      </td>
+                      <td className="text-xs">
+                        {ru.phone || <span className="text-muted-foreground">—</span>}
+                        <p className="text-muted-foreground">{ru.address?.city || ""}{ru.address?.city && ru.address?.state ? ", " : ""}{ru.address?.state || ""}</p>
+                      </td>
+                      <td className="text-xs text-muted-foreground">{ru.createdAt ? new Date(ru.createdAt).toLocaleDateString() : "—"}</td>
+                      <td>{ru.ordersCount ?? 0}</td>
+                      <td className="font-medium">{formatINR(ru.totalSpent ?? 0)}</td>
+                      <td>
+                        <span className={`px-2 py-0.5 rounded-full text-xs ${ru.isBlocked ? "bg-destructive/10 text-destructive" : "bg-green-600/10 text-green-700"}`}>
+                          {ru.isBlocked ? "Blocked" : "Active"}
+                        </span>
+                      </td>
+                      <td className="pr-4">
+                        <div className="flex gap-2 justify-end">
+                          <button onClick={() => setViewUser(ru)} className="px-3 h-8 rounded-md text-xs border hover:border-primary">View</button>
+                          {ru.isBlocked ? (
+                            <button onClick={() => toggleUserBlock(ru.id, false)} className="px-3 h-8 rounded-md text-xs bg-green-600/10 text-green-700 hover:bg-green-600/20 inline-flex items-center gap-1"><ShieldCheck className="h-3.5 w-3.5" /> Activate</button>
+                          ) : (
+                            <button onClick={() => { if (confirm(`Block ${ru.name}? They will not be able to sign in.`)) toggleUserBlock(ru.id, true); }} className="px-3 h-8 rounded-md text-xs bg-destructive/10 text-destructive hover:bg-destructive/20 inline-flex items-center gap-1"><ShieldOff className="h-3.5 w-3.5" /> Block</button>
+                          )}
+                        </div>
+                      </td>
                     </tr>
                   ))}
                 </tbody>
               </table>
             </div>
+            {viewUser && <UserDetail user={viewUser} onClose={() => setViewUser(null)} onToggleBlock={(b) => toggleUserBlock(viewUser.id, b)} />}
           </div>
         )}
+
 
         {tab === "settings" && <SettingsPanel settings={settings} onSave={updateSettings} />}
       </main>
@@ -374,20 +419,53 @@ function SettingsPanel({ settings, onSave }: { settings: Settings; onSave: (p: P
 }
 
 function OrderManager({
-  order,
+  order: initialOrder,
+  fetchEvents,
   onClose,
   onSave,
 }: {
   order: Order;
+  fetchEvents?: (id: string) => Promise<{ events: CourierEvent[]; order: Order } | null>;
   onClose: () => void;
   onSave: (patch: { trackingId?: string; courier?: Courier | null; courierTrackingUrl?: string; status?: Order["status"] }) => void;
 }) {
-  const [trackingId, setTrackingId] = useState(order.trackingId ?? "");
-  const [courier, setCourier] = useState<Courier | "">(order.courier ?? "");
-  const [courierTrackingUrl, setCourierTrackingUrl] = useState(order.courierTrackingUrl ?? "");
-  const [status, setStatus] = useState<Order["status"]>(order.status);
+  const [order, setOrder] = useState<Order>(initialOrder);
+  const [events, setEvents] = useState<CourierEvent[]>([]);
+  const [lastSync, setLastSync] = useState<number | null>(null);
+  const [syncing, setSyncing] = useState(false);
+  const [trackingId, setTrackingId] = useState(initialOrder.trackingId ?? "");
+  const [courier, setCourier] = useState<Courier | "">(initialOrder.courier ?? "");
+  const [courierTrackingUrl, setCourierTrackingUrl] = useState(initialOrder.courierTrackingUrl ?? "");
+  const [status, setStatus] = useState<Order["status"]>(initialOrder.status);
 
   const STATUSES: Order["status"][] = ["Placed", "Packed", "Shipped", "Out for delivery", "Delivered", "Cancelled"];
+
+  // ---- Auto courier event sync (poll backend every 15s) ----
+  useEffect(() => {
+    if (!fetchEvents) return;
+    let alive = true;
+    const sync = async () => {
+      setSyncing(true);
+      const r = await fetchEvents(initialOrder.id);
+      if (alive && r) {
+        setEvents(r.events);
+        setOrder(r.order);
+        setLastSync(Date.now());
+      }
+      if (alive) setSyncing(false);
+    };
+    sync();
+    const t = setInterval(sync, 15000);
+    return () => { alive = false; clearInterval(t); };
+  }, [fetchEvents, initialOrder.id]);
+
+  const manualRefresh = async () => {
+    if (!fetchEvents) return;
+    setSyncing(true);
+    const r = await fetchEvents(initialOrder.id);
+    if (r) { setEvents(r.events); setOrder(r.order); setLastSync(Date.now()); }
+    setSyncing(false);
+  };
 
   const submit = () => {
     const patch: Parameters<typeof onSave>[0] = { status };
@@ -401,7 +479,7 @@ function OrderManager({
   const TIMELINE: Order["status"][] = ["Placed", "Packed", "Shipped", "Out for delivery", "Delivered"];
   const isCancelled = order.status === "Cancelled";
   const currentIdx = isCancelled ? -1 : Math.max(0, TIMELINE.indexOf(order.status));
-  const fmt = (ts: number) => new Date(ts).toLocaleString("en-IN", { dateStyle: "medium", timeStyle: "short" });
+  const fmt = (ts: number | string) => new Date(ts).toLocaleString("en-IN", { dateStyle: "medium", timeStyle: "short" });
 
   const payBadge =
     order.payment.status === "paid"
@@ -418,7 +496,18 @@ function OrderManager({
             <h2 className="font-display text-2xl">Manage Order</h2>
             <p className="text-xs text-muted-foreground mt-0.5">#{order.id} · {order.address.name} · {formatINR(order.total)}</p>
           </div>
-          <button onClick={onClose} className="p-2 rounded-lg hover:bg-muted" aria-label="Close"><XIcon className="h-4 w-4" /></button>
+          <div className="flex items-center gap-2">
+            {fetchEvents && (
+              <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-green-600/10 text-green-700 text-[11px]" title="Auto-syncs every 15s">
+                <span className={`h-1.5 w-1.5 rounded-full bg-green-600 ${syncing ? "animate-pulse" : ""}`} />
+                Live · {lastSync ? new Date(lastSync).toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit", second: "2-digit" }) : "syncing…"}
+              </div>
+            )}
+            {fetchEvents && (
+              <button onClick={manualRefresh} disabled={syncing} className="p-2 rounded-lg hover:bg-muted disabled:opacity-50" aria-label="Refresh"><RefreshCw className={`h-4 w-4 ${syncing ? "animate-spin" : ""}`} /></button>
+            )}
+            <button onClick={onClose} className="p-2 rounded-lg hover:bg-muted" aria-label="Close"><XIcon className="h-4 w-4" /></button>
+          </div>
         </div>
 
         {/* ---- Quick facts: payment + courier snapshot ---- */}
@@ -497,6 +586,25 @@ function OrderManager({
               </div>
             </div>
           )}
+
+          {/* Live synced event feed */}
+          {events.length > 0 && (
+            <div className="mt-4 pt-3 border-t">
+              <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground mb-2">Courier event history (auto-synced)</p>
+              <ol className="space-y-2.5">
+                {[...events].reverse().map((ev, i) => (
+                  <li key={`${ev.at}-${i}`} className="flex items-start gap-3">
+                    <span className={`mt-1 h-2 w-2 rounded-full shrink-0 ${i === 0 ? "bg-primary ring-2 ring-primary/30" : "bg-muted-foreground/40"}`} />
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium">{ev.label}</p>
+                      <p className="text-xs text-muted-foreground">{ev.description}</p>
+                      <p className="text-[10px] text-muted-foreground/70 mt-0.5">{fmt(ev.at)}</p>
+                    </div>
+                  </li>
+                ))}
+              </ol>
+            </div>
+          )}
         </div>
 
         {/* ---- Editable fields ---- */}
@@ -535,6 +643,54 @@ function OrderManager({
         <div className="flex gap-3 mt-6 justify-end">
           <button onClick={onClose} className="h-10 px-5 rounded-full border text-sm">Cancel</button>
           <button onClick={submit} className="h-10 px-5 rounded-full bg-primary text-primary-foreground text-sm font-medium inline-flex items-center gap-2"><Truck className="h-4 w-4" /> Save & Notify</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function UserDetail({ user, onClose, onToggleBlock }: { user: RegisteredUser; onClose: () => void; onToggleBlock: (b: boolean) => void }) {
+  const a = user.address ?? {};
+  return (
+    <div className="fixed inset-0 bg-black/50 z-50 grid place-items-center p-4" onClick={onClose}>
+      <div className="bg-card rounded-2xl p-6 w-full max-w-lg" onClick={(e) => e.stopPropagation()}>
+        <div className="flex items-start justify-between gap-3">
+          <div className="flex items-center gap-3">
+            <span className="h-12 w-12 rounded-full bg-primary/10 text-primary grid place-items-center text-lg font-medium">{user.name.charAt(0).toUpperCase()}</span>
+            <div>
+              <h2 className="font-display text-xl">{user.name}</h2>
+              <p className="text-xs text-muted-foreground">{user.role.toUpperCase()} · {user.provider ?? "password"} · joined {user.createdAt ? new Date(user.createdAt).toLocaleDateString() : "—"}</p>
+            </div>
+          </div>
+          <button onClick={onClose} className="p-2 rounded-lg hover:bg-muted" aria-label="Close"><XIcon className="h-4 w-4" /></button>
+        </div>
+
+        <div className="mt-4 space-y-2 text-sm">
+          <p className="flex items-center gap-2"><Mail className="h-4 w-4 text-primary" /> {user.email}</p>
+          <p className="flex items-center gap-2"><Phone className="h-4 w-4 text-primary" /> {user.phone || <span className="text-muted-foreground">No phone</span>}</p>
+          <div className="rounded-lg border bg-muted/30 p-3 text-xs leading-relaxed">
+            <p className="uppercase tracking-wider text-muted-foreground mb-1">Shipping Address</p>
+            {a.line1 || a.city || a.pincode ? (
+              <p>{a.line1}{a.line1 ? ", " : ""}{a.city}{a.state ? `, ${a.state}` : ""} {a.pincode}</p>
+            ) : (
+              <p className="text-muted-foreground">No address saved.</p>
+            )}
+          </div>
+          <div className="grid grid-cols-3 gap-2 mt-3">
+            <Stat icon={ShoppingCart} label="Orders" value={String(user.ordersCount ?? 0)} />
+            <Stat icon={IndianRupee} label="Spent" value={formatINR(user.totalSpent ?? 0)} />
+            <Stat icon={user.isBlocked ? ShieldOff : ShieldCheck} label="Status" value={user.isBlocked ? "Blocked" : "Active"} />
+          </div>
+          {user.lastLoginAt && <p className="text-[11px] text-muted-foreground">Last login: {new Date(user.lastLoginAt).toLocaleString()}</p>}
+        </div>
+
+        <div className="flex gap-3 mt-6 justify-end">
+          <button onClick={onClose} className="h-10 px-5 rounded-full border text-sm">Close</button>
+          {user.isBlocked ? (
+            <button onClick={() => { onToggleBlock(false); onClose(); }} className="h-10 px-5 rounded-full bg-green-600 text-white text-sm font-medium inline-flex items-center gap-2"><ShieldCheck className="h-4 w-4" /> Activate</button>
+          ) : (
+            <button onClick={() => { if (confirm(`Block ${user.name}? They will not be able to sign in.`)) { onToggleBlock(true); onClose(); } }} className="h-10 px-5 rounded-full bg-destructive text-destructive-foreground text-sm font-medium inline-flex items-center gap-2"><ShieldOff className="h-4 w-4" /> Block User</button>
+          )}
         </div>
       </div>
     </div>
