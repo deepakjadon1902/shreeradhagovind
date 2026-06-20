@@ -651,6 +651,10 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     settings,
     updateSettings,
     customers,
+    registeredUsers,
+    fetchRegisteredUsers,
+    toggleUserBlock,
+    fetchOrderEvents,
   };
 
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
