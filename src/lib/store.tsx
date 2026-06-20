@@ -553,6 +553,59 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     }
   };
 
+  // ---- registered users (admin) ----
+  const fetchRegisteredUsers: Store["fetchRegisteredUsers"] = async () => {
+    if (!apiEnabled) return;
+    try {
+      const r = await api<{ users: any[] }>("/admin/users");
+      setRegisteredUsers(
+        r.users.map((u: any) => ({
+          id: String(u._id ?? u.id),
+          name: u.name,
+          email: u.email,
+          phone: u.phone ?? "",
+          avatar: u.avatar ?? "",
+          role: u.role ?? "user",
+          provider: u.provider ?? "password",
+          isBlocked: !!u.isBlocked,
+          address: u.address ?? {},
+          ordersCount: u.ordersCount ?? 0,
+          totalSpent: u.totalSpent ?? 0,
+          createdAt: u.createdAt,
+          lastLoginAt: u.lastLoginAt ?? null,
+        }))
+      );
+    } catch (e: any) {
+      toast.error(e?.message ?? "Failed to load users");
+    }
+  };
+
+  const toggleUserBlock: Store["toggleUserBlock"] = async (id, isBlocked) => {
+    if (!apiEnabled) {
+      setRegisteredUsers((arr) => arr.map((u) => (u.id === id ? { ...u, isBlocked } : u)));
+      return;
+    }
+    try {
+      await api(`/admin/users/${id}/status`, { method: "PATCH", body: { isBlocked } });
+      setRegisteredUsers((arr) => arr.map((u) => (u.id === id ? { ...u, isBlocked } : u)));
+      toast.success(isBlocked ? "User blocked" : "User activated");
+    } catch (e: any) {
+      toast.error(e?.message ?? "Action failed");
+    }
+  };
+
+  const fetchOrderEvents: Store["fetchOrderEvents"] = async (id) => {
+    if (!apiEnabled) return null;
+    try {
+      const r = await api<{ order: any; events: CourierEvent[] }>(`/admin/orders/${id}`);
+      const lookup = new Map(adminProducts.map((p) => [p.id, p]));
+      return { events: r.events ?? [], order: mapOrder(r.order, lookup) };
+    } catch {
+      return null;
+    }
+  };
+
+
   const value: Store = {
     apiEnabled,
     user,
