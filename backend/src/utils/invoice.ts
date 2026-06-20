@@ -19,7 +19,7 @@ export type InvoiceData = {
 };
 
 const BRAND = "Shri Radha Govind Store";
-const TAGLINE = "Made with love from the heart of Vrindavan";
+
 const ACCENT = "#0f766e";
 const MUTED = "#6b7280";
 const BORDER = "#e5e7eb";
