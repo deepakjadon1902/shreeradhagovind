@@ -648,3 +648,51 @@ function OrderManager({
     </div>
   );
 }
+
+function UserDetail({ user, onClose, onToggleBlock }: { user: RegisteredUser; onClose: () => void; onToggleBlock: (b: boolean) => void }) {
+  const a = user.address ?? {};
+  return (
+    <div className="fixed inset-0 bg-black/50 z-50 grid place-items-center p-4" onClick={onClose}>
+      <div className="bg-card rounded-2xl p-6 w-full max-w-lg" onClick={(e) => e.stopPropagation()}>
+        <div className="flex items-start justify-between gap-3">
+          <div className="flex items-center gap-3">
+            <span className="h-12 w-12 rounded-full bg-primary/10 text-primary grid place-items-center text-lg font-medium">{user.name.charAt(0).toUpperCase()}</span>
+            <div>
+              <h2 className="font-display text-xl">{user.name}</h2>
+              <p className="text-xs text-muted-foreground">{user.role.toUpperCase()} · {user.provider ?? "password"} · joined {user.createdAt ? new Date(user.createdAt).toLocaleDateString() : "—"}</p>
+            </div>
+          </div>
+          <button onClick={onClose} className="p-2 rounded-lg hover:bg-muted" aria-label="Close"><XIcon className="h-4 w-4" /></button>
+        </div>
+
+        <div className="mt-4 space-y-2 text-sm">
+          <p className="flex items-center gap-2"><Mail className="h-4 w-4 text-primary" /> {user.email}</p>
+          <p className="flex items-center gap-2"><Phone className="h-4 w-4 text-primary" /> {user.phone || <span className="text-muted-foreground">No phone</span>}</p>
+          <div className="rounded-lg border bg-muted/30 p-3 text-xs leading-relaxed">
+            <p className="uppercase tracking-wider text-muted-foreground mb-1">Shipping Address</p>
+            {a.line1 || a.city || a.pincode ? (
+              <p>{a.line1}{a.line1 ? ", " : ""}{a.city}{a.state ? `, ${a.state}` : ""} {a.pincode}</p>
+            ) : (
+              <p className="text-muted-foreground">No address saved.</p>
+            )}
+          </div>
+          <div className="grid grid-cols-3 gap-2 mt-3">
+            <Stat icon={ShoppingCart} label="Orders" value={String(user.ordersCount ?? 0)} />
+            <Stat icon={IndianRupee} label="Spent" value={formatINR(user.totalSpent ?? 0)} />
+            <Stat icon={user.isBlocked ? ShieldOff : ShieldCheck} label="Status" value={user.isBlocked ? "Blocked" : "Active"} />
+          </div>
+          {user.lastLoginAt && <p className="text-[11px] text-muted-foreground">Last login: {new Date(user.lastLoginAt).toLocaleString()}</p>}
+        </div>
+
+        <div className="flex gap-3 mt-6 justify-end">
+          <button onClick={onClose} className="h-10 px-5 rounded-full border text-sm">Close</button>
+          {user.isBlocked ? (
+            <button onClick={() => { onToggleBlock(false); onClose(); }} className="h-10 px-5 rounded-full bg-green-600 text-white text-sm font-medium inline-flex items-center gap-2"><ShieldCheck className="h-4 w-4" /> Activate</button>
+          ) : (
+            <button onClick={() => { if (confirm(`Block ${user.name}? They will not be able to sign in.`)) { onToggleBlock(true); onClose(); } }} className="h-10 px-5 rounded-full bg-destructive text-destructive-foreground text-sm font-medium inline-flex items-center gap-2"><ShieldOff className="h-4 w-4" /> Block User</button>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
