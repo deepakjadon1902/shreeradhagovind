@@ -202,7 +202,7 @@ function AdminRoot() {
                 </div>
               ))}
             </div>
-            {editingOrder && <OrderManager order={editingOrder} onClose={() => setEditingOrder(null)} onSave={(patch) => { updateOrderTracking(editingOrder.id, patch); setEditingOrder(null); }} />}
+            {editingOrder && <OrderManager order={editingOrder} fetchEvents={fetchOrderEvents} onClose={() => setEditingOrder(null)} onSave={(patch) => { updateOrderTracking(editingOrder.id, patch); setEditingOrder(null); }} />}
           </div>
         )}
 
