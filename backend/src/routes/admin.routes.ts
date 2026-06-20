@@ -114,12 +114,66 @@ r.patch("/orders/:id/payment", async (req, res, next) => {
 
 r.get("/users", async (_req, res, next) => {
   try {
-    const users = await User.find().select("-passwordHash").sort({ createdAt: -1 });
-    res.json({ users });
+    const users = await User.find().select("-passwordHash").sort({ createdAt: -1 }).lean();
+    // attach order stats per user
+    const ids = users.map((u) => u._id);
+    const stats = await Order.aggregate([
+      { $match: { user: { $in: ids } } },
+      { $group: { _id: "$user", orders: { $sum: 1 }, spent: { $sum: "$total" } } },
+    ]);
+    const map = new Map(stats.map((s: any) => [String(s._id), s]));
+    res.json({
+      users: users.map((u) => {
+        const s = map.get(String(u._id));
+        return { ...u, ordersCount: s?.orders ?? 0, totalSpent: s?.spent ?? 0 };
+      }),
+    });
   } catch (e) {
     next(e);
   }
 });
+
+r.patch("/users/:id/status", async (req, res, next) => {
+  try {
+    const { isBlocked } = z.object({ isBlocked: z.boolean() }).parse(req.body);
+    const u = await User.findByIdAndUpdate(req.params.id, { isBlocked }, { new: true }).select("-passwordHash");
+    if (!u) throw new HttpError(404, "User not found");
+    res.json({ user: u });
+  } catch (e) {
+    next(e);
+  }
+});
+
+// ---- live order fetch + derived courier events (polled by admin) ----
+r.get("/orders/:id", async (req, res, next) => {
+  try {
+    const o = await Order.findById(req.params.id).populate("user", "name email");
+    if (!o) throw new HttpError(404, "Not found");
+    res.json({ order: o, events: deriveEvents(o) });
+  } catch (e) {
+    next(e);
+  }
+});
+
+function deriveEvents(o: any) {
+  const placedAt = o.createdAt instanceof Date ? o.createdAt : new Date(o.createdAt);
+  const updatedAt = o.updatedAt instanceof Date ? o.updatedAt : new Date(o.updatedAt ?? placedAt);
+  const courier = o.courier ?? "Courier partner";
+  const city = o.address?.city ?? "destination";
+  const order = ["Placed", "Packed", "Shipped", "Out for delivery", "Delivered"];
+  const idx = o.status === "Cancelled" ? -1 : Math.max(0, order.indexOf(o.status));
+  const evts: { at: Date; label: string; description: string }[] = [];
+  if (o.status === "Cancelled") {
+    evts.push({ at: updatedAt, label: "Cancelled", description: "Order was cancelled. Customer was notified by email." });
+  } else {
+    if (idx >= 0) evts.push({ at: placedAt, label: "Placed", description: `Order placed successfully (#${o.trackingId ?? String(o._id).slice(-6).toUpperCase()}).` });
+    if (idx >= 1) evts.push({ at: updatedAt, label: "Packed", description: `Items packed at warehouse. Handed over to ${courier}.` });
+    if (idx >= 2) evts.push({ at: updatedAt, label: "Shipped", description: `Shipped via ${courier}. In transit to ${city}.` });
+    if (idx >= 3) evts.push({ at: updatedAt, label: "Out for delivery", description: `${courier} agent is out for delivery in ${city}.` });
+    if (idx >= 4) evts.push({ at: updatedAt, label: "Delivered", description: `Delivered by ${courier} to ${city}.` });
+  }
+  return evts.map((e) => ({ at: e.at.toISOString(), label: e.label, description: e.description }));
+}
 
 r.get("/payments", async (_req, res, next) => {
   try {
