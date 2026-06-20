@@ -98,6 +98,10 @@ type Store = {
   settings: Settings;
   updateSettings: (patch: Partial<Settings>) => Promise<void> | void;
   customers: { name: string; email: string; phone: string; orders: number; spent: number }[];
+  registeredUsers: RegisteredUser[];
+  fetchRegisteredUsers: () => Promise<void>;
+  toggleUserBlock: (id: string, isBlocked: boolean) => Promise<void>;
+  fetchOrderEvents: (id: string) => Promise<{ events: CourierEvent[]; order: Order } | null>;
 };
 
 const Ctx = createContext<Store | null>(null);
