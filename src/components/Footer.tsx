@@ -80,25 +80,34 @@ export function Footer() {
 
       {/* Links bands */}
       <div className="border-t border-border">
-        <div className="container-app py-10 grid gap-8 md:grid-cols-2">
+        <div className="container-app py-10 grid gap-8 md:grid-cols-3">
           <div>
             <h4 className="font-display text-xl font-semibold mb-4">Support</h4>
             <ul className="space-y-3 text-sm text-foreground/85">
-              <li><Link to="/" className="hover:text-primary">About</Link></li>
-              <li><a href="#contact" className="hover:text-primary">Contact Us</a></li>
-              <li><Link to="/orders" className="hover:text-primary">Track Order</Link></li>
-              <li><Link to="/shop" className="hover:text-primary">Custom Poshak</Link></li>
+              <li><Link to="/about" className="hover:text-primary">About Us</Link></li>
+              <li><Link to="/contact" className="hover:text-primary">Contact Us</Link></li>
+              <li><Link to="/track" className="hover:text-primary">Track Order</Link></li>
+              <li><Link to="/shop" className="hover:text-primary">Shop</Link></li>
               <li><Link to="/wishlist" className="hover:text-primary">Wishlist</Link></li>
             </ul>
           </div>
           <div>
             <h4 className="font-display text-xl font-semibold mb-4">Help & Policies</h4>
             <ul className="space-y-3 text-sm text-foreground/85">
-              <li><a href="#terms" className="hover:text-primary">Terms & Conditions</a></li>
-              <li><a href="#privacy" className="hover:text-primary">Privacy Policy</a></li>
-              <li><a href="#refund" className="hover:text-primary">Refund and Returns Policy</a></li>
-              <li><a href="#shipping" className="hover:text-primary">Shipping Policy & Support</a></li>
+              <li><Link to="/terms" className="hover:text-primary">Terms & Conditions</Link></li>
+              <li><Link to="/privacy" className="hover:text-primary">Privacy Policy</Link></li>
+              <li><Link to="/returns" className="hover:text-primary">Refund and Returns Policy</Link></li>
+              <li><Link to="/shipping" className="hover:text-primary">Shipping Policy & Support</Link></li>
             </ul>
+          </div>
+          <div>
+            <h4 className="font-display text-xl font-semibold mb-4">Reach Us</h4>
+            <address className="not-italic text-sm text-foreground/85 space-y-2 leading-relaxed">
+              <p>Shri Radha Govind Store<br />155, 2nd Floor, Madan Mohan Ghera<br />Vrindavan, Mathura, UP – 281121</p>
+              <p>📞 <a href="tel:+917500533505" className="hover:text-primary">+91 7500533505</a></p>
+              <p>✉ <a href="mailto:support@shriradhagovindstore.com" className="hover:text-primary break-all">support@shriradhagovindstore.com</a></p>
+              <p>✉ <a href="mailto:shriradhagovindstore@gmail.com" className="hover:text-primary break-all">shriradhagovindstore@gmail.com</a></p>
+            </address>
           </div>
         </div>
       </div>
