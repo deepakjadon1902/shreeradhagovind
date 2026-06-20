@@ -247,28 +247,67 @@ function AdminRoot() {
 
         {tab === "users" && (
           <div>
-            <h1 className="font-display text-3xl">Customers</h1>
-            <p className="text-sm text-muted-foreground">Unique customers who placed orders.</p>
-            <div className="mt-6 bg-card rounded-2xl premium-shadow overflow-hidden">
-              <table className="w-full text-sm">
+            <div className="flex items-center justify-between flex-wrap gap-2">
+              <div>
+                <h1 className="font-display text-3xl">Users</h1>
+                <p className="text-sm text-muted-foreground">All registered accounts. Activate or block them and view full profile details.</p>
+              </div>
+              <button onClick={() => fetchRegisteredUsers()} className="h-10 px-4 rounded-full border text-sm inline-flex items-center gap-2 hover:border-primary"><RefreshCw className="h-4 w-4" /> Refresh</button>
+            </div>
+            <div className="grid sm:grid-cols-3 gap-4 mt-6">
+              <Stat icon={Users} label="Total Users" value={String(registeredUsers.length)} />
+              <Stat icon={ShieldCheck} label="Active" value={String(registeredUsers.filter((x) => !x.isBlocked).length)} />
+              <Stat icon={ShieldOff} label="Blocked" value={String(registeredUsers.filter((x) => x.isBlocked).length)} />
+            </div>
+            <div className="mt-6 bg-card rounded-2xl premium-shadow overflow-x-auto">
+              <table className="w-full text-sm min-w-[760px]">
                 <thead className="text-left text-muted-foreground text-xs uppercase tracking-wider bg-muted/40">
-                  <tr><th className="p-4">Name</th><th>Phone</th><th>Orders</th><th>Total Spent</th></tr>
+                  <tr><th className="p-4">User</th><th>Contact</th><th>Joined</th><th>Orders</th><th>Spent</th><th>Status</th><th className="text-right pr-4">Actions</th></tr>
                 </thead>
                 <tbody>
-                  {customers.length === 0 && <tr><td colSpan={4} className="p-6 text-center text-muted-foreground">No customers yet.</td></tr>}
-                  {customers.map((c, i) => (
-                    <tr key={i} className="border-t">
-                      <td className="p-4 flex items-center gap-3"><span className="h-9 w-9 rounded-full bg-primary/10 text-primary grid place-items-center font-medium">{c.name.charAt(0).toUpperCase()}</span>{c.name}</td>
-                      <td>{c.phone || "—"}</td>
-                      <td>{c.orders}</td>
-                      <td className="font-medium">{formatINR(c.spent)}</td>
+                  {registeredUsers.length === 0 && <tr><td colSpan={7} className="p-6 text-center text-muted-foreground">No registered users yet.</td></tr>}
+                  {registeredUsers.map((ru) => (
+                    <tr key={ru.id} className="border-t">
+                      <td className="p-4">
+                        <div className="flex items-center gap-3">
+                          <span className="h-9 w-9 rounded-full bg-primary/10 text-primary grid place-items-center font-medium">{ru.name.charAt(0).toUpperCase()}</span>
+                          <div className="min-w-0">
+                            <p className="font-medium truncate max-w-[180px]">{ru.name}</p>
+                            <p className="text-xs text-muted-foreground truncate max-w-[180px]">{ru.email}</p>
+                          </div>
+                        </div>
+                      </td>
+                      <td className="text-xs">
+                        {ru.phone || <span className="text-muted-foreground">—</span>}
+                        <p className="text-muted-foreground">{ru.address?.city || ""}{ru.address?.city && ru.address?.state ? ", " : ""}{ru.address?.state || ""}</p>
+                      </td>
+                      <td className="text-xs text-muted-foreground">{ru.createdAt ? new Date(ru.createdAt).toLocaleDateString() : "—"}</td>
+                      <td>{ru.ordersCount ?? 0}</td>
+                      <td className="font-medium">{formatINR(ru.totalSpent ?? 0)}</td>
+                      <td>
+                        <span className={`px-2 py-0.5 rounded-full text-xs ${ru.isBlocked ? "bg-destructive/10 text-destructive" : "bg-green-600/10 text-green-700"}`}>
+                          {ru.isBlocked ? "Blocked" : "Active"}
+                        </span>
+                      </td>
+                      <td className="pr-4">
+                        <div className="flex gap-2 justify-end">
+                          <button onClick={() => setViewUser(ru)} className="px-3 h-8 rounded-md text-xs border hover:border-primary">View</button>
+                          {ru.isBlocked ? (
+                            <button onClick={() => toggleUserBlock(ru.id, false)} className="px-3 h-8 rounded-md text-xs bg-green-600/10 text-green-700 hover:bg-green-600/20 inline-flex items-center gap-1"><ShieldCheck className="h-3.5 w-3.5" /> Activate</button>
+                          ) : (
+                            <button onClick={() => { if (confirm(`Block ${ru.name}? They will not be able to sign in.`)) toggleUserBlock(ru.id, true); }} className="px-3 h-8 rounded-md text-xs bg-destructive/10 text-destructive hover:bg-destructive/20 inline-flex items-center gap-1"><ShieldOff className="h-3.5 w-3.5" /> Block</button>
+                          )}
+                        </div>
+                      </td>
                     </tr>
                   ))}
                 </tbody>
               </table>
             </div>
+            {viewUser && <UserDetail user={viewUser} onClose={() => setViewUser(null)} onToggleBlock={(b) => toggleUserBlock(viewUser.id, b)} />}
           </div>
         )}
+
 
         {tab === "settings" && <SettingsPanel settings={settings} onSave={updateSettings} />}
       </main>
