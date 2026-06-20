@@ -8,6 +8,15 @@ const userSchema = new Schema(
     role: { type: String, enum: ["user", "admin"], default: "user", index: true },
     provider: { type: String, enum: ["password", "google"], default: "password" },
     avatar: { type: String, default: "" },
+    phone: { type: String, default: "" },
+    address: {
+      line1: { type: String, default: "" },
+      city: { type: String, default: "" },
+      state: { type: String, default: "" },
+      pincode: { type: String, default: "" },
+    },
+    isBlocked: { type: Boolean, default: false, index: true },
+    lastLoginAt: { type: Date, default: null },
   },
   { timestamps: true }
 );
