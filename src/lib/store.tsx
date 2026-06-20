@@ -36,8 +36,8 @@ export type Settings = {
 const DEFAULT_SETTINGS: Settings = {
   siteName: "Shri Radha Govind Store",
   tagline: "Made With Love From The Heart Of Vrindavan",
-  supportEmail: "support@shriradhagovind.store",
-  supportPhone: "+91 98765 43210",
+  supportEmail: "support@shriradhagovindstore.com",
+  supportPhone: "+91 7500533505",
   currency: "INR",
   freeShipThreshold: 999,
   shippingFee: 49,
@@ -45,6 +45,24 @@ const DEFAULT_SETTINGS: Settings = {
   codEnabled: true,
   announcement: "॥ Radhe Radhe ॥ · Made With Love From The Heart Of Vrindavan · Free shipping above ₹999",
 };
+
+export type RegisteredUser = {
+  id: string;
+  name: string;
+  email: string;
+  phone?: string;
+  avatar?: string;
+  role: "user" | "admin";
+  provider?: "password" | "google";
+  isBlocked: boolean;
+  address?: { line1?: string; city?: string; state?: string; pincode?: string };
+  ordersCount?: number;
+  totalSpent?: number;
+  createdAt?: string;
+  lastLoginAt?: string | null;
+};
+
+export type CourierEvent = { at: string; label: string; description: string };
 
 type Store = {
   apiEnabled: boolean;
