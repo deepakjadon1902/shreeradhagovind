@@ -164,7 +164,7 @@ export const tpl = {
         <div style="font-size:12px;color:#0f766e;letter-spacing:.1em;text-transform:uppercase">Tracking ID</div>
         <div style="font-size:22px;font-weight:700;color:#0f766e">${order.trackingId ?? "-"}</div>
         <div style="margin-top:6px;font-size:13px;color:#555">Courier: <b>${order.courier ?? "To be assigned"}</b></div>
-        <a href="https://shreeradhagovind.lovable.app/track?id=${encodeURIComponent(order.trackingId ?? "")}"
+        <a href="https://shriradhagovindstore.com/track?id=${encodeURIComponent(order.trackingId ?? "")}"
           style="display:inline-block;margin-top:10px;background:${ACCENT};color:#fff;padding:8px 14px;border-radius:999px;text-decoration:none;font-size:13px">
           Track your order
         </a>
@@ -184,7 +184,7 @@ export const tpl = {
       <p>Your payment of <b>${rupee(amount)}</b> for order <b>#${ref}</b> could not be verified, so we have automatically cancelled the order.</p>
       <p style="font-size:13px;color:#888">Reason: ${reason}</p>
       <p>No amount has been debited; if your bank shows a hold, it will reverse within 5–7 business days.</p>
-      <a href="https://shreeradhagovind.lovable.app/cart" style="display:inline-block;margin-top:10px;background:${ACCENT};color:#fff;padding:10px 16px;border-radius:999px;text-decoration:none;font-size:13px">Try again</a>
+      <a href="https://shriradhagovindstore.com/cart" style="display:inline-block;margin-top:10px;background:${ACCENT};color:#fff;padding:10px 16px;border-radius:999px;text-decoration:none;font-size:13px">Try again</a>
     `),
   }),
 
@@ -211,7 +211,7 @@ export const tpl = {
         <div style="margin-top:4px;font-size:13px">Courier: <b>${courier ?? "—"}</b></div>
         ${url ? `<a href="${url}" style="font-size:13px;color:${ACCENT}">Track on courier site →</a>` : ""}
       </div>` : ""}
-      <a href="https://shreeradhagovind.lovable.app/track${trackingId ? `?id=${encodeURIComponent(trackingId)}` : ""}" style="display:inline-block;margin-top:14px;background:${ACCENT};color:#fff;padding:10px 16px;border-radius:999px;text-decoration:none;font-size:13px">View order</a>
+      <a href="https://shriradhagovindstore.com/track${trackingId ? `?id=${encodeURIComponent(trackingId)}` : ""}" style="display:inline-block;margin-top:14px;background:${ACCENT};color:#fff;padding:10px 16px;border-radius:999px;text-decoration:none;font-size:13px">View order</a>
     `),
   }),
 

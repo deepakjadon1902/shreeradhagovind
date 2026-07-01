@@ -10,7 +10,7 @@ r.post("/image", requireAuth, requireAdmin, upload.single("file"), async (req, r
   try {
     if (!req.file) throw new HttpError(400, "No file uploaded");
     const result = await uploadBufferToImageKit(req.file);
-    res.json({ url: result.url, publicId: result.fileId });
+    res.json({ url: result.url, publicId: result.fileId, format: result.format, originalBytes: result.originalBytes, optimizedBytes: result.optimizedBytes });
   } catch (e) {
     next(e);
   }

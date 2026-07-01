@@ -155,7 +155,7 @@ export function generateInvoicePDF(data: InvoiceData): Promise<Buffer> {
         .text("Thank you for your order!", left, footerY + 10, { lineBreak: false });
       doc.font("Helvetica").fontSize(9).fillColor(MUTED)
         .text(
-          `Track your order at https://shreeradhagovind.lovable.app/track${data.trackingId ? `?id=${data.trackingId}` : ""}`,
+          `Track your order at https://shriradhagovindstore.com/track${data.trackingId ? `?id=${data.trackingId}` : ""}`,
           left,
           footerY + 26,
           { width: usable, lineBreak: false, ellipsis: true }

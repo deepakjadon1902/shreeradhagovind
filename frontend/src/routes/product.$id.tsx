@@ -14,9 +14,9 @@ export const Route = createFileRoute("/product/$id")({
       { property: "og:title", content: "Sacred essentials from Vrindavan" },
       { property: "og:description", content: "Handcrafted poshak, chandan, itra and puja items." },
       { property: "og:type", content: "product" },
-      { property: "og:url", content: `https://shreeradhagovind.lovable.app/product/${params.id}` },
+      { property: "og:url", content: `https://shriradhagovindstore.com/product/${params.id}` },
     ],
-    links: [{ rel: "canonical", href: `https://shreeradhagovind.lovable.app/product/${params.id}` }],
+    links: [{ rel: "canonical", href: `https://shriradhagovindstore.com/product/${params.id}` }],
   }),
 });
 

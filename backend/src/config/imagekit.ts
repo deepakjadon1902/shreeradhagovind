@@ -1,4 +1,5 @@
 import { env } from "./env";
+import sharp from "sharp";
 
 type ImageKitUploadResult = {
   url: string;
@@ -35,10 +36,16 @@ async function uploadToImageKit(file: Blob | string, fileName: string, folder: s
 }
 
 export async function uploadBufferToImageKit(file: Express.Multer.File, folder = "/shri-radha-govind") {
-  const bytes = Uint8Array.from(file.buffer);
-  const blob = new Blob([bytes], { type: file.mimetype });
-  const safeName = file.originalname.replace(/[^\w.-]+/g, "-").replace(/^-+|-+$/g, "") || "upload.jpg";
-  return uploadToImageKit(blob, safeName, folder);
+  const optimized = await sharp(file.buffer, { failOn: "warning" })
+    .rotate()
+    .resize({ width: 1800, height: 1800, fit: "inside", withoutEnlargement: true })
+    .webp({ quality: 82, effort: 5, smartSubsample: true })
+    .toBuffer();
+  const bytes = Uint8Array.from(optimized);
+  const blob = new Blob([bytes], { type: "image/webp" });
+  const baseName = file.originalname.replace(/\.[^.]+$/, "").replace(/[^\w.-]+/g, "-").replace(/^-+|-+$/g, "") || "upload";
+  const result = await uploadToImageKit(blob, `${baseName}.webp`, folder);
+  return { ...result, format: "webp" as const, originalBytes: file.size, optimizedBytes: optimized.length };
 }
 
 export async function uploadRemoteImageToImageKit(url: string, folder = "/shri-radha-govind/imported") {

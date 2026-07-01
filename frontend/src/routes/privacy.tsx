@@ -9,9 +9,9 @@ export const Route = createFileRoute("/privacy")({
       { title: "Privacy Policy — Shri Radha Govind Store" },
       { name: "description", content: "How Shri Radha Govind Store collects, uses and protects your personal information. Effective 25 May 2025." },
       { property: "og:title", content: "Privacy Policy — Shri Radha Govind Store" },
-      { property: "og:url", content: "https://shreeradhagovind.lovable.app/privacy" },
+      { property: "og:url", content: "https://shriradhagovindstore.com/privacy" },
     ],
-    links: [{ rel: "canonical", href: "https://shreeradhagovind.lovable.app/privacy" }],
+    links: [{ rel: "canonical", href: "https://shriradhagovindstore.com/privacy" }],
   }),
 });
 

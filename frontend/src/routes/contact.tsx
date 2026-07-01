@@ -12,9 +12,9 @@ export const Route = createFileRoute("/contact")({
       { name: "description", content: "Reach Shri Radha Govind Store in Vrindavan for orders, custom poshak and devotional queries. Call +91 7500533505 or email support@shriradhagovindstore.com." },
       { property: "og:title", content: "Contact Us — Shri Radha Govind Store" },
       { property: "og:description", content: "Call, email or visit our Vrindavan store. We respond within 24 hours." },
-      { property: "og:url", content: "https://shreeradhagovind.lovable.app/contact" },
+      { property: "og:url", content: "https://shriradhagovindstore.com/contact" },
     ],
-    links: [{ rel: "canonical", href: "https://shreeradhagovind.lovable.app/contact" }],
+    links: [{ rel: "canonical", href: "https://shriradhagovindstore.com/contact" }],
   }),
 });
 

@@ -3,7 +3,7 @@ import { useState } from "react";
 import { Youtube, Instagram, Facebook, Mail, Phone, MapPin, ShieldCheck, Truck, RotateCcw } from "lucide-react";
 import { toast } from "sonner";
 import { useStore } from "@/lib/store";
-const logo = "/shriradhagovind%20store%20logo.jpeg";
+const logo = "/brand-logo.webp";
 
 export function Footer() {
   const { settings } = useStore();

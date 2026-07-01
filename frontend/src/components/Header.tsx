@@ -2,7 +2,7 @@ import { Link, useNavigate } from "@tanstack/react-router";
 import { Heart, Search, ShoppingCart, User, Menu, X, Newspaper, Star, UserPlus, ChevronDown, LogOut, Package } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useStore } from "@/lib/store";
-const logo = "/shriradhagovind%20store%20logo.jpeg";
+const logo = "/brand-logo.webp";
 
 export function Header() {
   const { cart, wishlist, user, settings, categoryTree, logout } = useStore();

@@ -10,9 +10,9 @@ export const Route = createFileRoute("/about")({
       { name: "description", content: "Learn the story behind Shri Radha Govind Store — devotional essentials, deity poshak and sacred gifts curated from the holy land of Vrindavan." },
       { property: "og:title", content: "About Us — Shri Radha Govind Store" },
       { property: "og:description", content: "Devotional essentials hand-curated from Vrindavan, delivered with love across India." },
-      { property: "og:url", content: "https://shreeradhagovind.lovable.app/about" },
+      { property: "og:url", content: "https://shriradhagovindstore.com/about" },
     ],
-    links: [{ rel: "canonical", href: "https://shreeradhagovind.lovable.app/about" }],
+    links: [{ rel: "canonical", href: "https://shriradhagovindstore.com/about" }],
   }),
 });
 

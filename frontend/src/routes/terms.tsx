@@ -9,9 +9,9 @@ export const Route = createFileRoute("/terms")({
       { title: "Terms & Conditions — Shri Radha Govind Store" },
       { name: "description", content: "Terms governing use of shriradhagovindstore.com — eligibility, orders, payments, intellectual property and liability." },
       { property: "og:title", content: "Terms & Conditions — Shri Radha Govind Store" },
-      { property: "og:url", content: "https://shreeradhagovind.lovable.app/terms" },
+      { property: "og:url", content: "https://shriradhagovindstore.com/terms" },
     ],
-    links: [{ rel: "canonical", href: "https://shreeradhagovind.lovable.app/terms" }],
+    links: [{ rel: "canonical", href: "https://shriradhagovindstore.com/terms" }],
   }),
 });
 

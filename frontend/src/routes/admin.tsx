@@ -34,7 +34,7 @@ function AdminRoot() {
       <div className="min-h-screen grid place-items-center bg-foreground/95 text-background p-6">
         <div className="w-full max-w-sm">
           <div className="flex items-center gap-3 mb-8 justify-center">
-            <img src="/shriradhagovind%20store%20logo.jpeg" alt="Shri Radha Govind Store" className="h-14 w-14 rounded-full object-cover ring-2 ring-accent/70" />
+            <img src="/brand-logo.webp" alt="Shri Radha Govind Store" className="h-14 w-14 rounded-full object-cover ring-2 ring-accent/70" />
             <span className="font-display text-2xl">Store Admin</span>
           </div>
           <div className="bg-card text-foreground rounded-2xl p-8 premium-shadow">
@@ -66,14 +66,14 @@ function AdminRoot() {
 
   const createWithCategory = (category: string) => {
     setPickCat(null);
-    setEditing({ id: "", name: "", category, price: 0, mrp: 0, rating: 4.5, reviews: 0, image: "https://images.unsplash.com/photo-1604608672516-f1b9b1d1f1f4?auto=format&fit=crop&w=900&q=80", description: "", details: [], stock: 0 });
+    setEditing({ id: "", name: "", category, price: 0, mrp: 0, rating: 4.5, reviews: 0, image: "", description: "", details: [], stock: 0 });
   };
 
   return (
     <div className="min-h-screen flex flex-col bg-muted/30 md:flex-row">
       <aside className="w-full bg-primary text-primary-foreground p-4 flex flex-col md:sticky md:top-0 md:h-screen md:w-64 md:p-5">
         <div className="flex items-center gap-3 mb-4 md:mb-10">
-          <img src="/shriradhagovind%20store%20logo.jpeg" alt="Shri Radha Govind Store" className="h-11 w-11 rounded-full object-cover ring-2 ring-accent" />
+          <img src="/brand-logo.webp" alt="Shri Radha Govind Store" className="h-11 w-11 rounded-full object-cover ring-2 ring-accent" />
           <div><span className="block font-display text-lg leading-tight">Admin Panel</span><span className="text-[10px] uppercase tracking-[.18em] text-primary-foreground/65">Shri Radha Govind</span></div>
         </div>
         <nav className="flex gap-1 overflow-x-auto pb-2 md:block md:space-y-1 md:overflow-visible md:pb-0 md:flex-1">
@@ -325,30 +325,6 @@ function CategoryPicker({ categories, onPick, onClose }: { categories: string[];
 
 function ProductEditor({ product, categories, onClose, onSave }: { product: Product; categories: string[]; onClose: () => void; onSave: (p: Product) => void }) {
   const [p, setP] = useState<Product>(product);
-  const [uploading, setUploading] = useState(false);
-
-  const uploadImage = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    if (!isApiEnabled()) {
-      toast.error("Set VITE_API_URL to use ImageKit uploads from admin.");
-      e.target.value = "";
-      return;
-    }
-    const body = new FormData();
-    body.append("file", file);
-    setUploading(true);
-    try {
-      const result = await api<{ url: string; publicId: string }>("/uploads/image", { method: "POST", formData: body });
-      setP((current) => ({ ...current, image: result.url, images: [result.url, ...(current.images ?? []).filter((x) => x !== result.url)] }));
-      toast.success("Image uploaded to ImageKit");
-    } catch (err: any) {
-      toast.error(err?.message ?? "Image upload failed");
-    } finally {
-      setUploading(false);
-      e.target.value = "";
-    }
-  };
 
   return (
     <div className="fixed inset-0 bg-black/50 z-50 grid place-items-center p-4" onClick={onClose}>
@@ -367,19 +343,7 @@ function ProductEditor({ product, categories, onClose, onSave }: { product: Prod
               </select>
             </label>
           </div>
-          <div className="grid sm:grid-cols-[1fr_auto] gap-3 items-end">
-            <In label="Image URL" value={p.image} onChange={(v) => setP({ ...p, image: v })} />
-            <label className={`h-11 px-4 rounded-lg border bg-background text-sm font-medium inline-flex items-center justify-center gap-2 cursor-pointer hover:border-primary ${uploading ? "opacity-60 pointer-events-none" : ""}`}>
-              <UploadCloud className="h-4 w-4" />
-              {uploading ? "Uploading" : "Upload"}
-              <input type="file" accept="image/*" className="sr-only" onChange={uploadImage} disabled={uploading} />
-            </label>
-          </div>
-          {p.image && (
-            <div className="rounded-lg border bg-muted/30 p-2">
-              <img src={p.image} alt={p.name || "Product preview"} className="h-32 w-full rounded-md object-contain bg-white" />
-            </div>
-          )}
+          <AdminImageUpload label="Product image" value={p.image} onChange={(image) => setP((current) => ({ ...current, image, images: [image, ...(current.images ?? []).filter((item) => item !== image)] }))} />
           <label className="text-sm block"><span className="text-muted-foreground text-xs">Description</span>
             <textarea value={p.description} onChange={(e) => setP({ ...p, description: e.target.value })} rows={3} className="mt-1 w-full rounded-lg border p-3 bg-background focus:outline-none focus:border-primary" />
           </label>
@@ -394,6 +358,48 @@ function ProductEditor({ product, categories, onClose, onSave }: { product: Prod
 }
 function In({ label, value, onChange, type = "text" }: { label: string; value: string; onChange: (v: string) => void; type?: string }) {
   return <label className="text-sm block"><span className="text-muted-foreground text-xs">{label}</span><input type={type} value={value} onChange={(e) => onChange(e.target.value)} className="mt-1 w-full h-11 rounded-lg border px-3 bg-background focus:outline-none focus:border-primary" /></label>;
+}
+
+function AdminImageUpload({ label, value, onChange }: { label: string; value: string; onChange: (url: string) => void }) {
+  const [uploading, setUploading] = useState(false);
+  const [dragging, setDragging] = useState(false);
+
+  const uploadFile = async (file?: File) => {
+    if (!file || uploading) return;
+    if (!file.type.startsWith("image/") && !/\.(heic|heif)$/i.test(file.name)) return toast.error("Please choose an image file");
+    if (file.size > 12 * 1024 * 1024) return toast.error("Image must be smaller than 12 MB");
+    if (!isApiEnabled()) return toast.error("Connect the backend API to upload images from this device");
+    const body = new FormData();
+    body.append("file", file);
+    setUploading(true);
+    try {
+      const result = await api<{ url: string; publicId: string; format: "webp"; originalBytes: number; optimizedBytes: number }>("/uploads/image", { method: "POST", formData: body });
+      onChange(result.url);
+      const saved = result.originalBytes ? Math.max(0, Math.round((1 - result.optimizedBytes / result.originalBytes) * 100)) : 0;
+      toast.success(`Converted to WebP${saved ? ` · ${saved}% smaller` : ""}`);
+    } catch (error: any) {
+      toast.error(error?.message ?? "Image upload failed");
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  return (
+    <div>
+      <p className="mb-1 text-xs text-muted-foreground">{label}</p>
+      <label
+        onDragEnter={(event) => { event.preventDefault(); setDragging(true); }}
+        onDragOver={(event) => event.preventDefault()}
+        onDragLeave={() => setDragging(false)}
+        onDrop={(event) => { event.preventDefault(); setDragging(false); uploadFile(event.dataTransfer.files[0]); }}
+        className={`group relative flex min-h-40 cursor-pointer items-center justify-center overflow-hidden rounded-2xl border-2 border-dashed p-4 text-center transition ${dragging ? "border-primary bg-primary/10" : "border-border bg-muted/25 hover:border-primary hover:bg-primary/5"} ${uploading ? "pointer-events-none opacity-70" : ""}`}
+      >
+        {value ? <><img src={value} alt="Upload preview" className="absolute inset-0 h-full w-full object-contain bg-white/75" /><span className="glass-panel relative rounded-full px-4 py-2 text-xs font-semibold text-primary opacity-0 transition group-hover:opacity-100">Replace image</span></> : <span><UploadCloud className={`mx-auto h-8 w-8 text-primary ${uploading ? "animate-bounce" : ""}`} /><span className="mt-2 block text-sm font-semibold">{uploading ? "Optimizing and uploading…" : "Browse device or drop image here"}</span><span className="mt-1 block text-xs text-muted-foreground">PNG, JPG, WebP, HEIC · max 12 MB<br />Automatically resized and converted to WebP</span></span>}
+        <input type="file" accept="image/*,.heic,.heif" className="sr-only" disabled={uploading} onChange={(event) => { uploadFile(event.target.files?.[0]); event.target.value = ""; }} />
+      </label>
+      <details className="mt-2 text-xs text-muted-foreground"><summary className="cursor-pointer hover:text-primary">Advanced: use an existing image URL</summary><input value={value} onChange={(event) => onChange(event.target.value)} placeholder="https://…" className="mt-2 h-10 w-full rounded-lg border bg-background px-3 text-foreground" /></details>
+    </div>
+  );
 }
 
 function SettingsPanel({ settings, onSave }: { settings: Settings; onSave: (p: Partial<Settings>) => void }) {
@@ -769,7 +775,7 @@ function CategoryRow({ category, count, child = false, onEdit, onDelete, onMove 
 
 function CategoryEditor({ category, parents, onClose, onSave }: { category: Partial<Category> & { name: string }; parents: Category[]; onClose: () => void; onSave: (category: Partial<Category> & { name: string }) => void }) {
   const [value, setValue] = useState(category);
-  return <div className="fixed inset-0 z-50 grid place-items-center bg-black/50 p-4" onClick={onClose}><form onSubmit={(event) => { event.preventDefault(); if (value.name.trim()) onSave({ ...value, name: value.name.trim() }); }} className="w-full max-w-lg space-y-4 rounded-2xl bg-card p-6" onClick={(event) => event.stopPropagation()}><div><h2 className="font-display text-2xl">{category.id ? "Edit Category" : "New Category"}</h2><p className="text-sm text-muted-foreground">Changes appear in storefront navigation immediately.</p></div><In label="Category name" value={value.name} onChange={(name) => setValue({ ...value, name })} /><label className="block text-sm"><span className="text-xs text-muted-foreground">Parent category</span><select value={value.parentId ?? ""} onChange={(event) => setValue({ ...value, parentId: event.target.value || null })} className="mt-1 h-11 w-full rounded-lg border bg-background px-3"><option value="">Top level</option>{parents.map((parent) => <option key={parent.id} value={parent.id}>{parent.name}</option>)}</select></label><In label="Image URL" value={value.image ?? ""} onChange={(image) => setValue({ ...value, image })} /><label className="block text-sm"><span className="text-xs text-muted-foreground">Description</span><textarea value={value.description ?? ""} onChange={(event) => setValue({ ...value, description: event.target.value })} rows={3} className="mt-1 w-full rounded-lg border bg-background p-3" /></label><label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={value.isActive ?? true} onChange={(event) => setValue({ ...value, isActive: event.target.checked })} /> Visible in storefront</label><div className="flex justify-end gap-3"><button type="button" onClick={onClose} className="h-10 rounded-full border px-5 text-sm">Cancel</button><button type="submit" className="h-10 rounded-full bg-primary px-5 text-sm font-medium text-primary-foreground">Save Category</button></div></form></div>;
+  return <div className="fixed inset-0 z-50 grid place-items-center bg-black/50 p-4" onClick={onClose}><form onSubmit={(event) => { event.preventDefault(); if (value.name.trim()) onSave({ ...value, name: value.name.trim() }); }} className="max-h-[90vh] w-full max-w-lg space-y-4 overflow-y-auto rounded-2xl bg-card p-6" onClick={(event) => event.stopPropagation()}><div><h2 className="font-display text-2xl">{category.id ? "Edit Category" : "New Category"}</h2><p className="text-sm text-muted-foreground">Changes appear in storefront navigation immediately.</p></div><In label="Category name" value={value.name} onChange={(name) => setValue({ ...value, name })} /><label className="block text-sm"><span className="text-xs text-muted-foreground">Parent category</span><select value={value.parentId ?? ""} onChange={(event) => setValue({ ...value, parentId: event.target.value || null })} className="mt-1 h-11 w-full rounded-lg border bg-background px-3"><option value="">Top level</option>{parents.map((parent) => <option key={parent.id} value={parent.id}>{parent.name}</option>)}</select></label><AdminImageUpload label="Category image" value={value.image ?? ""} onChange={(image) => setValue({ ...value, image })} /><label className="block text-sm"><span className="text-xs text-muted-foreground">Description</span><textarea value={value.description ?? ""} onChange={(event) => setValue({ ...value, description: event.target.value })} rows={3} className="mt-1 w-full rounded-lg border bg-background p-3" /></label><label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={value.isActive ?? true} onChange={(event) => setValue({ ...value, isActive: event.target.checked })} /> Visible in storefront</label><div className="flex justify-end gap-3"><button type="button" onClick={onClose} className="h-10 rounded-full border px-5 text-sm">Cancel</button><button type="submit" className="h-10 rounded-full bg-primary px-5 text-sm font-medium text-primary-foreground">Save Category</button></div></form></div>;
 }
 
 function BlogManager({ blogs, onSave, onDelete }: { blogs: Blog[]; onSave: (blog: Blog) => Promise<void> | void; onDelete: (id: string) => Promise<void> | void }) {
@@ -780,5 +786,5 @@ function BlogManager({ blogs, onSave, onDelete }: { blogs: Blog[]; onSave: (blog
 
 function BlogEditor({ blog, onClose, onSave }: { blog: Blog; onClose: () => void; onSave: (blog: Blog) => void }) {
   const [value, setValue] = useState(blog);
-  return <div className="fixed inset-0 z-50 grid place-items-center bg-black/50 p-4" onClick={onClose}><form onSubmit={(event) => { event.preventDefault(); if (value.title.trim()) onSave({ ...value, title: value.title.trim() }); }} className="max-h-[90vh] w-full max-w-2xl space-y-4 overflow-y-auto rounded-2xl bg-card p-6" onClick={(event) => event.stopPropagation()}><div><h2 className="font-display text-2xl">{blog.id ? "Edit Post" : "New Post"}</h2><p className="text-sm text-muted-foreground">Write, preview, and publish content for the store blog.</p></div><In label="Title" value={value.title} onChange={(title) => setValue({ ...value, title })} /><div className="grid gap-3 sm:grid-cols-2"><In label="Slug (optional)" value={value.slug} onChange={(slug) => setValue({ ...value, slug })} /><In label="Author" value={value.author} onChange={(author) => setValue({ ...value, author })} /></div><In label="Cover image URL" value={value.image} onChange={(image) => setValue({ ...value, image })} /><label className="block text-sm"><span className="text-xs text-muted-foreground">Excerpt</span><textarea value={value.excerpt} onChange={(event) => setValue({ ...value, excerpt: event.target.value })} rows={2} className="mt-1 w-full rounded-lg border bg-background p-3" /></label><label className="block text-sm"><span className="text-xs text-muted-foreground">Content</span><textarea value={value.content} onChange={(event) => setValue({ ...value, content: event.target.value })} rows={10} className="mt-1 w-full rounded-lg border bg-background p-3" /></label><label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={value.isPublished} onChange={(event) => setValue({ ...value, isPublished: event.target.checked })} /> Publish this post</label><div className="flex justify-end gap-3"><button type="button" onClick={onClose} className="h-10 rounded-full border px-5 text-sm">Cancel</button><button type="submit" className="h-10 rounded-full bg-primary px-5 text-sm font-medium text-primary-foreground">Save Post</button></div></form></div>;
+  return <div className="fixed inset-0 z-50 grid place-items-center bg-black/50 p-4" onClick={onClose}><form onSubmit={(event) => { event.preventDefault(); if (value.title.trim()) onSave({ ...value, title: value.title.trim() }); }} className="max-h-[90vh] w-full max-w-2xl space-y-4 overflow-y-auto rounded-2xl bg-card p-6" onClick={(event) => event.stopPropagation()}><div><h2 className="font-display text-2xl">{blog.id ? "Edit Post" : "New Post"}</h2><p className="text-sm text-muted-foreground">Write, preview, and publish content for the store blog.</p></div><In label="Title" value={value.title} onChange={(title) => setValue({ ...value, title })} /><div className="grid gap-3 sm:grid-cols-2"><In label="Slug (optional)" value={value.slug} onChange={(slug) => setValue({ ...value, slug })} /><In label="Author" value={value.author} onChange={(author) => setValue({ ...value, author })} /></div><AdminImageUpload label="Blog cover image" value={value.image} onChange={(image) => setValue({ ...value, image })} /><label className="block text-sm"><span className="text-xs text-muted-foreground">Excerpt</span><textarea value={value.excerpt} onChange={(event) => setValue({ ...value, excerpt: event.target.value })} rows={2} className="mt-1 w-full rounded-lg border bg-background p-3" /></label><label className="block text-sm"><span className="text-xs text-muted-foreground">Content</span><textarea value={value.content} onChange={(event) => setValue({ ...value, content: event.target.value })} rows={10} className="mt-1 w-full rounded-lg border bg-background p-3" /></label><label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={value.isPublished} onChange={(event) => setValue({ ...value, isPublished: event.target.checked })} /> Publish this post</label><div className="flex justify-end gap-3"><button type="button" onClick={onClose} className="h-10 rounded-full border px-5 text-sm">Cancel</button><button type="submit" className="h-10 rounded-full bg-primary px-5 text-sm font-medium text-primary-foreground">Save Post</button></div></form></div>;
 }

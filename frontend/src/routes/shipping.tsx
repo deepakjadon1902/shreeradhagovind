@@ -9,9 +9,9 @@ export const Route = createFileRoute("/shipping")({
       { title: "Shipping Policy & Support — Shri Radha Govind Store" },
       { name: "description", content: "Order processing, dispatch, courier partners (Ekart, DTDC, India Post, Shree Maruti) and tracking details for Shri Radha Govind Store." },
       { property: "og:title", content: "Shipping Policy & Support — Shri Radha Govind Store" },
-      { property: "og:url", content: "https://shreeradhagovind.lovable.app/shipping" },
+      { property: "og:url", content: "https://shriradhagovindstore.com/shipping" },
     ],
-    links: [{ rel: "canonical", href: "https://shreeradhagovind.lovable.app/shipping" }],
+    links: [{ rel: "canonical", href: "https://shriradhagovindstore.com/shipping" }],
   }),
 });
 

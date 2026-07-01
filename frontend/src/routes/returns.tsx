@@ -9,9 +9,9 @@ export const Route = createFileRoute("/returns")({
       { title: "Refund & Returns Policy — Shri Radha Govind Store" },
       { name: "description", content: "Cancellations, returns and refund process for orders placed at Shri Radha Govind Store. Effective 25 May 2025." },
       { property: "og:title", content: "Refund & Returns Policy — Shri Radha Govind Store" },
-      { property: "og:url", content: "https://shreeradhagovind.lovable.app/returns" },
+      { property: "og:url", content: "https://shriradhagovindstore.com/returns" },
     ],
-    links: [{ rel: "canonical", href: "https://shreeradhagovind.lovable.app/returns" }],
+    links: [{ rel: "canonical", href: "https://shriradhagovindstore.com/returns" }],
   }),
 });
 

@@ -2,7 +2,7 @@ import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useState } from "react";
 import { useStore } from "@/lib/store";
 import { Mail, Lock, Eye, EyeOff } from "lucide-react";
-const logo = "/shriradhagovind%20store%20logo.jpeg";
+const logo = "/brand-logo.webp";
 
 export const Route = createFileRoute("/login")({
   component: Login,
@@ -11,9 +11,9 @@ export const Route = createFileRoute("/login")({
       { title: "Sign In — Shri Radha Govind Store" },
       { name: "description", content: "Sign in to your Shri Radha Govind Store account to view orders, wishlist and track shipments." },
       { property: "og:title", content: "Sign In — Shri Radha Govind Store" },
-      { property: "og:url", content: "https://shreeradhagovind.lovable.app/login" },
+      { property: "og:url", content: "https://shriradhagovindstore.com/login" },
     ],
-    links: [{ rel: "canonical", href: "https://shreeradhagovind.lovable.app/login" }],
+    links: [{ rel: "canonical", href: "https://shriradhagovindstore.com/login" }],
   }),
 });
 

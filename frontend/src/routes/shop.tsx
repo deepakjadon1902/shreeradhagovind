@@ -19,9 +19,9 @@ export const Route = createFileRoute("/shop")({
       { name: "description", content: "Browse the full collection of Krishna & Radha Rani poshak, gopi chandan, itra, mala, puja items and Janmashtami specials." },
       { property: "og:title", content: "Shop — Shri Radha Govind Store" },
       { property: "og:description", content: "Browse authentic sacred essentials hand-curated from Vrindavan." },
-      { property: "og:url", content: "https://shreeradhagovind.lovable.app/shop" },
+      { property: "og:url", content: "https://shriradhagovindstore.com/shop" },
     ],
-    links: [{ rel: "canonical", href: "https://shreeradhagovind.lovable.app/shop" }],
+    links: [{ rel: "canonical", href: "https://shriradhagovindstore.com/shop" }],
   }),
 });
 
