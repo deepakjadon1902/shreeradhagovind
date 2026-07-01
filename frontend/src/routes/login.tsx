@@ -2,7 +2,7 @@ import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useState } from "react";
 import { useStore } from "@/lib/store";
 import { Mail, Lock, Eye, EyeOff } from "lucide-react";
-import logo from "@/assets/logo.jpeg.asset.json";
+const logo = "/shriradhagovind%20store%20logo.jpeg";
 
 export const Route = createFileRoute("/login")({
   component: Login,
@@ -30,6 +30,7 @@ function Login() {
     <form onSubmit={submit} className="space-y-3">
       <Field icon={Mail} type="email" placeholder="Email address" value={email} onChange={setEmail} />
       <Field icon={Lock} type={show ? "text" : "password"} placeholder="Password" value={pw} onChange={setPw} right={<button type="button" onClick={() => setShow(!show)} className="text-muted-foreground">{show ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}</button>} />
+      <div className="text-right"><Link to="/forgot-password" className="text-sm font-medium text-primary">Forgot password?</Link></div>
       <button type="submit" className="w-full h-12 rounded-full bg-primary text-primary-foreground font-medium hover:opacity-90">Sign in</button>
     </form>
     <p className="text-center text-sm text-muted-foreground mt-6">New here? <Link to="/signup" className="text-primary font-medium">Create account</Link></p>
@@ -50,7 +51,7 @@ export function AuthShell({ title, subtitle, children }: { title: string; subtit
       <div className="flex items-center justify-center p-6 sm:p-10">
         <div className="w-full max-w-md">
           <Link to="/" className="flex items-center gap-2.5 mb-8">
-            <img src={logo.url} alt="Shri Radha Govind Store" className="h-10 w-10 rounded-full object-cover ring-1 ring-primary/30" />
+            <img src={logo} alt="Shri Radha Govind Store" className="h-10 w-10 rounded-full object-cover ring-1 ring-primary/30" />
             <span className="font-display text-xl">Shri Radha Govind Store</span>
           </Link>
           <h1 className="font-display text-4xl">{title}</h1>

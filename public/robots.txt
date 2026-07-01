@@ -1,9 +1,0 @@
-User-agent: *
-Allow: /
-Disallow: /admin
-Disallow: /checkout
-Disallow: /profile
-Disallow: /cart
-Disallow: /orders
-
-Sitemap: https://shreeradhagovind.lovable.app/sitemap.xml

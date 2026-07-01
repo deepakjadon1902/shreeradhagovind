@@ -19,6 +19,7 @@ const safe = (u: any) => ({
   role: u.role,
   avatar: u.avatar,
   phone: u.phone,
+  address: u.address ?? {},
 });
 
 r.post("/signup", async (req, res, next) => {
@@ -68,6 +69,62 @@ r.post("/login", async (req, res, next) => {
   }
 });
 
+r.post("/forgot-password", async (req, res, next) => {
+  try {
+    const { email } = z.object({ email: z.string().email() }).parse(req.body);
+    const lower = email.toLowerCase();
+    const user = await User.findOne({ email: lower });
+    if (user) {
+      const otp = String(Math.floor(100000 + Math.random() * 900000));
+      user.resetOtpHash = await bcrypt.hash(otp, 10);
+      user.resetOtpExpiresAt = new Date(Date.now() + 10 * 60 * 1000);
+      user.resetOtpVerifiedAt = null;
+      await user.save();
+      sendEmail({ to: lower, ...tpl.passwordResetOtp(user.name, otp) }).catch(() => {});
+    }
+    res.json({ ok: true, message: "If an account exists, an OTP has been sent." });
+  } catch (e) {
+    next(e);
+  }
+});
+
+r.post("/verify-reset-otp", async (req, res, next) => {
+  try {
+    const { email, otp } = z.object({ email: z.string().email(), otp: z.string().min(4).max(8) }).parse(req.body);
+    const user = await User.findOne({ email: email.toLowerCase() });
+    if (!user?.resetOtpHash || !user.resetOtpExpiresAt || user.resetOtpExpiresAt.getTime() < Date.now()) {
+      throw new HttpError(400, "OTP expired or invalid");
+    }
+    const ok = await bcrypt.compare(otp, user.resetOtpHash);
+    if (!ok) throw new HttpError(400, "OTP expired or invalid");
+    user.resetOtpVerifiedAt = new Date();
+    await user.save();
+    res.json({ ok: true });
+  } catch (e) {
+    next(e);
+  }
+});
+
+r.post("/reset-password", async (req, res, next) => {
+  try {
+    const { email, password } = z.object({ email: z.string().email(), password: z.string().min(6) }).parse(req.body);
+    const user = await User.findOne({ email: email.toLowerCase() });
+    if (!user?.resetOtpVerifiedAt || !user.resetOtpExpiresAt || user.resetOtpExpiresAt.getTime() < Date.now()) {
+      throw new HttpError(400, "Please verify the OTP again");
+    }
+    user.passwordHash = await bcrypt.hash(password, 10);
+    user.provider = "password";
+    user.resetOtpHash = "";
+    user.resetOtpExpiresAt = null;
+    user.resetOtpVerifiedAt = null;
+    user.lastLoginAt = new Date();
+    await user.save();
+    res.json({ token: signToken({ sub: String(user._id), role: user.role, email: user.email }), user: safe(user) });
+  } catch (e) {
+    next(e);
+  }
+});
+
 r.post("/google", async (req, res, next) => {
   try {
     if (!google) throw new HttpError(400, "Google sign-in not configured");
@@ -98,6 +155,27 @@ r.post("/google", async (req, res, next) => {
 r.get("/me", requireAuth, async (req, res, next) => {
   try {
     const user = await User.findById(req.user!.sub);
+    if (!user) throw new HttpError(404, "User not found");
+    res.json({ user: safe(user) });
+  } catch (e) {
+    next(e);
+  }
+});
+
+r.patch("/me", requireAuth, async (req, res, next) => {
+  try {
+    const data = z.object({
+      name: z.string().trim().min(1).max(80).optional(),
+      phone: z.string().trim().max(20).optional(),
+      avatar: z.string().url().or(z.literal("")).optional(),
+      address: z.object({
+        line1: z.string().trim().max(200).optional(),
+        city: z.string().trim().max(80).optional(),
+        state: z.string().trim().max(80).optional(),
+        pincode: z.string().trim().max(12).optional(),
+      }).optional(),
+    }).parse(req.body);
+    const user = await User.findByIdAndUpdate(req.user!.sub, { $set: data }, { new: true, runValidators: true });
     if (!user) throw new HttpError(404, "User not found");
     res.json({ user: safe(user) });
   } catch (e) {

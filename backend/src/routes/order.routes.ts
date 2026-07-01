@@ -139,17 +139,18 @@ r.post("/", requireAuth, async (req, res, next) => {
     });
 
     const user = await User.findById(req.user!.sub);
-    if (user?.email && order.payment.status === "paid") {
+    const payment = order.payment;
+    if (user?.email && payment?.status === "paid") {
       sendOrderConfirmationWithInvoice(user.email, user.name, {
         _id: order._id,
         trackingId: order.trackingId ?? undefined,
-        courier: order.courier,
+        courier: order.courier ?? undefined,
         items,
         subtotal,
         shipping,
         total,
         address: body.address,
-        payment: { method: order.payment.method!, status: order.payment.status!, razorpayPaymentId: order.payment.razorpayPaymentId },
+        payment: { method: payment.method!, status: payment.status!, razorpayPaymentId: payment.razorpayPaymentId ?? undefined },
         createdAt: order.createdAt,
       }).catch(() => {});
     } else if (user?.email) {

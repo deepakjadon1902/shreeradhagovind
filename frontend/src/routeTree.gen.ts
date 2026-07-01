@@ -20,15 +20,18 @@ import { Route as ReturnsRouteImport } from './routes/returns'
 import { Route as ProfileRouteImport } from './routes/profile'
 import { Route as PrivacyRouteImport } from './routes/privacy'
 import { Route as LoginRouteImport } from './routes/login'
+import { Route as ForgotPasswordRouteImport } from './routes/forgot-password'
 import { Route as ContactRouteImport } from './routes/contact'
 import { Route as CheckoutRouteImport } from './routes/checkout'
 import { Route as CartRouteImport } from './routes/cart'
+import { Route as BlogRouteImport } from './routes/blog'
 import { Route as AdminRouteImport } from './routes/admin'
 import { Route as AboutRouteImport } from './routes/about'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as OrdersIndexRouteImport } from './routes/orders.index'
 import { Route as ProductIdRouteImport } from './routes/product.$id'
 import { Route as OrdersIdRouteImport } from './routes/orders.$id'
+import { Route as BlogSlugRouteImport } from './routes/blog.$slug'
 
 const WishlistRoute = WishlistRouteImport.update({
   id: '/wishlist',
@@ -85,6 +88,11 @@ const LoginRoute = LoginRouteImport.update({
   path: '/login',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ForgotPasswordRoute = ForgotPasswordRouteImport.update({
+  id: '/forgot-password',
+  path: '/forgot-password',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ContactRoute = ContactRouteImport.update({
   id: '/contact',
   path: '/contact',
@@ -98,6 +106,11 @@ const CheckoutRoute = CheckoutRouteImport.update({
 const CartRoute = CartRouteImport.update({
   id: '/cart',
   path: '/cart',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const BlogRoute = BlogRouteImport.update({
+  id: '/blog',
+  path: '/blog',
   getParentRoute: () => rootRouteImport,
 } as any)
 const AdminRoute = AdminRouteImport.update({
@@ -130,14 +143,21 @@ const OrdersIdRoute = OrdersIdRouteImport.update({
   path: '/orders/$id',
   getParentRoute: () => rootRouteImport,
 } as any)
+const BlogSlugRoute = BlogSlugRouteImport.update({
+  id: '/$slug',
+  path: '/$slug',
+  getParentRoute: () => BlogRoute,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/about': typeof AboutRoute
   '/admin': typeof AdminRoute
+  '/blog': typeof BlogRouteWithChildren
   '/cart': typeof CartRoute
   '/checkout': typeof CheckoutRoute
   '/contact': typeof ContactRoute
+  '/forgot-password': typeof ForgotPasswordRoute
   '/login': typeof LoginRoute
   '/privacy': typeof PrivacyRoute
   '/profile': typeof ProfileRoute
@@ -149,6 +169,7 @@ export interface FileRoutesByFullPath {
   '/terms': typeof TermsRoute
   '/track': typeof TrackRoute
   '/wishlist': typeof WishlistRoute
+  '/blog/$slug': typeof BlogSlugRoute
   '/orders/$id': typeof OrdersIdRoute
   '/product/$id': typeof ProductIdRoute
   '/orders/': typeof OrdersIndexRoute
@@ -157,9 +178,11 @@ export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/about': typeof AboutRoute
   '/admin': typeof AdminRoute
+  '/blog': typeof BlogRouteWithChildren
   '/cart': typeof CartRoute
   '/checkout': typeof CheckoutRoute
   '/contact': typeof ContactRoute
+  '/forgot-password': typeof ForgotPasswordRoute
   '/login': typeof LoginRoute
   '/privacy': typeof PrivacyRoute
   '/profile': typeof ProfileRoute
@@ -171,6 +194,7 @@ export interface FileRoutesByTo {
   '/terms': typeof TermsRoute
   '/track': typeof TrackRoute
   '/wishlist': typeof WishlistRoute
+  '/blog/$slug': typeof BlogSlugRoute
   '/orders/$id': typeof OrdersIdRoute
   '/product/$id': typeof ProductIdRoute
   '/orders': typeof OrdersIndexRoute
@@ -180,9 +204,11 @@ export interface FileRoutesById {
   '/': typeof IndexRoute
   '/about': typeof AboutRoute
   '/admin': typeof AdminRoute
+  '/blog': typeof BlogRouteWithChildren
   '/cart': typeof CartRoute
   '/checkout': typeof CheckoutRoute
   '/contact': typeof ContactRoute
+  '/forgot-password': typeof ForgotPasswordRoute
   '/login': typeof LoginRoute
   '/privacy': typeof PrivacyRoute
   '/profile': typeof ProfileRoute
@@ -194,6 +220,7 @@ export interface FileRoutesById {
   '/terms': typeof TermsRoute
   '/track': typeof TrackRoute
   '/wishlist': typeof WishlistRoute
+  '/blog/$slug': typeof BlogSlugRoute
   '/orders/$id': typeof OrdersIdRoute
   '/product/$id': typeof ProductIdRoute
   '/orders/': typeof OrdersIndexRoute
@@ -204,9 +231,11 @@ export interface FileRouteTypes {
     | '/'
     | '/about'
     | '/admin'
+    | '/blog'
     | '/cart'
     | '/checkout'
     | '/contact'
+    | '/forgot-password'
     | '/login'
     | '/privacy'
     | '/profile'
@@ -218,6 +247,7 @@ export interface FileRouteTypes {
     | '/terms'
     | '/track'
     | '/wishlist'
+    | '/blog/$slug'
     | '/orders/$id'
     | '/product/$id'
     | '/orders/'
@@ -226,9 +256,11 @@ export interface FileRouteTypes {
     | '/'
     | '/about'
     | '/admin'
+    | '/blog'
     | '/cart'
     | '/checkout'
     | '/contact'
+    | '/forgot-password'
     | '/login'
     | '/privacy'
     | '/profile'
@@ -240,6 +272,7 @@ export interface FileRouteTypes {
     | '/terms'
     | '/track'
     | '/wishlist'
+    | '/blog/$slug'
     | '/orders/$id'
     | '/product/$id'
     | '/orders'
@@ -248,9 +281,11 @@ export interface FileRouteTypes {
     | '/'
     | '/about'
     | '/admin'
+    | '/blog'
     | '/cart'
     | '/checkout'
     | '/contact'
+    | '/forgot-password'
     | '/login'
     | '/privacy'
     | '/profile'
@@ -262,6 +297,7 @@ export interface FileRouteTypes {
     | '/terms'
     | '/track'
     | '/wishlist'
+    | '/blog/$slug'
     | '/orders/$id'
     | '/product/$id'
     | '/orders/'
@@ -271,9 +307,11 @@ export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AboutRoute: typeof AboutRoute
   AdminRoute: typeof AdminRoute
+  BlogRoute: typeof BlogRouteWithChildren
   CartRoute: typeof CartRoute
   CheckoutRoute: typeof CheckoutRoute
   ContactRoute: typeof ContactRoute
+  ForgotPasswordRoute: typeof ForgotPasswordRoute
   LoginRoute: typeof LoginRoute
   PrivacyRoute: typeof PrivacyRoute
   ProfileRoute: typeof ProfileRoute
@@ -369,6 +407,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof LoginRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/forgot-password': {
+      id: '/forgot-password'
+      path: '/forgot-password'
+      fullPath: '/forgot-password'
+      preLoaderRoute: typeof ForgotPasswordRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/contact': {
       id: '/contact'
       path: '/contact'
@@ -388,6 +433,13 @@ declare module '@tanstack/react-router' {
       path: '/cart'
       fullPath: '/cart'
       preLoaderRoute: typeof CartRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/blog': {
+      id: '/blog'
+      path: '/blog'
+      fullPath: '/blog'
+      preLoaderRoute: typeof BlogRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/admin': {
@@ -432,16 +484,35 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof OrdersIdRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/blog/$slug': {
+      id: '/blog/$slug'
+      path: '/$slug'
+      fullPath: '/blog/$slug'
+      preLoaderRoute: typeof BlogSlugRouteImport
+      parentRoute: typeof BlogRoute
+    }
   }
 }
+
+interface BlogRouteChildren {
+  BlogSlugRoute: typeof BlogSlugRoute
+}
+
+const BlogRouteChildren: BlogRouteChildren = {
+  BlogSlugRoute: BlogSlugRoute,
+}
+
+const BlogRouteWithChildren = BlogRoute._addFileChildren(BlogRouteChildren)
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AboutRoute: AboutRoute,
   AdminRoute: AdminRoute,
+  BlogRoute: BlogRouteWithChildren,
   CartRoute: CartRoute,
   CheckoutRoute: CheckoutRoute,
   ContactRoute: ContactRoute,
+  ForgotPasswordRoute: ForgotPasswordRoute,
   LoginRoute: LoginRoute,
   PrivacyRoute: PrivacyRoute,
   ProfileRoute: ProfileRoute,
@@ -460,3 +531,13 @@ const rootRouteChildren: RootRouteChildren = {
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
+
+import type { getRouter } from './router.tsx'
+import type { startInstance } from './start.ts'
+declare module '@tanstack/react-start' {
+  interface Register {
+    ssr: true
+    router: Awaited<ReturnType<typeof getRouter>>
+    config: Awaited<ReturnType<typeof startInstance.getOptions>>
+  }
+}

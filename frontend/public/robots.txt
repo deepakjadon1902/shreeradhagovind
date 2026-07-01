@@ -1,0 +1,13 @@
+User-agent: *
+Allow: /
+
+Disallow: /admin
+Disallow: /admin/
+Disallow: /checkout
+Disallow: /cart
+Disallow: /orders
+Disallow: /orders/
+Disallow: /profile
+Disallow: /api/
+
+Sitemap: https://shriradhagovindstore.com/sitemap.xml

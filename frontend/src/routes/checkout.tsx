@@ -37,7 +37,7 @@ function Checkout() {
   const total = subtotal + shipping;
 
   const [form, setForm] = useState({
-    name: user?.name ?? "", phone: "", line1: "", city: "", state: "", pincode: "",
+    name: user?.name ?? "", phone: user?.phone ?? "", line1: user?.address?.line1 ?? "", city: user?.address?.city ?? "", state: user?.address?.state ?? "", pincode: user?.address?.pincode ?? "",
   });
   const [method, setMethod] = useState<"razorpay" | "cod">("razorpay");
   const [processing, setProcessing] = useState(false);
@@ -176,6 +176,7 @@ function Checkout() {
               <h2 className="font-display text-2xl mb-4 flex items-center gap-2"><Truck className="h-5 w-5 text-primary" /> Shipping Address</h2>
               <div className="grid sm:grid-cols-2 gap-3">
                 <Input label="Full Name" value={form.name} onChange={(v) => setForm({ ...form, name: v })} />
+                <Input label="Account Email (locked)" value={user?.email ?? ""} onChange={() => {}} readOnly />
                 <Input label="Phone" value={form.phone} onChange={(v) => setForm({ ...form, phone: v })} />
                 <Input label="Address" value={form.line1} onChange={(v) => setForm({ ...form, line1: v })} full />
                 <Input label="City" value={form.city} onChange={(v) => setForm({ ...form, city: v })} />
@@ -226,11 +227,11 @@ function Checkout() {
   );
 }
 
-function Input({ label, value, onChange, full }: { label: string; value: string; onChange: (v: string) => void; full?: boolean }) {
+function Input({ label, value, onChange, full, readOnly = false }: { label: string; value: string; onChange: (v: string) => void; full?: boolean; readOnly?: boolean }) {
   return (
     <label className={`text-sm ${full ? "sm:col-span-2" : ""}`}>
       <span className="text-muted-foreground text-xs">{label}</span>
-      <input value={value} onChange={(e) => onChange(e.target.value)} className="mt-1 w-full h-11 rounded-lg border bg-card px-3 focus:outline-none focus:border-primary" />
+      <input value={value} readOnly={readOnly} onChange={(e) => onChange(e.target.value)} className={`mt-1 w-full h-11 rounded-lg border px-3 focus:outline-none focus:border-primary ${readOnly ? "cursor-not-allowed bg-muted/70 text-muted-foreground" : "bg-card"}`} />
     </label>
   );
 }

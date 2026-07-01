@@ -17,6 +17,9 @@ const userSchema = new Schema(
     },
     isBlocked: { type: Boolean, default: false, index: true },
     lastLoginAt: { type: Date, default: null },
+    resetOtpHash: { type: String, default: "" },
+    resetOtpExpiresAt: { type: Date, default: null },
+    resetOtpVerifiedAt: { type: Date, default: null },
   },
   { timestamps: true }
 );

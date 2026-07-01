@@ -6,7 +6,7 @@
  *   - users     (wp:author entries — no passwords; reset required)
  *   - orders    (post_type=shop_order, if present)
  *
- * Product images are re-uploaded to Cloudinary so the storefront is
+ * Product images are re-uploaded to ImageKit so the storefront is
  * self-contained and does not depend on the original WordPress CDN.
  *
  * Usage:
@@ -15,7 +15,7 @@
  *
  * Env required (read from backend/.env):
  *   MONGODB_URI
- *   CLOUDINARY_CLOUD_NAME / CLOUDINARY_API_KEY / CLOUDINARY_API_SECRET
+ *   IMAGEKIT_PRIVATE_KEY
  */
 import "dotenv/config";
 import fs from "node:fs";
@@ -23,7 +23,7 @@ import path from "node:path";
 import { XMLParser } from "fast-xml-parser";
 import mongoose from "mongoose";
 import { connectDB } from "../config/db";
-import { cloudinary } from "../config/cloudinary";
+import { uploadRemoteImageToImageKit } from "../config/imagekit";
 import { Product } from "../models/Product";
 import { Order } from "../models/Order";
 import { User } from "../models/User";
@@ -104,24 +104,18 @@ function pickCategory(item: WpItem): string {
   return "General";
 }
 
-const cloudinaryCache = new Map<string, string>();
+const imageKitCache = new Map<string, string>();
 
-async function uploadToCloudinary(url: string): Promise<string> {
+async function uploadToImageKit(url: string): Promise<string> {
   if (!url) return "";
-  if (cloudinaryCache.has(url)) return cloudinaryCache.get(url)!;
+  if (imageKitCache.has(url)) return imageKitCache.get(url)!;
   try {
-    const res = await cloudinary.uploader.upload(url, {
-      folder: "shri-radha-govind/imported",
-      resource_type: "image",
-      overwrite: false,
-      use_filename: true,
-      unique_filename: true,
-    });
-    cloudinaryCache.set(url, res.secure_url);
-    return res.secure_url;
+    const res = await uploadRemoteImageToImageKit(url);
+    imageKitCache.set(url, res.url);
+    return res.url;
   } catch (e) {
-    console.warn(`  ! cloudinary upload failed for ${url}: ${(e as Error).message}`);
-    cloudinaryCache.set(url, url); // fall back to remote URL
+    console.warn(`  ! ImageKit upload failed for ${url}: ${(e as Error).message}`);
+    imageKitCache.set(url, url); // fall back to remote URL
     return url;
   }
 }
@@ -220,7 +214,7 @@ async function importFile(file: string) {
 
     const uploaded: string[] = [];
     for (const url of imageUrls) {
-      const cdn = await uploadToCloudinary(url);
+      const cdn = await uploadToImageKit(url);
       if (cdn && !uploaded.includes(cdn)) uploaded.push(cdn);
     }
     const image = uploaded[0] || "";

@@ -134,6 +134,14 @@ export const tpl = {
       <p>Your devotee account is ready. Explore sacred essentials curated from Vrindavan.</p>`),
   }),
 
+  passwordResetOtp: (name: string, otp: string) => ({
+    subject: `Password reset OTP · ${BRAND}`,
+    html: shell(`<h2 style="margin:0 0 8px">Radhe Radhe, ${name}</h2>
+      <p>Use this OTP to reset your password. It expires in 10 minutes.</p>
+      <div style="margin:18px 0;padding:14px 18px;background:#f0fdfa;border:1px solid #ccfbf1;border-radius:10px;font-size:28px;font-weight:700;letter-spacing:6px;color:${ACCENT};text-align:center">${otp}</div>
+      <p style="font-size:13px;color:#777">If you did not request this, you can ignore this email.</p>`),
+  }),
+
   orderConfirmed: (
     name: string,
     order: {

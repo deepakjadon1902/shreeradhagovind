@@ -17,9 +17,21 @@ export async function ensureBootstrapAdmin() {
       });
       // eslint-disable-next-line no-console
       console.log(`[bootstrap] admin created: ${env.ADMIN_EMAIL}`);
-    } else if (existing.role !== "admin") {
-      existing.role = "admin";
-      await existing.save();
+    } else {
+      let changed = false;
+      if (existing.role !== "admin") {
+        existing.role = "admin";
+        changed = true;
+      }
+      if (!existing.passwordHash || !(await bcrypt.compare(env.ADMIN_PASSWORD, existing.passwordHash))) {
+        existing.passwordHash = await bcrypt.hash(env.ADMIN_PASSWORD, 10);
+        changed = true;
+      }
+      if (existing.isBlocked) {
+        existing.isBlocked = false;
+        changed = true;
+      }
+      if (changed) await existing.save();
     }
   }
 

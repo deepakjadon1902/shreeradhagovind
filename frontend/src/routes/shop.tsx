@@ -1,5 +1,5 @@
-import { createFileRoute } from "@tanstack/react-router";
-import { useMemo, useState } from "react";
+import { createFileRoute, useNavigate } from "@tanstack/react-router";
+import { useEffect, useMemo, useState } from "react";
 import { Layout } from "@/components/Layout";
 import { ProductCard } from "@/components/ProductCard";
 import { useStore } from "@/lib/store";
@@ -27,15 +27,28 @@ export const Route = createFileRoute("/shop")({
 
 function Shop() {
   const search = Route.useSearch();
-  const { adminProducts, categories } = useStore();
-  const CATS = ["All", ...categories];
+  const navigate = useNavigate();
+  const { adminProducts, categories, categoryTree } = useStore();
   const [cat, setCat] = useState<string>(search.cat ?? "All");
   const [sort, setSort] = useState("featured");
   const [maxPrice, setMaxPrice] = useState(2500);
 
+  useEffect(() => {
+    setCat(search.cat ?? "All");
+  }, [search.cat]);
+
+  const selectCategory = (category: string) => {
+    setCat(category);
+    navigate({ to: "/shop", search: { ...search, cat: category === "All" ? undefined : category } });
+  };
+
   const products = useMemo(() => {
     let p = [...adminProducts];
-    if (cat !== "All") p = p.filter((x) => x.category === cat);
+    if (cat !== "All") {
+      const parent = categoryTree.find((x) => x.name === cat);
+      const names = parent ? [parent.name, ...parent.children.map((x) => x.name)] : [cat];
+      p = p.filter((x) => names.includes(x.category));
+    }
     if (search.q) {
       const q = search.q.toLowerCase();
       p = p.filter((x) => x.name.toLowerCase().includes(q) || x.category.toLowerCase().includes(q));
@@ -45,7 +58,7 @@ function Shop() {
     if (sort === "high") p.sort((a, b) => b.price - a.price);
     if (sort === "rating") p.sort((a, b) => b.rating - a.rating);
     return p;
-  }, [adminProducts, cat, search.q, sort, maxPrice]);
+  }, [adminProducts, cat, search.q, sort, maxPrice, categoryTree]);
 
   return (
     <Layout>
@@ -58,8 +71,18 @@ function Shop() {
             <div>
               <h3 className="font-display text-lg mb-3 flex items-center gap-2"><SlidersHorizontal className="h-4 w-4" /> Categories</h3>
               <div className="flex flex-col gap-1">
-                {CATS.map((c) => (
-                  <button key={c} onClick={() => setCat(c)} className={`text-left px-3 py-2 rounded-lg text-sm transition ${cat === c ? "bg-primary text-primary-foreground" : "hover:bg-muted"}`}>{c}</button>
+                <button onClick={() => selectCategory("All")} className={`text-left px-3 py-2 rounded-lg text-sm transition ${cat === "All" ? "bg-primary text-primary-foreground" : "hover:bg-muted"}`}>All</button>
+                {categoryTree.length > 0 ? categoryTree.map((parent) => (
+                  <div key={parent.id}>
+                    <button onClick={() => selectCategory(parent.name)} className={`w-full text-left px-3 py-2 rounded-lg text-sm font-semibold transition ${cat === parent.name ? "bg-primary text-primary-foreground" : "hover:bg-muted"}`}>{parent.name}</button>
+                    <div className="ml-3 mt-1 space-y-1 border-l pl-2">
+                      {parent.children.map((child) => (
+                        <button key={child.id} onClick={() => selectCategory(child.name)} className={`w-full text-left px-3 py-1.5 rounded-lg text-xs transition ${cat === child.name ? "bg-primary text-primary-foreground" : "hover:bg-muted"}`}>{child.name}</button>
+                      ))}
+                    </div>
+                  </div>
+                )) : categories.map((c) => (
+                  <button key={c} onClick={() => selectCategory(c)} className={`text-left px-3 py-2 rounded-lg text-sm transition ${cat === c ? "bg-primary text-primary-foreground" : "hover:bg-muted"}`}>{c}</button>
                 ))}
               </div>
             </div>

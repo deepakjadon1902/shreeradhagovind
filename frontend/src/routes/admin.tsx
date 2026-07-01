@@ -1,18 +1,20 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
-import { useStore, formatINR, type Order, type Settings, type Courier, type RegisteredUser, type CourierEvent, COURIERS } from "@/lib/store";
+import { useStore, formatINR, type Order, type Settings, type Courier, type RegisteredUser, type CourierEvent, type Category, type Blog, COURIERS } from "@/lib/store";
 import { type Product } from "@/lib/products";
-import { Lock, LayoutDashboard, Package, ShoppingCart, LogOut, Plus, Pencil, Trash2, IndianRupee, TrendingUp, Users, Tag, CreditCard, Settings as SettingsIcon, Truck, Check, X as XIcon, ShieldOff, ShieldCheck, RefreshCw, Mail, Phone } from "lucide-react";
+import { api, isApiEnabled } from "@/lib/api";
+import { toast } from "sonner";
+import { Lock, LayoutDashboard, Package, ShoppingCart, LogOut, Plus, Pencil, Trash2, IndianRupee, TrendingUp, Users, Tag, CreditCard, Settings as SettingsIcon, Truck, Check, X as XIcon, ShieldOff, ShieldCheck, RefreshCw, Mail, Phone, UploadCloud, FileText } from "lucide-react";
 
 export const Route = createFileRoute("/admin")({
   component: AdminRoot,
   head: () => ({ meta: [{ title: "Admin · Shri Radha Govind Store" }, { name: "robots", content: "noindex,nofollow" }] }),
 });
 
-type Tab = "dash" | "products" | "orders" | "categories" | "users" | "payments" | "settings";
+type Tab = "dash" | "products" | "orders" | "categories" | "blogs" | "users" | "payments" | "settings";
 
 function AdminRoot() {
-  const { adminAuthed, adminLogin, adminLogout, adminProducts, saveProduct, deleteProduct, orders, updateOrderTracking, verifyOrderPayment, categories, addCategory, renameCategory, deleteCategory, registeredUsers, fetchRegisteredUsers, toggleUserBlock, fetchOrderEvents, settings, updateSettings } = useStore();
+  const { adminAuthed, adminLogin, adminLogout, adminProducts, saveProduct, deleteProduct, orders, updateOrderTracking, verifyOrderPayment, categories, categoryDetails, categoryTree, saveCategory, deleteCategory, reorderCategories, blogs, saveBlog, deleteBlog, registeredUsers, fetchRegisteredUsers, toggleUserBlock, fetchOrderEvents, settings, updateSettings } = useStore();
   const [u, setU] = useState(""); const [p, setP] = useState("");
   const [tab, setTab] = useState<Tab>("dash");
   const [editing, setEditing] = useState<Product | null>(null);
@@ -22,16 +24,18 @@ function AdminRoot() {
 
   useEffect(() => {
     if (adminAuthed && tab === "users") fetchRegisteredUsers();
-  }, [adminAuthed, tab, fetchRegisteredUsers]);
+    // The store action is recreated with provider state; depending on it causes a request loop.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [adminAuthed, tab]);
 
 
   if (!adminAuthed) {
     return (
       <div className="min-h-screen grid place-items-center bg-foreground/95 text-background p-6">
         <div className="w-full max-w-sm">
-          <div className="flex items-center gap-2 mb-8 justify-center">
-            <span className="h-10 w-10 rounded-full gold-accent grid place-items-center text-white font-display">वृ</span>
-            <span className="font-display text-2xl">Vrindavan Admin</span>
+          <div className="flex items-center gap-3 mb-8 justify-center">
+            <img src="/shriradhagovind%20store%20logo.jpeg" alt="Shri Radha Govind Store" className="h-14 w-14 rounded-full object-cover ring-2 ring-accent/70" />
+            <span className="font-display text-2xl">Store Admin</span>
           </div>
           <div className="bg-card text-foreground rounded-2xl p-8 premium-shadow">
             <Lock className="h-8 w-8 text-primary mx-auto" />
@@ -48,7 +52,6 @@ function AdminRoot() {
               <input name="pass" autoComplete="current-password" value={p} onChange={(e) => setP(e.target.value)} type="password" placeholder="Password" className="w-full h-11 rounded-lg border px-3 bg-background focus:outline-none focus:border-primary" />
               <button type="submit" className="w-full h-11 rounded-lg bg-primary text-primary-foreground font-medium">Sign in</button>
             </form>
-            <p className="text-[11px] text-muted-foreground text-center mt-4">Demo: <code className="bg-muted px-1.5 py-0.5 rounded">deepakjadon1907@gmail.com</code> / <code className="bg-muted px-1.5 py-0.5 rounded">deepakjadon1907@</code></p>
             <Link to="/" className="block text-center text-xs text-muted-foreground mt-4 hover:text-primary">← Back to store</Link>
           </div>
         </div>
@@ -67,26 +70,29 @@ function AdminRoot() {
   };
 
   return (
-    <div className="min-h-screen flex bg-muted/30">
-      <aside className="w-60 bg-foreground text-background p-5 flex flex-col">
-        <div className="flex items-center gap-2 mb-10">
-          <span className="h-9 w-9 rounded-full gold-accent grid place-items-center text-white font-display">वृ</span>
-          <span className="font-display text-lg">Admin Panel</span>
+    <div className="min-h-screen flex flex-col bg-muted/30 md:flex-row">
+      <aside className="w-full bg-primary text-primary-foreground p-4 flex flex-col md:sticky md:top-0 md:h-screen md:w-64 md:p-5">
+        <div className="flex items-center gap-3 mb-4 md:mb-10">
+          <img src="/shriradhagovind%20store%20logo.jpeg" alt="Shri Radha Govind Store" className="h-11 w-11 rounded-full object-cover ring-2 ring-accent" />
+          <div><span className="block font-display text-lg leading-tight">Admin Panel</span><span className="text-[10px] uppercase tracking-[.18em] text-primary-foreground/65">Shri Radha Govind</span></div>
         </div>
-        <nav className="space-y-1 flex-1">
+        <nav className="flex gap-1 overflow-x-auto pb-2 md:block md:space-y-1 md:overflow-visible md:pb-0 md:flex-1">
           <NavBtn active={tab === "dash"} onClick={() => setTab("dash")} icon={LayoutDashboard}>Dashboard</NavBtn>
           <NavBtn active={tab === "categories"} onClick={() => setTab("categories")} icon={Tag}>Categories</NavBtn>
+          <NavBtn active={tab === "blogs"} onClick={() => setTab("blogs")} icon={FileText}>Blogs</NavBtn>
           <NavBtn active={tab === "products"} onClick={() => setTab("products")} icon={Package}>Products</NavBtn>
           <NavBtn active={tab === "orders"} onClick={() => setTab("orders")} icon={ShoppingCart}>Orders</NavBtn>
           <NavBtn active={tab === "payments"} onClick={() => setTab("payments")} icon={CreditCard}>Payments</NavBtn>
           <NavBtn active={tab === "users"} onClick={() => setTab("users")} icon={Users}>Users</NavBtn>
           <NavBtn active={tab === "settings"} onClick={() => setTab("settings")} icon={SettingsIcon}>Settings</NavBtn>
         </nav>
-        <button onClick={adminLogout} className="flex items-center gap-2 text-sm text-background/70 hover:text-background py-2"><LogOut className="h-4 w-4" /> Logout</button>
-        <Link to="/" className="text-xs text-background/50 hover:text-background mt-2">← View store</Link>
+        <div className="mt-3 flex items-center gap-4 border-t border-primary-foreground/15 pt-3 md:block">
+          <button onClick={adminLogout} className="flex items-center gap-2 text-sm text-primary-foreground/75 hover:text-primary-foreground py-2"><LogOut className="h-4 w-4" /> Logout</button>
+          <Link to="/" className="text-xs text-primary-foreground/60 hover:text-primary-foreground md:mt-2 md:block">← View store</Link>
+        </div>
       </aside>
 
-      <main className="flex-1 p-6 md:p-10 overflow-x-auto">
+      <main className="min-w-0 flex-1 p-4 sm:p-6 lg:p-10 overflow-x-hidden">
         {tab === "dash" && (
           <div>
             <h1 className="font-display text-3xl">Dashboard</h1>
@@ -115,35 +121,9 @@ function AdminRoot() {
           </div>
         )}
 
-        {tab === "categories" && (
-          <div>
-            <h1 className="font-display text-3xl">Categories</h1>
-            <p className="text-sm text-muted-foreground">Manage the categories shown across the store.</p>
-            <form onSubmit={(e) => { e.preventDefault(); const fd = new FormData(e.currentTarget); const name = String(fd.get("cat") ?? "").trim(); if (name) { addCategory(name); e.currentTarget.reset(); } }} className="flex gap-2 mt-6 max-w-md">
-              <input name="cat" placeholder="New category name" className="flex-1 h-11 rounded-lg border px-3 bg-card focus:outline-none focus:border-primary" />
-              <button className="h-11 px-5 rounded-lg bg-primary text-primary-foreground text-sm font-medium inline-flex items-center gap-2"><Plus className="h-4 w-4" /> Add</button>
-            </form>
-            <div className="mt-6 grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
-              {categories.map((c) => {
-                const count = adminProducts.filter((p) => p.category === c).length;
-                return (
-                  <div key={c} className="bg-card rounded-2xl p-5 premium-shadow">
-                    <div className="flex items-start justify-between gap-3">
-                      <div>
-                        <p className="font-display text-lg">{c}</p>
-                        <p className="text-xs text-muted-foreground mt-1">{count} product{count === 1 ? "" : "s"}</p>
-                      </div>
-                      <div className="flex gap-1">
-                        <button onClick={() => { const n = prompt("Rename category", c); if (n) renameCategory(c, n); }} className="p-2 hover:bg-muted rounded-lg" aria-label="Rename"><Pencil className="h-4 w-4" /></button>
-                        <button onClick={() => { if (confirm(`Delete category "${c}" and its ${count} product(s)?`)) deleteCategory(c); }} className="p-2 hover:bg-destructive/10 hover:text-destructive rounded-lg" aria-label="Delete"><Trash2 className="h-4 w-4" /></button>
-                      </div>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-        )}
+        {tab === "categories" && <CategoryManager categories={categoryDetails} tree={categoryTree} products={adminProducts} onSave={saveCategory} onDelete={deleteCategory} onReorder={reorderCategories} />}
+
+        {tab === "blogs" && <BlogManager blogs={blogs} onSave={saveBlog} onDelete={deleteBlog} />}
 
         {tab === "products" && (
           <div>
@@ -151,8 +131,8 @@ function AdminRoot() {
               <h1 className="font-display text-3xl">Products</h1>
               <button onClick={openNewProduct} className="inline-flex items-center gap-2 h-10 px-5 rounded-full bg-primary text-primary-foreground text-sm font-medium"><Plus className="h-4 w-4" /> Add Product</button>
             </div>
-            <div className="mt-6 bg-card rounded-2xl premium-shadow overflow-hidden">
-              <table className="w-full text-sm">
+            <div className="mt-6 bg-card rounded-2xl premium-shadow overflow-x-auto">
+              <table className="w-full min-w-[680px] text-sm">
                 <thead className="text-left text-muted-foreground text-xs uppercase tracking-wider bg-muted/40">
                   <tr><th className="p-4">Product</th><th>Category</th><th>Price</th><th>Stock</th><th></th></tr>
                 </thead>
@@ -215,8 +195,8 @@ function AdminRoot() {
               <Stat icon={IndianRupee} label="Pending (COD)" value={formatINR(orders.filter((o) => o.payment.status === "pending").reduce((s, o) => s + o.total, 0))} />
               <Stat icon={CreditCard} label="Transactions" value={String(orders.length)} />
             </div>
-            <div className="mt-6 bg-card rounded-2xl premium-shadow overflow-hidden">
-              <table className="w-full text-sm">
+            <div className="mt-6 bg-card rounded-2xl premium-shadow overflow-x-auto">
+              <table className="w-full min-w-[900px] text-sm">
                 <thead className="text-left text-muted-foreground text-xs uppercase tracking-wider bg-muted/40">
                   <tr><th className="p-4">Txn ID</th><th>Order</th><th>Customer</th><th>Method</th><th>Amount</th><th>Status</th><th>Verify</th><th>Date</th></tr>
                 </thead>
@@ -316,7 +296,7 @@ function AdminRoot() {
 }
 
 function NavBtn({ active, onClick, icon: Icon, children }: { active: boolean; onClick: () => void; icon: typeof Package; children: React.ReactNode }) {
-  return <button onClick={onClick} className={`w-full text-left px-3 py-2.5 rounded-lg text-sm flex items-center gap-3 transition ${active ? "bg-primary text-primary-foreground" : "text-background/70 hover:bg-background/10 hover:text-background"}`}><Icon className="h-4 w-4" />{children}</button>;
+  return <button onClick={onClick} className={`shrink-0 text-left px-3 py-2.5 rounded-lg text-sm flex items-center gap-2 transition md:w-full md:gap-3 ${active ? "bg-accent text-accent-foreground" : "text-primary-foreground/75 hover:bg-primary-foreground/10 hover:text-primary-foreground"}`}><Icon className="h-4 w-4" />{children}</button>;
 }
 function Stat({ icon: Icon, label, value }: { icon: typeof Users; label: string; value: string }) {
   return <div className="bg-card rounded-2xl p-5 premium-shadow"><Icon className="h-6 w-6 text-primary" /><p className="text-xs uppercase tracking-wider text-muted-foreground mt-3">{label}</p><p className="font-display text-2xl mt-1">{value}</p></div>;
@@ -345,6 +325,31 @@ function CategoryPicker({ categories, onPick, onClose }: { categories: string[];
 
 function ProductEditor({ product, categories, onClose, onSave }: { product: Product; categories: string[]; onClose: () => void; onSave: (p: Product) => void }) {
   const [p, setP] = useState<Product>(product);
+  const [uploading, setUploading] = useState(false);
+
+  const uploadImage = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (!isApiEnabled()) {
+      toast.error("Set VITE_API_URL to use ImageKit uploads from admin.");
+      e.target.value = "";
+      return;
+    }
+    const body = new FormData();
+    body.append("file", file);
+    setUploading(true);
+    try {
+      const result = await api<{ url: string; publicId: string }>("/uploads/image", { method: "POST", formData: body });
+      setP((current) => ({ ...current, image: result.url, images: [result.url, ...(current.images ?? []).filter((x) => x !== result.url)] }));
+      toast.success("Image uploaded to ImageKit");
+    } catch (err: any) {
+      toast.error(err?.message ?? "Image upload failed");
+    } finally {
+      setUploading(false);
+      e.target.value = "";
+    }
+  };
+
   return (
     <div className="fixed inset-0 bg-black/50 z-50 grid place-items-center p-4" onClick={onClose}>
       <div className="bg-card rounded-2xl p-6 w-full max-w-lg max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
@@ -362,7 +367,19 @@ function ProductEditor({ product, categories, onClose, onSave }: { product: Prod
               </select>
             </label>
           </div>
-          <In label="Image URL" value={p.image} onChange={(v) => setP({ ...p, image: v })} />
+          <div className="grid sm:grid-cols-[1fr_auto] gap-3 items-end">
+            <In label="Image URL" value={p.image} onChange={(v) => setP({ ...p, image: v })} />
+            <label className={`h-11 px-4 rounded-lg border bg-background text-sm font-medium inline-flex items-center justify-center gap-2 cursor-pointer hover:border-primary ${uploading ? "opacity-60 pointer-events-none" : ""}`}>
+              <UploadCloud className="h-4 w-4" />
+              {uploading ? "Uploading" : "Upload"}
+              <input type="file" accept="image/*" className="sr-only" onChange={uploadImage} disabled={uploading} />
+            </label>
+          </div>
+          {p.image && (
+            <div className="rounded-lg border bg-muted/30 p-2">
+              <img src={p.image} alt={p.name || "Product preview"} className="h-32 w-full rounded-md object-contain bg-white" />
+            </div>
+          )}
           <label className="text-sm block"><span className="text-muted-foreground text-xs">Description</span>
             <textarea value={p.description} onChange={(e) => setP({ ...p, description: e.target.value })} rows={3} className="mt-1 w-full rounded-lg border p-3 bg-background focus:outline-none focus:border-primary" />
           </label>
@@ -695,4 +712,73 @@ function UserDetail({ user, onClose, onToggleBlock }: { user: RegisteredUser; on
       </div>
     </div>
   );
+}
+
+function CategoryManager({
+  categories,
+  tree,
+  products,
+  onSave,
+  onDelete,
+  onReorder,
+}: {
+  categories: Category[];
+  tree: (Category & { children: Category[] })[];
+  products: Product[];
+  onSave: (category: Partial<Category> & { name: string; id?: string }) => Promise<void> | void;
+  onDelete: (name: string) => Promise<void> | void;
+  onReorder: (items: { id: string; sortOrder: number; parentId?: string | null }[]) => Promise<void> | void;
+}) {
+  const empty = (): Partial<Category> & { name: string } => ({ name: "", parentId: null, description: "", image: "", isActive: true, sortOrder: categories.length });
+  const [editing, setEditing] = useState<(Partial<Category> & { name: string }) | null>(null);
+
+  const move = (category: Category, direction: -1 | 1) => {
+    const siblings = categories.filter((item) => (item.parentId ?? null) === (category.parentId ?? null)).sort((a, b) => a.sortOrder - b.sortOrder);
+    const index = siblings.findIndex((item) => item.id === category.id);
+    const target = siblings[index + direction];
+    if (!target) return;
+    onReorder([
+      { id: category.id, sortOrder: target.sortOrder, parentId: category.parentId },
+      { id: target.id, sortOrder: category.sortOrder, parentId: target.parentId },
+    ]);
+  };
+
+  return (
+    <div>
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div><h1 className="font-display text-3xl">Categories</h1><p className="text-sm text-muted-foreground">Manage the navigation structure used by the storefront.</p></div>
+        <button onClick={() => setEditing(empty())} className="inline-flex h-10 items-center gap-2 rounded-full bg-primary px-5 text-sm font-medium text-primary-foreground"><Plus className="h-4 w-4" /> Add Category</button>
+      </div>
+      <div className="mt-6 space-y-4">
+        {tree.length === 0 && <div className="rounded-2xl bg-card p-8 text-center text-sm text-muted-foreground premium-shadow">No categories yet.</div>}
+        {tree.map((parent) => (
+          <section key={parent.id} className="overflow-hidden rounded-2xl bg-card premium-shadow">
+            <CategoryRow category={parent} count={products.filter((p) => p.category === parent.name).length} onEdit={() => setEditing(parent)} onDelete={onDelete} onMove={move} />
+            {parent.children.length > 0 && <div className="border-t bg-muted/20 pl-5 sm:pl-10">{parent.children.map((child) => <CategoryRow key={child.id} category={child} count={products.filter((p) => p.category === child.name).length} onEdit={() => setEditing(child)} onDelete={onDelete} onMove={move} child />)}</div>}
+          </section>
+        ))}
+      </div>
+      {editing && <CategoryEditor category={editing} parents={categories.filter((item) => !item.parentId && item.id !== editing.id)} onClose={() => setEditing(null)} onSave={(value) => { onSave(value); setEditing(null); }} />}
+    </div>
+  );
+}
+
+function CategoryRow({ category, count, child = false, onEdit, onDelete, onMove }: { category: Category; count: number; child?: boolean; onEdit: () => void; onDelete: (name: string) => Promise<void> | void; onMove: (category: Category, direction: -1 | 1) => void }) {
+  return <div className="flex flex-wrap items-center gap-3 border-b border-border/60 p-4 last:border-0"><div className="min-w-0 flex-1"><p className={`font-medium ${child ? "text-sm" : "font-display text-lg"}`}>{category.name}</p><p className="text-xs text-muted-foreground">{count} products · {category.isActive ? "Visible" : "Hidden"}</p></div><div className="flex items-center gap-1"><button onClick={() => onMove(category, -1)} className="rounded-md border px-2 py-1 text-xs" aria-label={`Move ${category.name} up`}>↑</button><button onClick={() => onMove(category, 1)} className="rounded-md border px-2 py-1 text-xs" aria-label={`Move ${category.name} down`}>↓</button><button onClick={onEdit} className="rounded-lg p-2 hover:bg-muted" aria-label={`Edit ${category.name}`}><Pencil className="h-4 w-4" /></button><button onClick={() => { if (confirm(`Delete ${category.name}? Products in it will be hidden.`)) onDelete(category.name); }} className="rounded-lg p-2 text-destructive hover:bg-destructive/10" aria-label={`Delete ${category.name}`}><Trash2 className="h-4 w-4" /></button></div></div>;
+}
+
+function CategoryEditor({ category, parents, onClose, onSave }: { category: Partial<Category> & { name: string }; parents: Category[]; onClose: () => void; onSave: (category: Partial<Category> & { name: string }) => void }) {
+  const [value, setValue] = useState(category);
+  return <div className="fixed inset-0 z-50 grid place-items-center bg-black/50 p-4" onClick={onClose}><form onSubmit={(event) => { event.preventDefault(); if (value.name.trim()) onSave({ ...value, name: value.name.trim() }); }} className="w-full max-w-lg space-y-4 rounded-2xl bg-card p-6" onClick={(event) => event.stopPropagation()}><div><h2 className="font-display text-2xl">{category.id ? "Edit Category" : "New Category"}</h2><p className="text-sm text-muted-foreground">Changes appear in storefront navigation immediately.</p></div><In label="Category name" value={value.name} onChange={(name) => setValue({ ...value, name })} /><label className="block text-sm"><span className="text-xs text-muted-foreground">Parent category</span><select value={value.parentId ?? ""} onChange={(event) => setValue({ ...value, parentId: event.target.value || null })} className="mt-1 h-11 w-full rounded-lg border bg-background px-3"><option value="">Top level</option>{parents.map((parent) => <option key={parent.id} value={parent.id}>{parent.name}</option>)}</select></label><In label="Image URL" value={value.image ?? ""} onChange={(image) => setValue({ ...value, image })} /><label className="block text-sm"><span className="text-xs text-muted-foreground">Description</span><textarea value={value.description ?? ""} onChange={(event) => setValue({ ...value, description: event.target.value })} rows={3} className="mt-1 w-full rounded-lg border bg-background p-3" /></label><label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={value.isActive ?? true} onChange={(event) => setValue({ ...value, isActive: event.target.checked })} /> Visible in storefront</label><div className="flex justify-end gap-3"><button type="button" onClick={onClose} className="h-10 rounded-full border px-5 text-sm">Cancel</button><button type="submit" className="h-10 rounded-full bg-primary px-5 text-sm font-medium text-primary-foreground">Save Category</button></div></form></div>;
+}
+
+function BlogManager({ blogs, onSave, onDelete }: { blogs: Blog[]; onSave: (blog: Blog) => Promise<void> | void; onDelete: (id: string) => Promise<void> | void }) {
+  const blank = (): Blog => ({ id: "", title: "", slug: "", excerpt: "", content: "", image: "", author: "Shri Radha Govind Store", isPublished: true, sortOrder: blogs.length });
+  const [editing, setEditing] = useState<Blog | null>(null);
+  return <div><div className="flex flex-wrap items-center justify-between gap-3"><div><h1 className="font-display text-3xl">Blogs</h1><p className="text-sm text-muted-foreground">Publish and maintain devotional articles.</p></div><button onClick={() => setEditing(blank())} className="inline-flex h-10 items-center gap-2 rounded-full bg-primary px-5 text-sm font-medium text-primary-foreground"><Plus className="h-4 w-4" /> New Post</button></div><div className="mt-6 grid gap-4 md:grid-cols-2 xl:grid-cols-3">{blogs.length === 0 && <div className="rounded-2xl bg-card p-8 text-sm text-muted-foreground premium-shadow">No blog posts yet.</div>}{blogs.map((blog) => <article key={blog.id} className="overflow-hidden rounded-2xl bg-card premium-shadow">{blog.image && <img src={blog.image} alt="" className="h-40 w-full object-cover" />}<div className="p-5"><div className="mb-2 flex items-center justify-between gap-2"><span className={`rounded-full px-2 py-1 text-[10px] ${blog.isPublished ? "bg-green-600/10 text-green-700" : "bg-muted text-muted-foreground"}`}>{blog.isPublished ? "Published" : "Draft"}</span><span className="text-xs text-muted-foreground">{blog.publishedAt ? new Date(blog.publishedAt).toLocaleDateString() : "Unscheduled"}</span></div><h2 className="font-display text-xl">{blog.title}</h2><p className="mt-1 line-clamp-2 text-sm text-muted-foreground">{blog.excerpt || "No excerpt"}</p><div className="mt-4 flex justify-end gap-2"><button onClick={() => setEditing(blog)} className="rounded-lg border p-2" aria-label={`Edit ${blog.title}`}><Pencil className="h-4 w-4" /></button><button onClick={() => { if (confirm(`Delete ${blog.title}?`)) onDelete(blog.id); }} className="rounded-lg bg-destructive/10 p-2 text-destructive" aria-label={`Delete ${blog.title}`}><Trash2 className="h-4 w-4" /></button></div></div></article>)}</div>{editing && <BlogEditor blog={editing} onClose={() => setEditing(null)} onSave={(blog) => { onSave(blog); setEditing(null); }} />}</div>;
+}
+
+function BlogEditor({ blog, onClose, onSave }: { blog: Blog; onClose: () => void; onSave: (blog: Blog) => void }) {
+  const [value, setValue] = useState(blog);
+  return <div className="fixed inset-0 z-50 grid place-items-center bg-black/50 p-4" onClick={onClose}><form onSubmit={(event) => { event.preventDefault(); if (value.title.trim()) onSave({ ...value, title: value.title.trim() }); }} className="max-h-[90vh] w-full max-w-2xl space-y-4 overflow-y-auto rounded-2xl bg-card p-6" onClick={(event) => event.stopPropagation()}><div><h2 className="font-display text-2xl">{blog.id ? "Edit Post" : "New Post"}</h2><p className="text-sm text-muted-foreground">Write, preview, and publish content for the store blog.</p></div><In label="Title" value={value.title} onChange={(title) => setValue({ ...value, title })} /><div className="grid gap-3 sm:grid-cols-2"><In label="Slug (optional)" value={value.slug} onChange={(slug) => setValue({ ...value, slug })} /><In label="Author" value={value.author} onChange={(author) => setValue({ ...value, author })} /></div><In label="Cover image URL" value={value.image} onChange={(image) => setValue({ ...value, image })} /><label className="block text-sm"><span className="text-xs text-muted-foreground">Excerpt</span><textarea value={value.excerpt} onChange={(event) => setValue({ ...value, excerpt: event.target.value })} rows={2} className="mt-1 w-full rounded-lg border bg-background p-3" /></label><label className="block text-sm"><span className="text-xs text-muted-foreground">Content</span><textarea value={value.content} onChange={(event) => setValue({ ...value, content: event.target.value })} rows={10} className="mt-1 w-full rounded-lg border bg-background p-3" /></label><label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={value.isPublished} onChange={(event) => setValue({ ...value, isPublished: event.target.checked })} /> Publish this post</label><div className="flex justify-end gap-3"><button type="button" onClick={onClose} className="h-10 rounded-full border px-5 text-sm">Cancel</button><button type="submit" className="h-10 rounded-full bg-primary px-5 text-sm font-medium text-primary-foreground">Save Post</button></div></form></div>;
 }

@@ -13,14 +13,18 @@ export type Product = {
   stock: number;
 };
 
-export const DEFAULT_CATEGORIES = [
-  "Deity Dresses",
-  "Puja Items",
-  "Chandan & Tilak",
-  "Itra & Fragrance",
-  "Mala & Jewellery",
-  "Books & Murti",
-];
+export const DEFAULT_CATEGORY_TREE = [
+  { name: "Tulsi Mala", children: ["Japa Mala", "Kanthi Mala", "Tulsi Bracelet"] },
+  { name: "Puja Essentials", children: ["Chandan & Tilak", "Kapoor", "Puja Accessories"] },
+  { name: "Itra & Fragrance", children: ["Rose Itra", "Sandalwood Itra", "Other Itra"] },
+  { name: "Jewellery", children: ["Bracelets", "Pendants", "Necklaces"] },
+  { name: "Gifts & Toys", children: ["Radha Krishna Dolls", "Keychains", "Gift Items"] },
+  { name: "Temple Collection", children: ["Braj Raj", "Temple Prasad", "Holy Water"] },
+  { name: "Festival Collection", children: ["Janmashtami", "Radhashtami", "Diwali", "Holi"] },
+  { name: "Combo Packs", children: ["Tulsi Combos", "Gift Combos"] },
+] as const;
+
+export const DEFAULT_CATEGORIES = DEFAULT_CATEGORY_TREE.flatMap((c) => [c.name, ...c.children]);
 
 import poshak from "@/assets/p-poshak.jpg";
 import chandan from "@/assets/p-chandan.jpg";
@@ -37,7 +41,7 @@ export const PRODUCTS: Product[] = [
   {
     id: "p1",
     name: "Radha Krishna Silk Poshak — Saffron & Gold",
-    category: "Deity Dresses",
+    category: "Festival Collection",
     price: 1499, mrp: 2299, rating: 4.8, reviews: 312,
     image: img("poshak"),
     description: "Handcrafted silk poshak for Laddu Gopal & Radha Rani, stitched by Vrindavan artisans with zari embroidery.",
@@ -57,7 +61,7 @@ export const PRODUCTS: Product[] = [
   {
     id: "p3",
     name: "Mogra Itra Attar — Roll-on 12ml",
-    category: "Itra & Fragrance",
+    category: "Other Itra",
     price: 449, mrp: 699, rating: 4.9, reviews: 522,
     image: img("itra"),
     description: "Alcohol-free Mogra attar distilled in Kannauj, the favoured fragrance of Sri Radha.",
@@ -67,7 +71,7 @@ export const PRODUCTS: Product[] = [
   {
     id: "p4",
     name: "Tulsi Kanthi Mala — 108 Beads",
-    category: "Mala & Jewellery",
+    category: "Kanthi Mala",
     price: 299, mrp: 499, rating: 4.9, reviews: 2104,
     image: img("mala"),
     description: "Sacred Tulsi mala hand-strung in Vrindavan, energised at ISKCON temple.",
@@ -77,7 +81,7 @@ export const PRODUCTS: Product[] = [
   {
     id: "p5",
     name: "Brass Laddu Gopal Murti — 4 inch",
-    category: "Books & Murti",
+    category: "Gift Items",
     price: 1199, mrp: 1899, rating: 4.8, reviews: 410,
     image: img("murti"),
     description: "Solid brass Laddu Gopal idol with intricate detailing, polished to mirror finish.",
@@ -87,7 +91,7 @@ export const PRODUCTS: Product[] = [
   {
     id: "p6",
     name: "Panchamrit Puja Thali Set — 9 Items",
-    category: "Puja Items",
+    category: "Puja Accessories",
     price: 899, mrp: 1499, rating: 4.7, reviews: 287,
     image: img("puja"),
     description: "Complete brass puja thali with diya, ghanti, kalash, agarbatti stand and more.",
@@ -97,7 +101,7 @@ export const PRODUCTS: Product[] = [
   {
     id: "p7",
     name: "Banke Bihari Pitambar Dhoti",
-    category: "Deity Dresses",
+    category: "Janmashtami",
     price: 799, mrp: 1299, rating: 4.6, reviews: 156,
     image: img("poshak"),
     description: "Traditional yellow pitambar dhoti for Lord Krishna, woven in Mathura.",
@@ -117,7 +121,7 @@ export const PRODUCTS: Product[] = [
   {
     id: "p9",
     name: "Rose Gulab Attar — 8ml",
-    category: "Itra & Fragrance",
+    category: "Rose Itra",
     price: 399, mrp: 599, rating: 4.7, reviews: 340,
     image: img("itra"),
     description: "Pure rose attar, the eternal fragrance of Vrindavan kunj.",
@@ -127,7 +131,7 @@ export const PRODUCTS: Product[] = [
   {
     id: "p10",
     name: "Rudraksha & Tulsi Combo Mala",
-    category: "Mala & Jewellery",
+    category: "Tulsi Combos",
     price: 549, mrp: 899, rating: 4.8, reviews: 420,
     image: img("mala"),
     description: "Blessed combination of Rudraksha and Tulsi beads for daily japa.",
@@ -137,7 +141,7 @@ export const PRODUCTS: Product[] = [
   {
     id: "p11",
     name: "Bhagavad Gita — Hardcover Sanskrit-Hindi",
-    category: "Books & Murti",
+    category: "Gift Items",
     price: 499, mrp: 799, rating: 4.9, reviews: 3210,
     image: img("book"),
     description: "Sacred Bhagavad Gita with original Sanskrit shlokas and detailed Hindi translation.",
@@ -147,7 +151,7 @@ export const PRODUCTS: Product[] = [
   {
     id: "p12",
     name: "Camphor & Ghee Diya Set (12 pcs)",
-    category: "Puja Items",
+    category: "Kapoor",
     price: 249, mrp: 399, rating: 4.6, reviews: 890,
     image: img("puja"),
     description: "Pre-filled ghee diyas with camphor for daily aarti — burns clean for 45 mins.",

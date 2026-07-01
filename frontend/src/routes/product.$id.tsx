@@ -2,7 +2,7 @@ import { createFileRoute, Link, useNavigate, notFound } from "@tanstack/react-ro
 import { Layout } from "@/components/Layout";
 import { useStore, formatINR } from "@/lib/store";
 import { Heart, ShoppingBag, Star, Truck, ShieldCheck, RefreshCw, Check } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { ProductCard } from "@/components/ProductCard";
 
 export const Route = createFileRoute("/product/$id")({
@@ -26,6 +26,17 @@ function ProductDetail() {
   const nav = useNavigate();
   const product = adminProducts.find((p) => p.id === id);
   const [qty, setQty] = useState(1);
+  const [recentIds, setRecentIds] = useState<string[]>([]);
+
+  useEffect(() => {
+    if (!product || typeof window === "undefined") return;
+    const key = "srg_recent_products";
+    let previous: string[] = [];
+    try { previous = JSON.parse(localStorage.getItem(key) ?? "[]"); } catch { previous = []; }
+    const next = [product.id, ...previous.filter((item) => item !== product.id)].slice(0, 8);
+    localStorage.setItem(key, JSON.stringify(next));
+    setRecentIds(next);
+  }, [product]);
 
   if (!product) {
     return <Layout><div className="container-app py-20 text-center"><h1 className="font-display text-3xl">Product not found</h1><Link to="/shop" className="text-primary mt-4 inline-block">← Back to shop</Link></div></Layout>;
@@ -34,6 +45,7 @@ function ProductDetail() {
   const wished = wishlist.includes(product.id);
   const off = Math.round(((product.mrp - product.price) / product.mrp) * 100);
   const related = adminProducts.filter((p) => p.category === product.category && p.id !== product.id).slice(0, 4);
+  const recentlyViewed = recentIds.filter((recentId) => recentId !== product.id).map((recentId) => adminProducts.find((item) => item.id === recentId)).filter((item): item is NonNullable<typeof item> => Boolean(item)).slice(0, 4);
 
   return (
     <Layout>
@@ -97,6 +109,15 @@ function ProductDetail() {
             <h2 className="font-display text-3xl mb-6">You may also like</h2>
             <div className="grid grid-cols-2 md:grid-cols-4 gap-5">
               {related.map((p) => <ProductCard key={p.id} product={p} />)}
+            </div>
+          </section>
+        )}
+        {recentlyViewed.length > 0 && (
+          <section className="mt-16 border-t border-border/70 pt-12">
+            <p className="mb-2 text-xs uppercase tracking-[.22em] text-primary">Continue exploring</p>
+            <h2 className="font-display text-3xl mb-6">Recently viewed</h2>
+            <div className="grid grid-cols-2 gap-5 md:grid-cols-4">
+              {recentlyViewed.map((item) => <ProductCard key={item.id} product={item} />)}
             </div>
           </section>
         )}

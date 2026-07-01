@@ -14,6 +14,7 @@ import adminRoutes from "./routes/admin.routes";
 import uploadRoutes from "./routes/upload.routes";
 import settingsRoutes from "./routes/settings.routes";
 import paymentRoutes from "./routes/payment.routes";
+import blogRoutes from "./routes/blog.routes";
 
 export const app = express();
 
@@ -43,6 +44,7 @@ app.use("/api/admin", adminRoutes);
 app.use("/api/uploads", uploadRoutes);
 app.use("/api/settings", settingsRoutes);
 app.use("/api/payments", paymentRoutes);
+app.use("/api/blogs", blogRoutes);
 
 app.use(notFound);
 app.use(errorHandler);

@@ -90,13 +90,13 @@ r.patch("/orders/:id/payment", async (req, res, next) => {
         sendOrderConfirmationWithInvoice(u.email, u.name, {
           _id: o._id,
           trackingId: o.trackingId ?? undefined,
-          courier: o.courier,
+          courier: o.courier ?? undefined,
           items: o.items as any,
           subtotal: o.subtotal!,
           shipping: o.shipping!,
           total: o.total!,
           address: o.address as any,
-          payment: { method: o.payment!.method!, status: "paid", razorpayPaymentId: o.payment!.razorpayPaymentId },
+          payment: { method: o.payment!.method!, status: "paid", razorpayPaymentId: o.payment!.razorpayPaymentId ?? undefined },
           createdAt: o.createdAt,
         }).catch(() => {});
       } else if (status === "failed") {

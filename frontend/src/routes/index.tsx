@@ -1,7 +1,7 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { Layout } from "@/components/Layout";
 import { ProductCard } from "@/components/ProductCard";
-import { PRODUCTS, CATEGORIES } from "@/lib/products";
+import { useStore } from "@/lib/store";
 import { ArrowRight, Sparkles, Truck, ShieldCheck, Flower2 } from "lucide-react";
 import heroKrishna from "@/assets/hero-krishna.jpg";
 
@@ -30,13 +30,14 @@ export const Route = createFileRoute("/")({
 });
 
 function Home() {
-  const featured = PRODUCTS.slice(0, 8);
+  const { adminProducts } = useStore();
+  const featured = adminProducts.slice(0, 8);
   return (
     <Layout>
       {/* Hero */}
       <section className="relative overflow-hidden">
         <div className="container-app py-14 md:py-24 grid md:grid-cols-2 gap-10 items-center">
-          <div>
+          <div className="reveal-up">
             <p className="inline-flex items-center gap-2 text-xs uppercase tracking-[0.25em] text-primary mb-5">
               <Sparkles className="h-3.5 w-3.5" /> Blessed in Vrindavan
             </p>
@@ -48,10 +49,10 @@ function Home() {
               Authentic Krishna & Radha Rani poshak, gopi chandan, itra and puja items — sourced directly from Vrindavan artisans.
             </p>
             <div className="mt-7 flex gap-3">
-              <Link to="/shop" className="inline-flex items-center gap-2 h-12 px-6 rounded-full bg-primary text-primary-foreground font-medium hover:opacity-90 transition">
+              <Link to="/shop" className="fx-button icon-bounce inline-flex items-center gap-2 h-12 px-6 rounded-full bg-primary text-primary-foreground font-medium">
                 Explore Collection <ArrowRight className="h-4 w-4" />
               </Link>
-              <Link to="/shop" className="inline-flex items-center h-12 px-6 rounded-full border border-foreground/20 hover:border-primary hover:text-primary transition">
+              <Link to="/shop" className="fx-button inline-flex items-center h-12 px-6 rounded-full border border-foreground/20 bg-card/55 hover:border-primary hover:text-primary">
                 New Arrivals
               </Link>
             </div>
@@ -61,11 +62,11 @@ function Home() {
               ))}
             </div>
           </div>
-          <div className="relative">
-            <div className="aspect-[4/5] rounded-3xl overflow-hidden premium-shadow">
+          <div className="relative reveal-up reveal-delay-1">
+            <div className="card-3d aspect-[4/5] rounded-3xl overflow-hidden premium-shadow">
               <img src={heroKrishna} alt="Krishna" className="h-full w-full object-cover" />
             </div>
-            <div className="absolute -bottom-6 -left-6 bg-card rounded-2xl p-5 premium-shadow hidden md:block">
+            <div className="glass-panel float-soft absolute -bottom-6 -left-6 rounded-2xl p-5 hidden md:block">
               <div className="flex items-center gap-3">
                 <Flower2 className="h-8 w-8 text-primary" />
                 <div>
@@ -78,17 +79,8 @@ function Home() {
         </div>
       </section>
 
-      {/* Categories */}
-      <section className="container-app py-10">
-        <div className="flex flex-wrap gap-2">
-          {CATEGORIES.slice(1).map((c) => (
-            <Link key={c} to="/shop" className="px-5 h-10 inline-flex items-center rounded-full bg-muted hover:bg-primary hover:text-primary-foreground transition text-sm">{c}</Link>
-          ))}
-        </div>
-      </section>
-
       {/* Trust */}
-      <section className="container-app grid grid-cols-2 md:grid-cols-4 gap-4 py-6">
+      <section className="container-app reveal-up reveal-delay-2 grid grid-cols-2 md:grid-cols-4 gap-4 py-6">
         {([
           { Icon: Truck, t: "Free shipping", d: "On orders above ₹999" },
           { Icon: ShieldCheck, t: "100% Authentic", d: "Sourced from Vrindavan" },
@@ -118,11 +110,11 @@ function Home() {
 
       {/* Banner */}
       <section className="container-app py-14">
-        <div className="rounded-3xl overflow-hidden relative gold-accent text-white p-10 md:p-16 text-center">
+        <div className="gold-accent relative overflow-hidden rounded-3xl p-10 text-center text-white md:p-16">
           <p className="text-xs uppercase tracking-[0.3em] opacity-80 mb-3">Janmashtami Special</p>
           <h2 className="font-display text-4xl md:text-6xl">Adorn your Laddu Gopal</h2>
           <p className="mt-3 max-w-xl mx-auto opacity-90">Exclusive poshak, jewellery & shringar sets — handcrafted by master artisans of Vrindavan.</p>
-          <Link to="/shop" className="mt-6 inline-flex h-12 px-7 rounded-full bg-white text-primary font-medium items-center">Shop the collection</Link>
+          <Link to="/shop" className="fx-button mt-6 inline-flex h-12 px-7 rounded-full bg-white text-primary font-medium items-center">Shop the collection</Link>
         </div>
       </section>
     </Layout>
