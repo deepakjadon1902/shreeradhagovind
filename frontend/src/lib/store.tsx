@@ -439,6 +439,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         await refreshOrders(false);
       } catch (e: any) {
         toast.error(e?.message ?? "Google sign-in failed");
+        throw e;
       }
     } else {
       setUser({ email: "devotee@gmail.com", name: "Krishna Devotee", avatar: "https://api.dicebear.com/9.x/initials/svg?seed=KD" });

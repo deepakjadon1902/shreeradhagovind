@@ -12,7 +12,7 @@ export default defineConfig(({ mode }) => {
     Object.entries(loadedEnv).map(([key, value]) => [`import.meta.env.${key}`, JSON.stringify(value)]),
   );
   return {
-    server: { host: "::", port: 8080 },
+    server: { host: "::", port: 8081 },
     define,
     css: { transformer: "lightningcss" },
     resolve: {

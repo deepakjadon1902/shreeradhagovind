@@ -4,7 +4,7 @@ import { useStore } from "@/lib/store";
 import { api, setToken, isApiEnabled } from "@/lib/api";
 import { toast } from "sonner";
 import { Mail, Lock, User, Eye, EyeOff, Phone, MapPin } from "lucide-react";
-import { AuthShell, Field, Divider, GoogleIcon } from "./login";
+import { AuthShell, Field, Divider, GoogleSignInButton } from "./login";
 
 export const Route = createFileRoute("/signup")({
   component: Signup,
@@ -51,9 +51,7 @@ function Signup() {
   };
 
   return <AuthShell title="Create account" subtitle="Begin your divine shopping journey">
-    <button onClick={() => { loginGoogle(); nav({ to: "/" }); }} className="w-full h-12 rounded-full border border-border bg-card flex items-center justify-center gap-3 hover:border-primary transition font-medium">
-      <GoogleIcon /> Sign up with Google
-    </button>
+    <GoogleSignInButton text="signup_with" onCredential={async (credential) => { try { await loginGoogle(credential); nav({ to: "/" }); } catch { /* toast shown in store */ } }} />
     <Divider />
     <form onSubmit={submit} className="space-y-3">
       <Field icon={User} placeholder="Full name" value={name} onChange={setName} />

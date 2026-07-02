@@ -129,7 +129,12 @@ r.post("/google", async (req, res, next) => {
   try {
     if (!google) throw new HttpError(400, "Google sign-in not configured");
     const { credential } = z.object({ credential: z.string().min(10) }).parse(req.body);
-    const ticket = await google.verifyIdToken({ idToken: credential, audience: env.GOOGLE_CLIENT_ID });
+    let ticket;
+    try {
+      ticket = await google.verifyIdToken({ idToken: credential, audience: env.GOOGLE_CLIENT_ID });
+    } catch {
+      throw new HttpError(401, "Google token invalid");
+    }
     const p = ticket.getPayload();
     if (!p?.email) throw new HttpError(401, "Google token invalid");
     const lower = p.email.toLowerCase();

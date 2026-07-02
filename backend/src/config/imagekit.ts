@@ -35,7 +35,7 @@ async function uploadToImageKit(file: Blob | string, fileName: string, folder: s
   return data as ImageKitUploadResult;
 }
 
-export async function uploadBufferToImageKit(file: Express.Multer.File, folder = "/shri-radha-govind") {
+export async function uploadBufferToImageKit(file: Express.Multer.File, folder = env.IMAGEKIT_FOLDER) {
   const optimized = await sharp(file.buffer, { failOn: "warning" })
     .rotate()
     .resize({ width: 1800, height: 1800, fit: "inside", withoutEnlargement: true })
@@ -48,7 +48,7 @@ export async function uploadBufferToImageKit(file: Express.Multer.File, folder =
   return { ...result, format: "webp" as const, originalBytes: file.size, optimizedBytes: optimized.length };
 }
 
-export async function uploadRemoteImageToImageKit(url: string, folder = "/shri-radha-govind/imported") {
+export async function uploadRemoteImageToImageKit(url: string, folder = `${env.IMAGEKIT_FOLDER}/imported`) {
   const name = new URL(url).pathname.split("/").pop()?.replace(/[^\w.-]+/g, "-") || "imported-image.jpg";
   return uploadToImageKit(url, name, folder);
 }
