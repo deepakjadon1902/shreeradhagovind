@@ -39,13 +39,30 @@ export async function ensureBootstrapAdmin() {
     await Settings.create({ key: "global" });
   }
 
-  if ((await Category.countDocuments()) === 0) {
-    await Category.insertMany([
-      { name: "Deities", slug: "deities", sortOrder: 1 },
-      { name: "Pooja Items", slug: "pooja-items", sortOrder: 2 },
-      { name: "Incense", slug: "incense", sortOrder: 3 },
-      { name: "Apparel", slug: "apparel", sortOrder: 4 },
-      { name: "Books", slug: "books", sortOrder: 5 },
-    ]);
+  const categoryTree = [
+    ["Tulsi Mala", ["Japa Mala", "Kanthi Mala", "Tulsi Bracelet"]],
+    ["Puja Essentials", ["Chandan & Tilak", "Kapoor", "Puja Accessories"]],
+    ["Itra & Fragrance", ["Rose Itra", "Sandalwood Itra", "Other Itra"]],
+    ["Jewellery", ["Bracelets", "Pendants", "Necklaces"]],
+    ["Gifts & Toys", ["Radha Krishna Dolls", "Keychains", "Gift Items"]],
+    ["Temple Collection", ["Braj Raj", "Temple Prasad", "Holy Water"]],
+    ["Festival Collection", ["Janmashtami", "Radhashtami", "Diwali", "Holi"]],
+    ["Combo Packs", ["Tulsi Combos", "Gift Combos"]],
+  ] as const;
+  const slugify = (value: string) => value.toLowerCase().trim().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
+
+  for (const [parentOrder, [parentName, children]] of categoryTree.entries()) {
+    const parent = await Category.findOneAndUpdate(
+      { slug: slugify(parentName) },
+      { $set: { name: parentName, parentId: null, sortOrder: parentOrder }, $setOnInsert: { description: `${parentName} collection from Shri Radha Govind Store.`, metaTitle: `${parentName} | Shri Radha Govind Store`, metaDescription: `Shop ${parentName} at Shri Radha Govind Store.`, isActive: true } },
+      { new: true, upsert: true }
+    );
+    for (const [sortOrder, childName] of children.entries()) {
+      await Category.findOneAndUpdate(
+        { slug: slugify(childName) },
+        { $set: { name: childName, parentId: parent._id, sortOrder }, $setOnInsert: { description: `${childName} products for devotees.`, metaTitle: `${childName} | Shri Radha Govind Store`, metaDescription: `Shop ${childName} at Shri Radha Govind Store.`, isActive: true } },
+        { upsert: true }
+      );
+    }
   }
 }

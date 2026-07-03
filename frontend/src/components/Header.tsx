@@ -1,171 +1,165 @@
 import { Link, useNavigate } from "@tanstack/react-router";
-import { Heart, Search, ShoppingCart, User, Menu, X, Newspaper, Star, UserPlus, ChevronDown, LogOut, Package } from "lucide-react";
-import { useEffect, useState } from "react";
-import { useStore } from "@/lib/store";
+import {
+  ChevronDown,
+  ChevronRight,
+  Heart,
+  LogOut,
+  Menu,
+  Newspaper,
+  Package,
+  Search,
+  ShoppingCart,
+  Sparkles,
+  Star,
+  User,
+  X,
+} from "lucide-react";
+import { useEffect, useState, type ComponentType, type FormEvent, type ReactNode } from "react";
+import { useStore, type Category } from "@/lib/store";
+
 const logo = "/brand-logo.webp";
 
 export function Header() {
   const { cart, wishlist, user, settings, categoryTree, logout } = useStore();
-  const [open, setOpen] = useState(false);
-  const [q, setQ] = useState("");
+  const [drawerOpen, setDrawerOpen] = useState(false);
+  const [mobileOpen, setMobileOpen] = useState(false);
+  const [query, setQuery] = useState("");
   const [openCategory, setOpenCategory] = useState<string | null>(null);
+  const [expandedDrawer, setExpandedDrawer] = useState<string | null>(null);
   const [accountOpen, setAccountOpen] = useState(false);
-  const [accountPinned, setAccountPinned] = useState(false);
-  const nav = useNavigate();
-  const cartCount = cart.reduce((s, i) => s + i.qty, 0);
+  const navigate = useNavigate();
+  const cartCount = cart.reduce((sum, item) => sum + item.qty, 0);
+  const firstName = user?.name.split(" ")[0] || "devotee";
 
   useEffect(() => {
-    const close = (event?: Event) => {
-      if (event instanceof PointerEvent && (event.target as Element | null)?.closest?.("[data-header-popup]")) return;
-      setOpenCategory(null);
-      setAccountOpen(false);
-      setAccountPinned(false);
+    if (!drawerOpen) return;
+    const previous = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    const closeOnEscape = (event: KeyboardEvent) => event.key === "Escape" && setDrawerOpen(false);
+    window.addEventListener("keydown", closeOnEscape);
+    return () => {
+      document.body.style.overflow = previous;
+      window.removeEventListener("keydown", closeOnEscape);
     };
-    document.addEventListener("pointerdown", close);
-    window.addEventListener("scroll", close, { passive: true });
-    return () => { document.removeEventListener("pointerdown", close); window.removeEventListener("scroll", close); };
-  }, []);
+  }, [drawerOpen]);
 
-  const submit = (e: React.FormEvent) => {
-    e.preventDefault();
-    nav({ to: "/shop", search: { q } as never });
-    setOpen(false);
+  const submit = (event: FormEvent) => {
+    event.preventDefault();
+    navigate({ to: "/shop", search: { q: query } as never });
+    setMobileOpen(false);
+  };
+
+  const closeMenus = () => {
+    setOpenCategory(null);
+    setAccountOpen(false);
   };
 
   return (
-    <header className="glass-panel sticky top-0 z-40 border-b border-white/60 shadow-sm">
-      <div className="border-b border-border bg-primary text-primary-foreground text-xs">
-        <div className="container-app flex h-8 items-center justify-center text-center font-medium tracking-wide">
-          {settings.announcement}
-        </div>
-      </div>
-
-      <div className="container-app flex h-[72px] items-center gap-3">
-        <button className="grid h-10 w-10 place-items-center rounded-md border md:hidden" onClick={() => setOpen(!open)} aria-label="Menu">
-          {open ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
-        </button>
-
-        <Link to="/" className="neo-surface flex h-14 w-[116px] shrink-0 items-center justify-center overflow-hidden rounded-xl bg-white transition-transform duration-300 hover:-translate-y-0.5 hover:scale-[1.02]">
-          <img src={logo} alt="Shri Radha Govind Store" className="h-full w-full object-contain p-1" />
-        </Link>
-
-        <form onSubmit={submit} className="hidden md:flex h-12 flex-1 overflow-hidden rounded-md border border-primary/30 bg-white shadow-sm focus-within:border-primary">
-          <input
-            value={q}
-            onChange={(e) => setQ(e.target.value)}
-            placeholder="Search Prasadam, Books, Shringar..."
-            className="min-w-0 flex-1 px-5 text-sm outline-none"
-          />
-          <button className="fx-button icon-bounce grid w-16 place-items-center bg-accent text-accent-foreground" aria-label="Search">
-            <Search className="h-5 w-5" />
+    <header className="sticky top-0 z-40 shadow-md">
+      <div className="bg-[#102f35] text-white">
+        <div className="container-app flex min-h-[70px] flex-wrap items-center gap-2 py-2 sm:flex-nowrap sm:gap-4">
+          <button
+            onClick={() => setMobileOpen((value) => !value)}
+            className="grid h-10 w-10 shrink-0 place-items-center rounded-md border border-white/25 lg:hidden"
+            aria-label="Toggle navigation"
+          >
+            {mobileOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
           </button>
-        </form>
 
-        <nav className="ml-auto hidden items-center gap-2 md:flex">
-          <Action to="/blog" icon={Newspaper} label="Blog" />
-          <Action to="/wishlist" icon={Heart} label="Wishlist" count={wishlist.length} />
-          <Action to="/cart" icon={ShoppingCart} label="Cart" count={cartCount} />
-          <Action to="/wishlist" icon={Star} label="Favorite" count={wishlist.length} />
-          {user ? (
-            <div data-header-popup className="relative" onMouseEnter={() => setAccountOpen(true)} onMouseLeave={() => { if (!accountPinned) setAccountOpen(false); }}>
-              <button onClick={() => { const next = !accountPinned; setAccountPinned(next); setAccountOpen(next); }} className="fx-button icon-bounce inline-flex h-10 items-center gap-2 rounded-full border border-primary px-4 text-sm font-semibold text-primary hover:bg-primary hover:text-primary-foreground" aria-expanded={accountOpen}>
-                <User className="h-4 w-4" /> {user.name.split(" ")[0]} <ChevronDown className={`h-3.5 w-3.5 transition ${accountOpen ? "rotate-180" : ""}`} />
+          <Link to="/" onClick={closeMenus} className="flex shrink-0 items-center gap-2 rounded-md p-1 hover:outline hover:outline-1 hover:outline-white/60">
+            <span className="grid h-12 w-12 place-items-center overflow-hidden rounded-full border border-[#d4aa50] bg-white">
+              <img src={logo} alt="Shri Radha Govind Store" className="h-full w-full object-contain" />
+            </span>
+            <span className="hidden xl:block">
+              <strong className="block font-display text-lg leading-none">Shri Radha Govind</strong>
+              <small className="text-[10px] uppercase tracking-[.18em] text-[#efcf86]">Sacred marketplace</small>
+            </span>
+          </Link>
+
+          <form onSubmit={submit} className="order-last flex h-11 w-full overflow-hidden rounded-lg bg-white text-foreground sm:order-none sm:flex-1">
+            <select aria-label="Search category" className="hidden w-28 border-r bg-stone-100 px-2 text-xs outline-none md:block">
+              <option>All</option>
+              {categoryTree.map((category) => <option key={category.id}>{category.name}</option>)}
+            </select>
+            <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search Tulsi mala, puja essentials and gifts" className="min-w-0 flex-1 px-4 text-sm outline-none" />
+            <button className="grid w-14 place-items-center bg-[#d4a84d] text-[#102f35] transition hover:bg-[#e4bd68]" aria-label="Search"><Search className="h-5 w-5" /></button>
+          </form>
+
+          <nav className="ml-auto hidden shrink-0 items-center gap-1 lg:flex">
+            <div className="relative" onMouseEnter={() => setAccountOpen(true)} onMouseLeave={() => setAccountOpen(false)}>
+              <button onClick={() => setAccountOpen((value) => !value)} className="rounded-md px-3 py-2 text-left hover:outline hover:outline-1 hover:outline-white/60">
+                <span className="block text-[11px]">Hello, {firstName}</span>
+                <strong className="flex items-center text-sm">Account & Lists <ChevronDown className="h-3.5 w-3.5" /></strong>
               </button>
-              {accountOpen && <AccountMenu wishlistCount={wishlist.length} onNavigate={() => { setAccountOpen(false); setAccountPinned(false); }} onLogout={() => { setAccountOpen(false); setAccountPinned(false); logout(); }} />}
+              {accountOpen && <AccountMenu user={!!user} wishlistCount={wishlist.length} onClose={() => setAccountOpen(false)} onLogout={() => logout()} />}
             </div>
-          ) : (
-            <Link to="/login" className="fx-button icon-bounce inline-flex h-10 items-center gap-2 rounded-full border border-primary px-4 text-sm font-semibold text-primary hover:bg-primary hover:text-primary-foreground"><User className="h-4 w-4" /> Login</Link>
-          )}
-          {!user && (
-            <Link to="/signup" className="fx-button icon-bounce inline-flex h-10 items-center gap-2 rounded-full bg-accent px-4 text-sm font-semibold text-accent-foreground">
-              <UserPlus className="h-4 w-4" />
-              Sign Up
-            </Link>
-          )}
-        </nav>
+            <Link to={user ? "/orders" : "/login"} className="rounded-md px-3 py-2 hover:outline hover:outline-1 hover:outline-white/60"><span className="block text-[11px]">Returns</span><strong className="text-sm">& Orders</strong></Link>
+            <Link to="/wishlist" className="relative grid h-12 w-12 place-items-center rounded-md hover:outline hover:outline-1 hover:outline-white/60" aria-label="Wishlist"><Heart className="h-6 w-6" />{wishlist.length > 0 && <Badge>{wishlist.length}</Badge>}</Link>
+            <Link to="/cart" className="relative flex h-12 items-end gap-1 rounded-md px-2 pb-2 hover:outline hover:outline-1 hover:outline-white/60"><ShoppingCart className="h-8 w-8" /><strong className="text-sm">Cart</strong>{cartCount > 0 && <Badge>{cartCount}</Badge>}</Link>
+          </nav>
 
-        <div className="ml-auto flex items-center gap-1 md:hidden">
-          <Link to="/cart" className="relative grid h-10 w-10 place-items-center rounded-md border" aria-label="Cart">
-            <ShoppingCart className="h-5 w-5" />
-            {cartCount > 0 && <Badge>{cartCount}</Badge>}
-          </Link>
-          <Link to={user ? "/profile" : "/login"} className="grid h-10 w-10 place-items-center rounded-md border" aria-label="Login">
-            <User className="h-5 w-5" />
-          </Link>
+          <Link to="/cart" className="relative grid h-10 w-10 shrink-0 place-items-center lg:hidden" aria-label="Cart"><ShoppingCart className="h-6 w-6" />{cartCount > 0 && <Badge>{cartCount}</Badge>}</Link>
         </div>
       </div>
 
-      <div className="hidden border-t border-border bg-secondary md:block">
-        <div className="container-app flex h-12 items-center gap-1">
-          <Link to="/shop" className="inline-flex h-10 shrink-0 items-center gap-2 rounded-md px-3 text-sm font-semibold hover:bg-card">
-            <Menu className="h-4 w-4" />
-            All
-          </Link>
+      <div className="bg-[#204e55] text-white">
+        <div className="container-app flex h-11 items-center gap-1 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+          <button onClick={() => setDrawerOpen(true)} className="flex h-9 shrink-0 items-center gap-2 rounded px-3 text-sm font-bold hover:outline hover:outline-1 hover:outline-white"><Menu className="h-5 w-5" /> All</button>
+          <Shortcut label="Trending" search="trending" />
+          <Shortcut label="Today's Sacred Picks" search="sacred-picks" icon={Sparkles} />
           {categoryTree.map((category) => (
-            <div data-header-popup key={category.id} className="relative h-12 shrink-0" onMouseEnter={() => setOpenCategory(category.id)} onMouseLeave={() => setOpenCategory(null)}>
-              <Link to="/shop" search={{ cat: category.name } as never} onClick={() => setOpenCategory(null)} className="inline-flex h-12 items-center rounded-md px-4 text-sm font-semibold text-foreground/85 transition hover:bg-card hover:text-primary">
-                {category.name}
-              </Link>
-              {category.children.length > 0 && openCategory === category.id && (
-                <div className="glass-panel absolute left-0 top-[calc(100%-2px)] z-50 min-w-56 animate-in fade-in slide-in-from-top-2 rounded-xl p-2 shadow-xl duration-150">
-                  <p className="px-3 py-2 text-[10px] font-bold uppercase tracking-[.16em] text-muted-foreground">{category.name}</p>
-                  {category.children.map((child) => (
-                    <Link key={child.id} to="/shop" search={{ cat: child.name } as never} onClick={() => setOpenCategory(null)} className="block rounded-lg px-3 py-2 text-sm font-medium transition hover:bg-primary hover:text-primary-foreground">
-                      {child.name}
-                    </Link>
-                  ))}
-                </div>
-              )}
+            <div key={category.id} className="relative h-11 shrink-0" onMouseEnter={() => setOpenCategory(category.id)} onMouseLeave={() => setOpenCategory(null)}>
+              <Link to="/shop" search={{ cat: category.name } as never} className="flex h-11 items-center gap-1 rounded px-3 text-sm font-medium hover:bg-white/10">{category.name}{category.children.length > 0 && <ChevronDown className="h-3.5 w-3.5" />}</Link>
+              {openCategory === category.id && category.children.length > 0 && <MegaMenu category={category} onClose={() => setOpenCategory(null)} />}
             </div>
           ))}
+          <Link to="/blog" className="flex h-11 shrink-0 items-center gap-1 rounded px-3 text-sm font-medium hover:bg-white/10"><Newspaper className="h-4 w-4" /> Devotional Blog</Link>
         </div>
       </div>
 
-      {open && (
-        <div className="border-t border-border bg-card md:hidden">
-          <div className="container-app py-3">
-            <form onSubmit={submit} className="mb-3 flex h-11 overflow-hidden rounded-md border border-primary/30 bg-white">
-              <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search products..." className="min-w-0 flex-1 px-4 text-sm outline-none" />
-              <button className="grid w-12 place-items-center bg-accent text-accent-foreground" aria-label="Search">
-                <Search className="h-5 w-5" />
-              </button>
-            </form>
-            <div className="grid grid-cols-2 gap-1">
-              <Link to="/blog" onClick={() => setOpen(false)} className="rounded-md px-3 py-2 text-sm font-medium hover:bg-muted">Blog</Link>
-              <Link to="/wishlist" onClick={() => setOpen(false)} className="rounded-md px-3 py-2 text-sm font-medium hover:bg-muted">Wishlist</Link>
-              <Link to="/cart" onClick={() => setOpen(false)} className="rounded-md px-3 py-2 text-sm font-medium hover:bg-muted">Cart</Link>
-              {categoryTree.map((category) => (
-                <div key={category.id} className="rounded-lg border border-border/60 p-1">
-                  <Link to="/shop" search={{ cat: category.name } as never} onClick={() => setOpen(false)} className="block rounded-md px-3 py-2 text-sm font-semibold hover:bg-muted">{category.name}</Link>
-                  {category.children.map((child) => <Link key={child.id} to="/shop" search={{ cat: child.name } as never} onClick={() => setOpen(false)} className="block rounded-md px-5 py-1.5 text-xs text-muted-foreground hover:bg-muted hover:text-primary">{child.name}</Link>)}
-                </div>
-              ))}
-            </div>
-          </div>
+      {settings.announcement && <div className="bg-[#f3dfad] px-4 py-1.5 text-center text-xs font-semibold text-[#173d43]">{settings.announcement}</div>}
+
+      {mobileOpen && (
+        <div className="border-b bg-white p-3 text-foreground lg:hidden">
+          <div className="mb-2 flex gap-2"><Link to={user ? "/profile" : "/login"} onClick={() => setMobileOpen(false)} className="flex-1 rounded-lg bg-muted px-3 py-2 text-sm font-semibold">Hello, {firstName} · Account</Link><Link to={user ? "/orders" : "/login"} onClick={() => setMobileOpen(false)} className="rounded-lg bg-muted px-3 py-2 text-sm font-semibold">Orders</Link></div>
+          <div className="flex gap-2 overflow-x-auto pb-1 [scrollbar-width:none]">{categoryTree.map((category) => <Link key={category.id} to="/shop" search={{ cat: category.name } as never} onClick={() => setMobileOpen(false)} className="shrink-0 rounded-full border border-primary/20 px-4 py-2 text-sm font-medium">{category.name}</Link>)}</div>
         </div>
       )}
+
+      <AllDrawer open={drawerOpen} categories={categoryTree} expanded={expandedDrawer} setExpanded={setExpandedDrawer} userName={firstName} onClose={() => setDrawerOpen(false)} />
     </header>
   );
 }
 
-function Action({ to, icon: Icon, label, count = 0 }: { to: string; icon: React.ComponentType<{ className?: string }>; label: string; count?: number }) {
-  return (
-    <Link to={to} className="icon-bounce relative flex min-w-14 flex-col items-center gap-0.5 rounded-md px-2 py-1.5 text-[11px] font-medium transition-all duration-200 hover:-translate-y-0.5 hover:bg-white/60 hover:text-primary">
-      <Icon className="h-5 w-5" />
-      <span>{label}</span>
-      {count > 0 && <Badge>{count}</Badge>}
-    </Link>
-  );
+function Shortcut({ label, search, icon: Icon }: { label: string; search: string; icon?: ComponentType<{ className?: string }> }) {
+  return <Link to="/shop" search={{ q: search } as never} className="flex h-11 shrink-0 items-center gap-1.5 rounded px-3 text-sm font-medium hover:bg-white/10">{Icon && <Icon className="h-4 w-4 text-[#efcf86]" />}{label}</Link>;
 }
 
-function Badge({ children }: { children: React.ReactNode }) {
-  return <span className="absolute -right-1 -top-1 grid h-5 min-w-5 place-items-center rounded-full bg-primary px-1 text-[10px] font-bold text-primary-foreground">{children}</span>;
+function MegaMenu({ category, onClose }: { category: Category & { children: Category[] }; onClose: () => void }) {
+  return <div className="absolute left-0 top-full z-50 w-[620px] rounded-b-xl border border-t-0 bg-white p-5 text-foreground shadow-2xl"><div className="grid grid-cols-[1fr_180px] gap-5"><div><p className="mb-3 text-xs font-bold uppercase tracking-[.15em] text-primary">Shop {category.name}</p><div className="grid grid-cols-2 gap-2">{category.children.map((child) => <Link key={child.id} to="/shop" search={{ cat: child.name } as never} onClick={onClose} className="group flex items-center gap-2 rounded-lg p-3 hover:bg-muted"><ChevronRight className="h-4 w-4 text-accent" /><span><strong className="block text-sm">{child.name}</strong><small className="text-muted-foreground">Explore collection</small></span></Link>)}</div></div><Link to="/shop" search={{ cat: category.name } as never} onClick={onClose} className="relative flex min-h-40 flex-col justify-end overflow-hidden rounded-xl bg-gradient-to-br from-[#174a50] to-[#28747b] p-4 text-white">{category.image && <img src={category.image} alt="" className="absolute inset-0 h-full w-full object-cover opacity-25" />}<Star className="relative mb-2 h-6 w-6 text-[#efcf86]" /><strong className="relative font-display text-xl">Sacred {category.name}</strong><span className="relative mt-1 text-xs text-white/75">View the complete collection →</span></Link></div></div>;
 }
 
-function AccountMenu({ wishlistCount, onNavigate, onLogout }: { wishlistCount: number; onNavigate: () => void; onLogout: () => void }) {
-  return <div className="glass-panel absolute right-0 top-[calc(100%+8px)] z-50 w-64 animate-in fade-in slide-in-from-top-2 rounded-2xl p-2 shadow-2xl duration-150"><p className="px-3 pb-2 pt-2 text-[10px] font-bold uppercase tracking-[.18em] text-muted-foreground">My account</p><AccountLink to="/profile" icon={User} label="Profile & address" onClick={onNavigate} /><AccountLink to="/orders" icon={Package} label="Order history" onClick={onNavigate} /><AccountLink to="/wishlist" icon={Heart} label="Wishlist & favorites" count={wishlistCount} onClick={onNavigate} /><button onClick={onLogout} className="mt-1 flex w-full items-center gap-3 rounded-xl border-t px-3 py-3 text-sm font-medium text-destructive transition hover:bg-destructive/10"><LogOut className="h-4 w-4" /> Logout</button></div>;
+function AllDrawer({ open, categories, expanded, setExpanded, userName, onClose }: { open: boolean; categories: (Category & { children: Category[] })[]; expanded: string | null; setExpanded: (id: string | null) => void; userName: string; onClose: () => void }) {
+  if (!open) return null;
+  return <div className="fixed inset-0 z-[70] bg-black/65" onMouseDown={onClose}><aside role="dialog" aria-modal="true" aria-label="All store categories" className="h-full w-[min(92vw,390px)] overflow-y-auto bg-white text-foreground shadow-2xl" onMouseDown={(event) => event.stopPropagation()}><div className="sticky top-0 z-10 flex h-16 items-center justify-between bg-[#173d43] px-5 text-white"><Link to="/profile" onClick={onClose} className="flex items-center gap-3 text-lg font-bold"><User className="h-7 w-7" /> Hello, {userName}</Link><button onClick={onClose} className="rounded-md p-2 hover:bg-white/10" aria-label="Close menu"><X className="h-6 w-6" /></button></div><DrawerSection title="Trending"><DrawerLink label="Bestsellers" query="bestsellers" onClose={onClose} /><DrawerLink label="New Arrivals" query="new" onClose={onClose} /><DrawerLink label="Today's Sacred Picks" query="sacred-picks" onClose={onClose} /></DrawerSection><DrawerSection title="Shop by Category">{categories.map((category) => <div key={category.id}><div className="flex items-center"><Link to="/shop" search={{ cat: category.name } as never} onClick={onClose} className="flex-1 px-5 py-3 text-sm font-medium hover:bg-muted">{category.name}</Link>{category.children.length > 0 && <button onClick={() => setExpanded(expanded === category.id ? null : category.id)} className="p-4" aria-label={`Expand ${category.name}`}><ChevronRight className={`h-4 w-4 transition ${expanded === category.id ? "rotate-90" : ""}`} /></button>}</div>{expanded === category.id && <div className="bg-stone-50 py-1">{category.children.map((child) => <Link key={child.id} to="/shop" search={{ cat: child.name } as never} onClick={onClose} className="block px-9 py-2.5 text-sm text-muted-foreground hover:bg-muted hover:text-primary">{child.name}</Link>)}</div>}</div>)}</DrawerSection><DrawerSection title="Help & Account"><Link to="/orders" onClick={onClose} className="block px-5 py-3 text-sm hover:bg-muted">Your Orders</Link><Link to="/wishlist" onClick={onClose} className="block px-5 py-3 text-sm hover:bg-muted">Your Wishlist</Link><Link to="/contact" onClick={onClose} className="block px-5 py-3 text-sm hover:bg-muted">Customer Support</Link></DrawerSection></aside></div>;
 }
 
-function AccountLink({ to, icon: Icon, label, count, onClick }: { to: string; icon: typeof User; label: string; count?: number; onClick: () => void }) {
-  return <Link to={to} onClick={onClick} className="flex items-center gap-3 rounded-xl px-3 py-3 text-sm font-medium transition hover:bg-primary hover:text-primary-foreground"><Icon className="h-4 w-4" /><span className="flex-1">{label}</span>{count !== undefined && <span className="rounded-full bg-current/10 px-2 py-0.5 text-xs">{count}</span>}</Link>;
+function DrawerSection({ title, children }: { title: string; children: ReactNode }) {
+  return <section className="border-b py-3"><h2 className="px-5 py-2 text-lg font-bold">{title}</h2>{children}</section>;
+}
+
+function DrawerLink({ label, query, onClose }: { label: string; query: string; onClose: () => void }) {
+  return <Link to="/shop" search={{ q: query } as never} onClick={onClose} className="block px-5 py-3 text-sm hover:bg-muted">{label}</Link>;
+}
+
+function AccountMenu({ user, wishlistCount, onClose, onLogout }: { user: boolean; wishlistCount: number; onClose: () => void; onLogout: () => void }) {
+  return <div className="absolute right-0 top-full z-50 w-64 rounded-xl border bg-white p-2 text-foreground shadow-2xl"><p className="px-3 py-2 text-xs font-bold uppercase tracking-wider text-muted-foreground">Your account</p>{user ? <><AccountLink to="/profile" icon={User} label="Profile & address" onClick={onClose} /><AccountLink to="/orders" icon={Package} label="Your orders" onClick={onClose} /><AccountLink to="/wishlist" icon={Heart} label={`Wishlist (${wishlistCount})`} onClick={onClose} /><button onClick={() => { onLogout(); onClose(); }} className="mt-1 flex w-full items-center gap-3 border-t px-3 py-3 text-sm font-medium text-destructive hover:bg-destructive/10"><LogOut className="h-4 w-4" /> Logout</button></> : <><AccountLink to="/login" icon={User} label="Sign in" onClick={onClose} /><AccountLink to="/signup" icon={Star} label="Create account" onClick={onClose} /></>}</div>;
+}
+
+function AccountLink({ to, icon: Icon, label, onClick }: { to: string; icon: ComponentType<{ className?: string }>; label: string; onClick: () => void }) {
+  return <Link to={to} onClick={onClick} className="flex items-center gap-3 rounded-lg px-3 py-3 text-sm font-medium hover:bg-muted"><Icon className="h-4 w-4" />{label}</Link>;
+}
+
+function Badge({ children }: { children: ReactNode }) {
+  return <span className="absolute right-0 top-0 grid h-5 min-w-5 place-items-center rounded-full bg-[#d4a84d] px-1 text-[10px] font-bold text-[#102f35]">{children}</span>;
 }
