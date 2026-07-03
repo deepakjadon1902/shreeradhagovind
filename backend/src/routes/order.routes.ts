@@ -83,7 +83,11 @@ r.post("/", requireAuth, async (req, res, next) => {
     // Razorpay signature verification (server-side) when method = razorpay
     if (body.payment.method === "razorpay") {
       const { razorpayOrderId, razorpayPaymentId, razorpaySignature } = body.payment;
-      if (env.RAZORPAY_KEY_SECRET && razorpayOrderId && razorpayPaymentId && razorpaySignature) {
+      if (!env.RAZORPAY_KEY_SECRET) throw new HttpError(503, "Online payments are temporarily unavailable");
+      if (!razorpayOrderId || !razorpayPaymentId || !razorpaySignature) {
+        throw new HttpError(400, "Complete Razorpay payment verification is required");
+      }
+      {
         const expected = crypto
           .createHmac("sha256", env.RAZORPAY_KEY_SECRET)
           .update(`${razorpayOrderId}|${razorpayPaymentId}`)
@@ -101,7 +105,6 @@ r.post("/", requireAuth, async (req, res, next) => {
           throw new HttpError(400, "Payment signature verification failed; order cancelled");
         }
       }
-      // if keys unset (dev/demo), skip server verify but accept the front-end-reported status
     }
 
     const products = await Product.find({ _id: { $in: body.items.map((i) => i.productId) } });
@@ -130,7 +133,7 @@ r.post("/", requireAuth, async (req, res, next) => {
       address: body.address,
       payment: {
         method: body.payment.method,
-        status: body.payment.status ?? (body.payment.method === "razorpay" ? "paid" : "pending"),
+        status: body.payment.method === "razorpay" ? "paid" : "pending",
         razorpayOrderId: body.payment.razorpayOrderId,
         razorpayPaymentId: body.payment.razorpayPaymentId,
         razorpaySignature: body.payment.razorpaySignature,

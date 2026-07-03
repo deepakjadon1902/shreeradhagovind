@@ -72,11 +72,7 @@ function Checkout() {
   };
 
   const payWithRazorpay = async () => {
-    const useRealRazorpay =
-      isApiEnabled() &&
-      !!getToken() &&
-      settings.razorpayKeyId &&
-      !settings.razorpayKeyId.includes("XXXX");
+    const useRealRazorpay = isApiEnabled() && !!getToken();
 
     if (!useRealRazorpay) {
       // Demo / local mode — simulate a successful payment
@@ -98,7 +94,7 @@ function Checkout() {
     try {
       const r = await api<{ order: any; keyId: string }>("/payments/razorpay/order", {
         method: "POST",
-        body: { amount: total },
+        body: { items: items.map((item) => ({ productId: item.product.id, qty: item.qty })) },
       });
       rzpOrder = r.order;
       keyId = r.keyId ?? settings.razorpayKeyId;
