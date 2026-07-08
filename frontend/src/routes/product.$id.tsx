@@ -1,34 +1,95 @@
 import { createFileRoute, Link, useNavigate, notFound } from "@tanstack/react-router";
 import { Layout } from "@/components/Layout";
 import { useStore, formatINR } from "@/lib/store";
+import { API_URL } from "@/lib/api";
+import { PRODUCTS, type Product } from "@/lib/products";
 import { Heart, ShoppingBag, Star, Truck, ShieldCheck, RefreshCw, Check } from "lucide-react";
 import { useEffect, useState } from "react";
 import { ProductCard } from "@/components/ProductCard";
 
+const STORE_NAME = "Shri Radha Govind Store";
+const SITE_URL = "https://shriradhagovindstore.com";
+
+function cleanMetaText(value: string, maxLength: number) {
+  const text = value
+    .replace(/<[^>]*>/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+
+  if (text.length <= maxLength) return text;
+  return `${text.slice(0, maxLength - 1).replace(/\s+\S*$/, "")}...`;
+}
+
+function normalizeProduct(value: Record<string, unknown>): Product {
+  return {
+    id: String(value.id ?? value._id ?? ""),
+    name: String(value.name ?? ""),
+    category: String(value.category ?? ""),
+    price: Number(value.price ?? 0),
+    mrp: Number(value.mrp ?? 0),
+    rating: Number(value.rating ?? 0),
+    reviews: Number(value.reviews ?? 0),
+    image: String(value.image ?? ""),
+    images: Array.isArray(value.images) ? value.images.map(String) : [],
+    featuredDeal: Boolean(value.featuredDeal),
+    description: String(value.description ?? ""),
+    details: Array.isArray(value.details) ? value.details.map(String) : [],
+    stock: Number(value.stock ?? 0),
+  };
+}
+
+async function loadProductForMeta(id: string) {
+  const localProduct = PRODUCTS.find((product) => product.id === id);
+  if (!API_URL) return localProduct ?? null;
+
+  try {
+    const response = await fetch(`${API_URL}/products/${encodeURIComponent(id)}`);
+    if (!response.ok) return localProduct ?? null;
+    const data = (await response.json()) as { product?: Record<string, unknown> };
+    return data.product ? normalizeProduct(data.product) : (localProduct ?? null);
+  } catch {
+    return localProduct ?? null;
+  }
+}
+
 export const Route = createFileRoute("/product/$id")({
   component: ProductDetail,
-  head: ({ params }) => ({
-    meta: [
-      { title: `Product · Shri Radha Govind Store` },
-      {
-        name: "description",
-        content:
-          "Authentic sacred essentials from Vrindavan — handpicked product details, pricing, and devotee reviews.",
-      },
-      { property: "og:title", content: "Sacred essentials from Vrindavan" },
-      { property: "og:description", content: "Handcrafted poshak, chandan, itra and puja items." },
-      { property: "og:type", content: "product" },
-      { property: "og:url", content: `https://shriradhagovindstore.com/product/${params.id}` },
-    ],
-    links: [{ rel: "canonical", href: `https://shriradhagovindstore.com/product/${params.id}` }],
-  }),
+  loader: ({ params }) => loadProductForMeta(params.id),
+  head: ({ params, loaderData: product }) => {
+    const productName = product?.name || "Sacred Product";
+    const title = cleanMetaText(`${productName} | ${STORE_NAME}`, 60);
+    const description = cleanMetaText(
+      product?.description ||
+        `Shop ${productName}, an authentic sacred essential from Vrindavan at ${STORE_NAME}.`,
+      160,
+    );
+    const canonical = `${SITE_URL}/product/${params.id}`;
+
+    return {
+      meta: [
+        { title },
+        { name: "description", content: description },
+        { property: "og:title", content: title },
+        { property: "og:description", content: description },
+        { property: "og:type", content: "product" },
+        { property: "og:url", content: canonical },
+        ...(product?.image ? [{ property: "og:image", content: product.image }] : []),
+        { name: "twitter:card", content: "summary_large_image" },
+        { name: "twitter:title", content: title },
+        { name: "twitter:description", content: description },
+        ...(product?.image ? [{ name: "twitter:image", content: product.image }] : []),
+      ],
+      links: [{ rel: "canonical", href: canonical }],
+    };
+  },
 });
 
 function ProductDetail() {
   const { id } = Route.useParams();
+  const loadedProduct = Route.useLoaderData();
   const { adminProducts, addToCart, wishlist, toggleWishlist } = useStore();
   const nav = useNavigate();
-  const product = adminProducts.find((p) => p.id === id);
+  const product = adminProducts.find((p) => p.id === id) ?? loadedProduct;
   const [qty, setQty] = useState(1);
   const [recentIds, setRecentIds] = useState<string[]>([]);
   const [selectedImage, setSelectedImage] = useState("");
