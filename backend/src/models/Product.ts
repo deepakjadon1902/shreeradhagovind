@@ -8,6 +8,7 @@ const productSchema = new Schema(
     mrp: { type: Number, default: 0, min: 0 },
     image: { type: String, default: "" },
     images: { type: [String], default: [] },
+    featuredDeal: { type: Boolean, default: false, index: true },
     category: { type: String, required: true, index: true },
     stock: { type: Number, default: 100, min: 0 },
     rating: { type: Number, default: 4.7, min: 0, max: 5 },

@@ -63,6 +63,13 @@ type Tab =
   | "payments"
   | "settings";
 
+function paymentBadgeClass(status: Order["payment"]["status"]) {
+  if (status === "paid") return "bg-green-600/10 text-green-700";
+  if (status === "failed") return "bg-destructive/10 text-destructive";
+  if (status === "refunded") return "bg-[#90878e]/15 text-[#5e595d]";
+  return "bg-amber-500/10 text-amber-700";
+}
+
 function AdminRoot() {
   const {
     adminAuthed,
@@ -106,7 +113,7 @@ function AdminRoot() {
 
   if (!adminAuthed) {
     return (
-      <div className="min-h-screen grid place-items-center bg-foreground/95 text-background p-6">
+      <div className="min-h-screen grid place-items-center bg-[#212020] text-white p-6">
         <div className="w-full max-w-sm">
           <div className="flex items-center gap-3 mb-8 justify-center">
             <img
@@ -116,7 +123,7 @@ function AdminRoot() {
             />
             <span className="font-display text-2xl">Store Admin</span>
           </div>
-          <div className="bg-card text-foreground rounded-2xl p-8 premium-shadow">
+          <div className="bg-white text-black rounded-lg border border-border p-8 premium-shadow">
             <Lock className="h-8 w-8 text-primary mx-auto" />
             <h1 className="font-display text-2xl text-center mt-3">Secure Admin Access</h1>
             <p className="text-sm text-muted-foreground text-center mt-1">
@@ -184,6 +191,8 @@ function AdminRoot() {
       rating: 4.5,
       reviews: 0,
       image: "",
+      images: [],
+      featuredDeal: false,
       description: "",
       details: [],
       stock: 0,
@@ -191,8 +200,8 @@ function AdminRoot() {
   };
 
   return (
-    <div className="min-h-screen flex flex-col bg-muted/30 md:flex-row">
-      <aside className="w-full bg-primary text-primary-foreground p-4 flex flex-col md:sticky md:top-0 md:h-screen md:w-64 md:p-5">
+    <div className="min-h-screen flex flex-col bg-[#f6f6f6] md:flex-row">
+      <aside className="w-full bg-[#212020] text-white p-4 flex flex-col md:sticky md:top-0 md:h-screen md:w-64 md:p-5">
         <div className="flex items-center gap-3 mb-4 md:mb-10">
           <img
             src="/brand-logo.webp"
@@ -255,16 +264,46 @@ function AdminRoot() {
       <main className="min-w-0 flex-1 p-4 sm:p-6 lg:p-10 overflow-x-hidden">
         {tab === "dash" && (
           <div>
-            <h1 className="font-display text-3xl">Dashboard</h1>
-            <p className="text-sm text-muted-foreground">Welcome back, Admin</p>
+            <section className="rounded-lg bg-[#212020] p-6 text-white premium-shadow">
+              <p className="text-xs font-bold uppercase tracking-[0.22em] text-[#ffd814]">
+                Marketplace command center
+              </p>
+              <div className="mt-2 flex flex-wrap items-end justify-between gap-4">
+                <div>
+                  <h1 className="font-display text-4xl">Dashboard</h1>
+                  <p className="mt-1 text-sm text-white/65">
+                    Track revenue, orders, products, payments, and customer activity.
+                  </p>
+                </div>
+                <Link
+                  to="/"
+                  className="inline-flex h-10 items-center rounded-md border border-white/20 px-4 text-sm font-semibold text-white hover:bg-white/10"
+                >
+                  View storefront
+                </Link>
+              </div>
+            </section>
             <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4 mt-6">
               <Stat icon={IndianRupee} label="Revenue" value={formatINR(revenue)} />
               <Stat icon={ShoppingCart} label="Total Orders" value={String(orders.length)} />
               <Stat icon={TrendingUp} label="Pending" value={String(pending)} />
               <Stat icon={Package} label="Products" value={String(adminProducts.length)} />
             </div>
-            <div className="mt-8 bg-card rounded-2xl p-6 premium-shadow">
-              <h2 className="font-display text-xl mb-4">Recent Orders</h2>
+            <div className="mt-8 bg-white rounded-lg border border-border p-6 premium-shadow">
+              <div className="mb-4 flex items-center justify-between gap-3">
+                <div>
+                  <p className="text-xs font-bold uppercase tracking-[0.2em] text-muted-foreground">
+                    Operations
+                  </p>
+                  <h2 className="font-display text-2xl">Recent Orders</h2>
+                </div>
+                <button
+                  onClick={() => setTab("orders")}
+                  className="h-9 rounded-md border border-border px-3 text-sm font-semibold hover:border-primary"
+                >
+                  Manage orders
+                </button>
+              </div>
               {orders.slice(0, 5).length === 0 ? (
                 <p className="text-sm text-muted-foreground">No orders yet.</p>
               ) : (
@@ -321,7 +360,7 @@ function AdminRoot() {
                 <Plus className="h-4 w-4" /> Add Product
               </button>
             </div>
-            <div className="mt-6 bg-card rounded-2xl premium-shadow overflow-x-auto">
+            <div className="mt-6 bg-white rounded-lg border border-border premium-shadow overflow-x-auto">
               <table className="w-full min-w-[680px] text-sm">
                 <thead className="text-left text-muted-foreground text-xs uppercase tracking-wider bg-muted/40">
                   <tr>
@@ -399,16 +438,20 @@ function AdminRoot() {
                 orders.map((o) => (
                   <div
                     key={o.id}
-                    className="bg-card rounded-xl p-5 premium-shadow flex flex-wrap items-center gap-4"
+                    className="bg-white rounded-lg border border-border p-5 premium-shadow flex flex-wrap items-center gap-4"
                   >
                     <div className="flex-1 min-w-0">
                       <p className="font-medium">
                         #{o.id} · {o.address.name}
                       </p>
                       <p className="text-xs text-muted-foreground">
-                        {new Date(o.createdAt).toLocaleString()} · {o.items.length} items ·{" "}
-                        {o.address.city}
+                        {new Date(o.createdAt).toLocaleString()} · {o.items.length} items
                       </p>
+                      <address className="mt-2 max-w-2xl text-xs not-italic leading-5 text-foreground/80">
+                        <span className="font-semibold text-foreground">Delivery address:</span>{" "}
+                        {o.address.line1}, {o.address.city}, {o.address.state} - {o.address.pincode}
+                        <span className="ml-2 whitespace-nowrap">Phone: {o.address.phone}</span>
+                      </address>
                       {o.trackingId && (
                         <p className="text-xs mt-1">
                           <span className="text-muted-foreground">Tracking:</span>{" "}
@@ -458,7 +501,7 @@ function AdminRoot() {
             <p className="text-sm text-muted-foreground">
               All transactions recorded against orders.
             </p>
-            <div className="grid sm:grid-cols-3 gap-4 mt-6">
+            <div className="grid sm:grid-cols-2 xl:grid-cols-4 gap-4 mt-6">
               <Stat
                 icon={IndianRupee}
                 label="Total Received"
@@ -470,16 +513,25 @@ function AdminRoot() {
               />
               <Stat
                 icon={IndianRupee}
-                label="Pending (COD)"
+                label="Pending / Processing"
                 value={formatINR(
                   orders
                     .filter((o) => o.payment.status === "pending")
                     .reduce((s, o) => s + o.total, 0),
                 )}
               />
+              <Stat
+                icon={XIcon}
+                label="Failed"
+                value={formatINR(
+                  orders
+                    .filter((o) => o.payment.status === "failed")
+                    .reduce((s, o) => s + o.total, 0),
+                )}
+              />
               <Stat icon={CreditCard} label="Transactions" value={String(orders.length)} />
             </div>
-            <div className="mt-6 bg-card rounded-2xl premium-shadow overflow-x-auto">
+            <div className="mt-6 bg-card rounded-lg border border-border premium-shadow overflow-x-auto">
               <table className="w-full min-w-[900px] text-sm">
                 <thead className="text-left text-muted-foreground text-xs uppercase tracking-wider bg-muted/40">
                   <tr>
@@ -510,10 +562,15 @@ function AdminRoot() {
                       <td className="font-medium">{formatINR(o.total)}</td>
                       <td>
                         <span
-                          className={`px-2 py-0.5 rounded-full text-xs ${o.payment.status === "paid" ? "bg-green-600/10 text-green-700" : o.payment.status === "failed" ? "bg-destructive/10 text-destructive" : "bg-amber-500/10 text-amber-700"}`}
+                          className={`px-2 py-0.5 rounded-full text-xs ${paymentBadgeClass(o.payment.status)}`}
                         >
                           {o.payment.status}
                         </span>
+                        {o.payment.failureReason && (
+                          <p className="mt-1 max-w-44 truncate text-[11px] text-muted-foreground">
+                            {o.payment.failureReason}
+                          </p>
+                        )}
                       </td>
                       <td>
                         <div className="flex gap-1">
@@ -529,6 +586,14 @@ function AdminRoot() {
                             <Check className="h-3.5 w-3.5" />
                           </button>
                           <button
+                            onClick={() => verifyOrderPayment(o.id, "pending")}
+                            disabled={o.payment.status === "pending"}
+                            className="p-1.5 rounded-md bg-amber-500/10 text-amber-700 hover:bg-amber-500/20 disabled:opacity-30"
+                            title="Mark pending"
+                          >
+                            <RefreshCw className="h-3.5 w-3.5" />
+                          </button>
+                          <button
                             onClick={() => {
                               if (confirm("Mark as FAILED, auto-cancel order, and email user?"))
                                 verifyOrderPayment(o.id, "failed");
@@ -538,6 +603,14 @@ function AdminRoot() {
                             title="Mark failed"
                           >
                             <XIcon className="h-3.5 w-3.5" />
+                          </button>
+                          <button
+                            onClick={() => verifyOrderPayment(o.id, "refunded")}
+                            disabled={o.payment.status === "refunded"}
+                            className="p-1.5 rounded-md bg-[#90878e]/15 text-[#5e595d] hover:bg-[#90878e]/25 disabled:opacity-30"
+                            title="Mark refunded"
+                          >
+                            <CreditCard className="h-3.5 w-3.5" />
                           </button>
                         </div>
                       </td>
@@ -581,7 +654,7 @@ function AdminRoot() {
                 value={String(registeredUsers.filter((x) => x.isBlocked).length)}
               />
             </div>
-            <div className="mt-6 bg-card rounded-2xl premium-shadow overflow-x-auto">
+            <div className="mt-6 bg-white rounded-lg border border-border premium-shadow overflow-x-auto">
               <table className="w-full text-sm min-w-[760px]">
                 <thead className="text-left text-muted-foreground text-xs uppercase tracking-wider bg-muted/40">
                   <tr>
@@ -700,7 +773,7 @@ function NavBtn({
   return (
     <button
       onClick={onClick}
-      className={`shrink-0 text-left px-3 py-2.5 rounded-lg text-sm flex items-center gap-2 transition md:w-full md:gap-3 ${active ? "bg-accent text-accent-foreground" : "text-primary-foreground/75 hover:bg-primary-foreground/10 hover:text-primary-foreground"}`}
+      className={`shrink-0 text-left px-3 py-2.5 rounded-md text-sm flex items-center gap-2 transition md:w-full md:gap-3 ${active ? "bg-[#ffd814] text-black" : "text-white/72 hover:bg-white/10 hover:text-white"}`}
     >
       <Icon className="h-4 w-4" />
       {children}
@@ -709,10 +782,12 @@ function NavBtn({
 }
 function Stat({ icon: Icon, label, value }: { icon: typeof Users; label: string; value: string }) {
   return (
-    <div className="bg-card rounded-2xl p-5 premium-shadow">
-      <Icon className="h-6 w-6 text-primary" />
+    <div className="rounded-lg border border-border bg-white p-5 premium-shadow">
+      <div className="grid h-10 w-10 place-items-center rounded-md bg-[#212020] text-white">
+        <Icon className="h-5 w-5" />
+      </div>
       <p className="text-xs uppercase tracking-wider text-muted-foreground mt-3">{label}</p>
-      <p className="font-display text-2xl mt-1">{value}</p>
+      <p className="font-display text-2xl mt-1 text-black">{value}</p>
     </div>
   );
 }
@@ -728,7 +803,10 @@ function CategoryPicker({
 }) {
   return (
     <div className="fixed inset-0 bg-black/50 z-50 grid place-items-center p-4" onClick={onClose}>
-      <div className="bg-card rounded-2xl p-6 w-full max-w-md" onClick={(e) => e.stopPropagation()}>
+      <div
+        className="bg-white rounded-lg border border-border p-6 w-full max-w-md"
+        onClick={(e) => e.stopPropagation()}
+      >
         <h2 className="font-display text-2xl mb-2">Select a category</h2>
         <p className="text-sm text-muted-foreground mb-4">
           Choose the category this new product belongs to.
@@ -776,7 +854,7 @@ function ProductEditor({
   return (
     <div className="fixed inset-0 bg-black/50 z-50 grid place-items-center p-4" onClick={onClose}>
       <div
-        className="bg-card rounded-2xl p-6 w-full max-w-lg max-h-[90vh] overflow-y-auto"
+        className="bg-white rounded-lg border border-border p-6 w-full max-w-lg max-h-[90vh] overflow-y-auto"
         onClick={(e) => e.stopPropagation()}
       >
         <h2 className="font-display text-2xl mb-1">
@@ -830,6 +908,33 @@ function ProductEditor({
               }))
             }
           />
+          <AdminGalleryUpload
+            label="Product gallery photos"
+            images={p.images ?? []}
+            onChange={(images) =>
+              setP((current) => ({
+                ...current,
+                images,
+                image: images[0] || current.image || "",
+              }))
+            }
+          />
+          <label className="flex items-start gap-3 rounded-lg border border-border bg-[#f6f6f6] p-3 text-sm">
+            <input
+              type="checkbox"
+              checked={!!p.featuredDeal}
+              onChange={(event) => setP({ ...p, featuredDeal: event.target.checked })}
+              className="mt-1"
+            />
+            <span>
+              <span className="block font-semibold text-black">
+                Show in Today&apos;s Sacred Deals
+              </span>
+              <span className="text-xs text-muted-foreground">
+                Only products with this option enabled will appear in that home page section.
+              </span>
+            </span>
+          </label>
           <label className="text-sm block">
             <span className="text-muted-foreground text-xs">Description</span>
             <textarea
@@ -936,7 +1041,7 @@ function AdminImageUpload({
           setDragging(false);
           uploadFile(event.dataTransfer.files[0]);
         }}
-        className={`group relative flex min-h-40 cursor-pointer items-center justify-center overflow-hidden rounded-2xl border-2 border-dashed p-4 text-center transition ${dragging ? "border-primary bg-primary/10" : "border-border bg-muted/25 hover:border-primary hover:bg-primary/5"} ${uploading ? "pointer-events-none opacity-70" : ""}`}
+        className={`group relative flex min-h-40 cursor-pointer items-center justify-center overflow-hidden rounded-lg border-2 border-dashed p-4 text-center transition ${dragging ? "border-primary bg-primary/10" : "border-border bg-muted/25 hover:border-primary hover:bg-primary/5"} ${uploading ? "pointer-events-none opacity-70" : ""}`}
       >
         {value ? (
           <>
@@ -990,6 +1095,122 @@ function AdminImageUpload({
   );
 }
 
+function AdminGalleryUpload({
+  label,
+  images,
+  onChange,
+}: {
+  label: string;
+  images: string[];
+  onChange: (images: string[]) => void;
+}) {
+  const [uploading, setUploading] = useState(false);
+
+  const uploadFiles = async (files?: FileList | File[]) => {
+    const selected = Array.from(files ?? []);
+    if (selected.length === 0 || uploading) return;
+    const invalid = selected.find(
+      (file) => !file.type.startsWith("image/") && !/\.(heic|heif)$/i.test(file.name),
+    );
+    if (invalid) return toast.error("Please choose image files only");
+    const tooLarge = selected.find((file) => file.size > 12 * 1024 * 1024);
+    if (tooLarge) return toast.error(`${tooLarge.name} is larger than 12 MB`);
+    if (!isApiEnabled())
+      return toast.error("Connect the backend API to upload images from this device");
+
+    setUploading(true);
+    try {
+      const uploaded: string[] = [];
+      for (const file of selected) {
+        const body = new FormData();
+        body.append("file", file);
+        const result = await api<{ url: string }>("/uploads/image", {
+          method: "POST",
+          formData: body,
+        });
+        uploaded.push(result.url);
+      }
+      onChange([...images, ...uploaded.filter((url) => !images.includes(url))]);
+      toast.success(`${uploaded.length} photo${uploaded.length === 1 ? "" : "s"} uploaded`);
+    } catch (error: any) {
+      toast.error(error?.message ?? "Gallery upload failed");
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  const setPrimary = (url: string) => {
+    onChange([url, ...images.filter((image) => image !== url)]);
+  };
+
+  const removeImage = (url: string) => {
+    onChange(images.filter((image) => image !== url));
+  };
+
+  return (
+    <div>
+      <p className="mb-1 text-xs text-muted-foreground">{label}</p>
+      <label className="flex min-h-24 cursor-pointer items-center justify-center rounded-lg border-2 border-dashed border-border bg-muted/25 p-4 text-center transition hover:border-primary hover:bg-primary/5">
+        <span>
+          <UploadCloud
+            className={`mx-auto h-7 w-7 text-primary ${uploading ? "animate-bounce" : ""}`}
+          />
+          <span className="mt-2 block text-sm font-semibold">
+            {uploading ? "Uploading gallery..." : "Browse multiple photos from device"}
+          </span>
+          <span className="mt-1 block text-xs text-muted-foreground">
+            Select more than one product photo for the gallery
+          </span>
+        </span>
+        <input
+          type="file"
+          accept="image/*,.heic,.heif"
+          multiple
+          className="sr-only"
+          disabled={uploading}
+          onChange={(event) => {
+            uploadFiles(event.target.files ?? undefined);
+            event.target.value = "";
+          }}
+        />
+      </label>
+      {images.length > 0 && (
+        <div className="mt-3 grid grid-cols-4 gap-2">
+          {images.map((image, index) => (
+            <div
+              key={`${image}-${index}`}
+              className="group relative overflow-hidden rounded-md border bg-white"
+            >
+              <img src={image} alt="" className="aspect-square w-full object-contain p-1" />
+              {index === 0 && (
+                <span className="absolute left-1 top-1 rounded bg-[#ffd814] px-1.5 py-0.5 text-[10px] font-bold text-black">
+                  Main
+                </span>
+              )}
+              <div className="absolute inset-x-1 bottom-1 hidden gap-1 group-hover:flex">
+                <button
+                  type="button"
+                  onClick={() => setPrimary(image)}
+                  className="flex-1 rounded bg-white/95 px-1 py-1 text-[10px] font-semibold text-black shadow"
+                >
+                  Main
+                </button>
+                <button
+                  type="button"
+                  onClick={() => removeImage(image)}
+                  className="rounded bg-destructive px-1.5 py-1 text-[10px] font-semibold text-white shadow"
+                >
+                  X
+                </button>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function SettingsPanel({
   settings,
   onSave,
@@ -1005,7 +1226,7 @@ function SettingsPanel({
         Tune the storefront — changes reflect immediately across the app.
       </p>
       <div className="grid lg:grid-cols-2 gap-6 mt-6">
-        <section className="bg-card rounded-2xl p-6 premium-shadow space-y-3">
+        <section className="bg-white rounded-lg border border-border p-6 premium-shadow space-y-3">
           <h2 className="font-display text-xl">Brand</h2>
           <In label="Site Name" value={s.siteName} onChange={(v) => setS({ ...s, siteName: v })} />
           <In label="Tagline" value={s.tagline} onChange={(v) => setS({ ...s, tagline: v })} />
@@ -1015,7 +1236,7 @@ function SettingsPanel({
             onChange={(v) => setS({ ...s, announcement: v })}
           />
         </section>
-        <section className="bg-card rounded-2xl p-6 premium-shadow space-y-3">
+        <section className="bg-white rounded-lg border border-border p-6 premium-shadow space-y-3">
           <h2 className="font-display text-xl">Contact</h2>
           <In
             label="Support Email"
@@ -1028,7 +1249,7 @@ function SettingsPanel({
             onChange={(v) => setS({ ...s, supportPhone: v })}
           />
         </section>
-        <section className="bg-card rounded-2xl p-6 premium-shadow space-y-3">
+        <section className="bg-white rounded-lg border border-border p-6 premium-shadow space-y-3">
           <h2 className="font-display text-xl">Shipping</h2>
           <In
             label="Free Shipping Above (₹)"
@@ -1043,7 +1264,7 @@ function SettingsPanel({
             onChange={(v) => setS({ ...s, shippingFee: +v })}
           />
         </section>
-        <section className="bg-card rounded-2xl p-6 premium-shadow space-y-3">
+        <section className="bg-white rounded-lg border border-border p-6 premium-shadow space-y-3">
           <h2 className="font-display text-xl">Payments</h2>
           <In
             label="Razorpay Key ID"
@@ -1174,7 +1395,7 @@ function OrderManager({
   return (
     <div className="fixed inset-0 bg-black/50 z-50 grid place-items-center p-4" onClick={onClose}>
       <div
-        className="bg-card rounded-2xl p-6 w-full max-w-2xl max-h-[90vh] overflow-y-auto"
+        className="bg-white rounded-lg border border-border p-6 w-full max-w-2xl max-h-[90vh] overflow-y-auto"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-start justify-between gap-3 mb-2">
@@ -1445,7 +1666,10 @@ function UserDetail({
   const a = user.address ?? {};
   return (
     <div className="fixed inset-0 bg-black/50 z-50 grid place-items-center p-4" onClick={onClose}>
-      <div className="bg-card rounded-2xl p-6 w-full max-w-lg" onClick={(e) => e.stopPropagation()}>
+      <div
+        className="bg-white rounded-lg border border-border p-6 w-full max-w-lg"
+        onClick={(e) => e.stopPropagation()}
+      >
         <div className="flex items-start justify-between gap-3">
           <div className="flex items-center gap-3">
             <span className="h-12 w-12 rounded-full bg-primary/10 text-primary grid place-items-center text-lg font-medium">
@@ -1615,12 +1839,12 @@ function CategoryManager({
       </div>
       <div className="mt-6 space-y-4">
         {tree.length === 0 && (
-          <div className="rounded-2xl bg-card p-8 text-center text-sm text-muted-foreground premium-shadow">
+          <div className="rounded-lg bg-card p-8 text-center text-sm text-muted-foreground premium-shadow">
             No categories yet.
           </div>
         )}
         {tree.map((parent) => (
-          <section key={parent.id} className="overflow-hidden rounded-2xl bg-card premium-shadow">
+          <section key={parent.id} className="overflow-hidden rounded-lg bg-card premium-shadow">
             <CategoryRow
               category={parent}
               count={parent.productCount}
@@ -1760,7 +1984,7 @@ function CategoryEditor({
           event.preventDefault();
           if (value.name.trim()) onSave({ ...value, name: value.name.trim() });
         }}
-        className="max-h-[90vh] w-full max-w-lg space-y-4 overflow-y-auto rounded-2xl bg-card p-6"
+        className="max-h-[90vh] w-full max-w-lg space-y-4 overflow-y-auto rounded-lg bg-card p-6"
         onClick={(event) => event.stopPropagation()}
       >
         <div>
@@ -1886,12 +2110,12 @@ function BlogManager({
       </div>
       <div className="mt-6 grid gap-4 md:grid-cols-2 xl:grid-cols-3">
         {blogs.length === 0 && (
-          <div className="rounded-2xl bg-card p-8 text-sm text-muted-foreground premium-shadow">
+          <div className="rounded-lg bg-card p-8 text-sm text-muted-foreground premium-shadow">
             No blog posts yet.
           </div>
         )}
         {blogs.map((blog) => (
-          <article key={blog.id} className="overflow-hidden rounded-2xl bg-card premium-shadow">
+          <article key={blog.id} className="overflow-hidden rounded-lg bg-card premium-shadow">
             {blog.image && <img src={blog.image} alt="" className="h-40 w-full object-cover" />}
             <div className="p-5">
               <div className="mb-2 flex items-center justify-between gap-2">
@@ -1963,7 +2187,7 @@ function BlogEditor({
           event.preventDefault();
           if (value.title.trim()) onSave({ ...value, title: value.title.trim() });
         }}
-        className="max-h-[90vh] w-full max-w-2xl space-y-4 overflow-y-auto rounded-2xl bg-card p-6"
+        className="max-h-[90vh] w-full max-w-2xl space-y-4 overflow-y-auto rounded-lg bg-card p-6"
         onClick={(event) => event.stopPropagation()}
       >
         <div>

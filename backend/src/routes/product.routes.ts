@@ -42,6 +42,7 @@ const productSchema = z.object({
   mrp: z.number().min(0).optional().default(0),
   image: z.string().optional().default(""),
   images: z.array(z.string()).optional().default([]),
+  featuredDeal: z.boolean().optional().default(false),
   category: z.string().min(1),
   stock: z.number().min(0).optional().default(100),
   rating: z.number().min(0).max(5).optional(),

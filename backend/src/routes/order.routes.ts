@@ -169,13 +169,67 @@ r.post("/", requireAuth, async (req, res, next) => {
 // Frontend reports a payment failure (Razorpay modal closed / failed)
 r.post("/payment-failed", requireAuth, async (req, res, next) => {
   try {
-    const { razorpayOrderId, amount, reason } = z
+    const { razorpayOrderId, amount, reason, items: requestedItems, address } = z
       .object({
         razorpayOrderId: z.string().optional().default("N/A"),
         amount: z.number().optional().default(0),
         reason: z.string().optional().default("Payment was not completed"),
+        items: z.array(z.object({ productId: z.string(), qty: z.number().min(1) })).optional().default([]),
+        address: z
+          .object({
+            name: z.string().optional().default(""),
+            phone: z.string().optional().default(""),
+            line1: z.string().optional().default(""),
+            city: z.string().optional().default(""),
+            state: z.string().optional().default(""),
+            pincode: z.string().optional().default(""),
+          })
+          .optional(),
       })
       .parse(req.body);
+
+    let order = razorpayOrderId !== "N/A"
+      ? await Order.findOne({ "payment.razorpayOrderId": razorpayOrderId })
+      : null;
+
+    if (!order && requestedItems.length > 0 && address) {
+      const products = await Product.find({ _id: { $in: requestedItems.map((i) => i.productId) } });
+      const items = requestedItems.flatMap((i) => {
+        const p = products.find((candidate) => String(candidate._id) === i.productId);
+        return p ? [{ productId: p._id, name: p.name, image: p.image, price: p.price, qty: i.qty }] : [];
+      });
+      const subtotal = items.reduce((s: number, i: any) => s + i.price * i.qty, 0);
+      const settings =
+        (await Settings.findOne({ key: "global" })) ?? (await Settings.create({ key: "global" }));
+      const shipping = subtotal >= settings.freeShipThreshold ? 0 : settings.shippingFee;
+      const total = amount || subtotal + shipping;
+
+      let trackingId = generateTrackingId();
+      for (let i = 0; i < 5 && (await Order.exists({ trackingId })); i++) trackingId = generateTrackingId();
+
+      order = await Order.create({
+        user: req.user!.sub,
+        trackingId,
+        items,
+        subtotal,
+        shipping,
+        total,
+        address,
+        payment: {
+          method: "razorpay",
+          status: "failed",
+          razorpayOrderId,
+          failureReason: reason,
+        },
+        status: "Cancelled",
+      });
+    } else if (order) {
+      order.payment!.status = "failed";
+      order.payment!.failureReason = reason;
+      order.status = "Cancelled";
+      await order.save();
+    }
+
     const user = await User.findById(req.user!.sub);
     if (user?.email) {
       await sendEmail({
@@ -183,7 +237,7 @@ r.post("/payment-failed", requireAuth, async (req, res, next) => {
         ...tpl.paymentFailed(user.name, razorpayOrderId.slice(-6).toUpperCase(), amount, reason),
       });
     }
-    res.json({ ok: true });
+    res.json({ ok: true, order });
   } catch (e) {
     next(e);
   }

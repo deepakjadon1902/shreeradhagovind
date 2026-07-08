@@ -190,6 +190,7 @@ r.get("/payments", async (_req, res, next) => {
         method: o.payment?.method,
         status: o.payment?.status,
         razorpayPaymentId: o.payment?.razorpayPaymentId,
+        failureReason: o.payment?.failureReason,
         createdAt: o.createdAt,
       })),
     });

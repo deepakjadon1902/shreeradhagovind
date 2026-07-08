@@ -1,11 +1,27 @@
-import { createContext, useContext, useEffect, useState, useMemo, useCallback, type ReactNode } from "react";
+import {
+  createContext,
+  useContext,
+  useEffect,
+  useState,
+  useMemo,
+  useCallback,
+  type ReactNode,
+} from "react";
 import { PRODUCTS, DEFAULT_CATEGORIES, DEFAULT_CATEGORY_TREE, type Product } from "./products";
 import { toast } from "sonner";
 import { api, isApiEnabled, setToken, getToken } from "./api";
 
 export type CartItem = { productId: string; qty: number };
 export type Courier = "Ekart" | "DTDC" | "Shree Murti" | "India Post" | "Delhivery" | "Bluedart";
-export const COURIERS: Courier[] = ["Ekart", "DTDC", "Shree Murti", "India Post", "Delhivery", "Bluedart"];
+export const COURIERS: Courier[] = [
+  "Ekart",
+  "DTDC",
+  "Shree Murti",
+  "India Post",
+  "Delhivery",
+  "Bluedart",
+];
+export type PaymentStatus = "paid" | "pending" | "failed" | "refunded";
 export type Order = {
   id: string;
   trackingId?: string;
@@ -13,13 +29,35 @@ export type Order = {
   courierTrackingUrl?: string;
   items: { product: Product; qty: number }[];
   total: number;
-  address: { name: string; phone: string; line1: string; city: string; state: string; pincode: string };
-  payment: { method: "razorpay" | "cod"; status: "paid" | "pending" | "failed"; razorpayOrderId?: string; razorpayPaymentId?: string; razorpaySignature?: string };
+  address: {
+    name: string;
+    phone: string;
+    line1: string;
+    city: string;
+    state: string;
+    pincode: string;
+  };
+  payment: {
+    method: "razorpay" | "cod";
+    status: PaymentStatus;
+    razorpayOrderId?: string;
+    razorpayPaymentId?: string;
+    razorpaySignature?: string;
+    failureReason?: string;
+  };
   status: "Placed" | "Packed" | "Shipped" | "Out for delivery" | "Delivered" | "Cancelled";
   createdAt: number;
 };
 export type Address = { line1: string; city: string; state: string; pincode: string };
-export type User = { id?: string; name: string; email: string; phone?: string; avatar?: string; role?: "user" | "admin"; address?: Partial<Address> } | null;
+export type User = {
+  id?: string;
+  name: string;
+  email: string;
+  phone?: string;
+  avatar?: string;
+  role?: "user" | "admin";
+  address?: Partial<Address>;
+} | null;
 export type Category = {
   id: string;
   name: string;
@@ -72,7 +110,8 @@ const DEFAULT_SETTINGS: Settings = {
   shippingFee: 49,
   razorpayKeyId: "rzp_test_XXXXXXXXXXXXXX",
   codEnabled: true,
-  announcement: "॥ Radhe Radhe ॥ · Made With Love From The Heart Of Vrindavan · Free shipping above ₹999",
+  announcement:
+    "॥ Radhe Radhe ॥ · Made With Love From The Heart Of Vrindavan · Free shipping above ₹999",
 };
 
 export type RegisteredUser = {
@@ -119,8 +158,16 @@ type Store = {
   saveProduct: (p: Product) => Promise<void> | void;
   deleteProduct: (id: string) => Promise<void> | void;
   updateOrderStatus: (id: string, status: Order["status"]) => Promise<void> | void;
-  updateOrderTracking: (id: string, patch: { trackingId?: string; courier?: Courier | null; courierTrackingUrl?: string; status?: Order["status"] }) => Promise<void> | void;
-  verifyOrderPayment: (id: string, status: "paid" | "failed") => Promise<void> | void;
+  updateOrderTracking: (
+    id: string,
+    patch: {
+      trackingId?: string;
+      courier?: Courier | null;
+      courierTrackingUrl?: string;
+      status?: Order["status"];
+    },
+  ) => Promise<void> | void;
+  verifyOrderPayment: (id: string, status: PaymentStatus) => Promise<void> | void;
   categories: string[];
   addCategory: (name: string, parentId?: string | null) => Promise<void> | void;
   renameCategory: (oldName: string, newName: string) => Promise<void> | void;
@@ -135,7 +182,9 @@ type Store = {
   categoryDetails: Category[];
   categoryTree: (Category & { children: Category[] })[];
   saveCategory: (c: Partial<Category> & { name: string; id?: string }) => Promise<void> | void;
-  reorderCategories: (items: { id: string; sortOrder: number; parentId?: string | null }[]) => Promise<void> | void;
+  reorderCategories: (
+    items: { id: string; sortOrder: number; parentId?: string | null }[],
+  ) => Promise<void> | void;
   blogs: Blog[];
   saveBlog: (b: Blog) => Promise<void> | void;
   deleteBlog: (id: string) => Promise<void> | void;
@@ -149,8 +198,12 @@ const KEY = "shri_radha_govind_v1";
 
 function load<T>(k: string, fallback: T): T {
   if (typeof window === "undefined") return fallback;
-  try { const v = localStorage.getItem(`${KEY}_${k}`); return v ? JSON.parse(v) : fallback; }
-  catch { return fallback; }
+  try {
+    const v = localStorage.getItem(`${KEY}_${k}`);
+    return v ? JSON.parse(v) : fallback;
+  } catch {
+    return fallback;
+  }
 }
 function save(k: string, v: unknown) {
   if (typeof window === "undefined") return;
@@ -166,6 +219,7 @@ const mapProduct = (p: any): Product => ({
   mrp: p.mrp ?? p.compareAtPrice ?? 0,
   image: p.image ?? "",
   images: p.images ?? [],
+  featuredDeal: !!p.featuredDeal,
   category: p.category,
   stock: p.stock ?? 100,
   rating: p.rating ?? 4.7,
@@ -185,7 +239,12 @@ const mapSettings = (s: any): Partial<Settings> => ({
   announcement: s.announcement,
 });
 
-const slugify = (s: string) => s.toLowerCase().trim().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
+const slugify = (s: string) =>
+  s
+    .toLowerCase()
+    .trim()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-|-$/g, "");
 
 const mapCategory = (c: any): Category => ({
   id: String(c._id ?? c.id),
@@ -201,38 +260,40 @@ const mapCategory = (c: any): Category => ({
   productCount: c.productCount ?? 0,
 });
 
-const DEFAULT_CATEGORY_DETAILS: Category[] = DEFAULT_CATEGORY_TREE.flatMap((parent, parentIndex) => {
-  const parentId = `local-${slugify(parent.name)}`;
-  const base: Category = {
-    id: parentId,
-    name: parent.name,
-    slug: slugify(parent.name),
-    parentId: null,
-    image: "",
-    description: `${parent.name} collection from Shri Radha Govind Store.`,
-    metaTitle: `${parent.name} | Shri Radha Govind Store`,
-    metaDescription: `Shop ${parent.name} at Shri Radha Govind Store.`,
-    isActive: true,
-    sortOrder: parentIndex,
-    productCount: 0,
-  };
-  return [
-    base,
-    ...parent.children.map((name, childIndex) => ({
-      id: `local-${slugify(parent.name)}-${slugify(name)}`,
-      name,
-      slug: slugify(name),
-      parentId,
+const DEFAULT_CATEGORY_DETAILS: Category[] = DEFAULT_CATEGORY_TREE.flatMap(
+  (parent, parentIndex) => {
+    const parentId = `local-${slugify(parent.name)}`;
+    const base: Category = {
+      id: parentId,
+      name: parent.name,
+      slug: slugify(parent.name),
+      parentId: null,
       image: "",
-      description: `${name} products for devotees.`,
-      metaTitle: `${name} | Shri Radha Govind Store`,
-      metaDescription: `Shop ${name} at Shri Radha Govind Store.`,
+      description: `${parent.name} collection from Shri Radha Govind Store.`,
+      metaTitle: `${parent.name} | Shri Radha Govind Store`,
+      metaDescription: `Shop ${parent.name} at Shri Radha Govind Store.`,
       isActive: true,
-      sortOrder: childIndex,
+      sortOrder: parentIndex,
       productCount: 0,
-    })),
-  ];
-});
+    };
+    return [
+      base,
+      ...parent.children.map((name, childIndex) => ({
+        id: `local-${slugify(parent.name)}-${slugify(name)}`,
+        name,
+        slug: slugify(name),
+        parentId,
+        image: "",
+        description: `${name} products for devotees.`,
+        metaTitle: `${name} | Shri Radha Govind Store`,
+        metaDescription: `Shop ${name} at Shri Radha Govind Store.`,
+        isActive: true,
+        sortOrder: childIndex,
+        productCount: 0,
+      })),
+    ];
+  },
+);
 
 const mapBlog = (b: any): Blog => ({
   id: String(b._id ?? b.id),
@@ -257,6 +318,7 @@ const fallbackProduct = (i: any): Product => ({
   mrp: 0,
   image: i.image ?? "",
   images: [],
+  featuredDeal: false,
   category: "",
   stock: 0,
   rating: 5,
@@ -275,7 +337,14 @@ const mapOrder = (o: any, productLookup: Map<string, Product>): Order => ({
   })),
   total: o.total,
   address: o.address ?? { name: "", phone: "", line1: "", city: "", state: "", pincode: "" },
-  payment: { method: o.payment?.method ?? "cod", status: (o.payment?.status as any) ?? "pending" },
+  payment: {
+    method: o.payment?.method ?? "cod",
+    status: (o.payment?.status as PaymentStatus) ?? "pending",
+    razorpayOrderId: o.payment?.razorpayOrderId,
+    razorpayPaymentId: o.payment?.razorpayPaymentId,
+    razorpaySignature: o.payment?.razorpaySignature,
+    failureReason: o.payment?.failureReason,
+  },
   status: o.status ?? "Placed",
   createdAt: o.createdAt ? new Date(o.createdAt).getTime() : Date.now(),
 });
@@ -328,8 +397,18 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         if (getToken()) {
           try {
             const me = await api<{ user: any }>("/auth/me");
-            setUser({ id: me.user.id, name: me.user.name, email: me.user.email, role: me.user.role, avatar: me.user.avatar, phone: me.user.phone ?? "", address: me.user.address ?? {} });
-            const ord = await api<{ orders: any[] }>(me.user.role === "admin" ? "/admin/orders" : "/orders");
+            setUser({
+              id: me.user.id,
+              name: me.user.name,
+              email: me.user.email,
+              role: me.user.role,
+              avatar: me.user.avatar,
+              phone: me.user.phone ?? "",
+              address: me.user.address ?? {},
+            });
+            const ord = await api<{ orders: any[] }>(
+              me.user.role === "admin" ? "/admin/orders" : "/orders",
+            );
             const lookup = new Map(products.map((p) => [p.id, p]));
             setOrders(ord.orders.map((o) => mapOrder(o, lookup)));
           } catch {
@@ -357,28 +436,47 @@ export function StoreProvider({ children }: { children: ReactNode }) {
 
   const adminAuthed = !!user && user.role === "admin";
 
-  const refreshOrders = useCallback(async (asAdmin = false) => {
-    if (!apiEnabled || !getToken()) return;
-    try {
-      const ord = await api<{ orders: any[] }>(asAdmin ? "/admin/orders" : "/orders");
-      const lookup = new Map(adminProducts.map((p) => [p.id, p]));
-      setOrders(ord.orders.map((o) => mapOrder(o, lookup)));
-    } catch { /* ignore */ }
-  }, [apiEnabled, adminProducts]);
+  const refreshOrders = useCallback(
+    async (asAdmin = false) => {
+      if (!apiEnabled || !getToken()) return;
+      try {
+        const ord = await api<{ orders: any[] }>(asAdmin ? "/admin/orders" : "/orders");
+        const lookup = new Map(adminProducts.map((p) => [p.id, p]));
+        setOrders(ord.orders.map((o) => mapOrder(o, lookup)));
+      } catch {
+        /* ignore */
+      }
+    },
+    [apiEnabled, adminProducts],
+  );
 
   const customers = useMemo(() => {
-    const map = new Map<string, { name: string; email: string; phone: string; orders: number; spent: number }>();
+    const map = new Map<
+      string,
+      { name: string; email: string; phone: string; orders: number; spent: number }
+    >();
     for (const o of orders) {
       const key = o.address.phone || o.address.name;
       const e = map.get(key);
-      if (e) { e.orders++; e.spent += o.total; }
-      else map.set(key, { name: o.address.name, email: "—", phone: o.address.phone, orders: 1, spent: o.total });
+      if (e) {
+        e.orders++;
+        e.spent += o.total;
+      } else
+        map.set(key, {
+          name: o.address.name,
+          email: "—",
+          phone: o.address.phone,
+          orders: 1,
+          spent: o.total,
+        });
     }
     return Array.from(map.values()).sort((a, b) => b.spent - a.spent);
   }, [orders]);
 
   const categoryTree = useMemo(() => {
-    const active = categoryDetails.filter((c) => c.isActive).sort((a, b) => a.sortOrder - b.sortOrder || a.name.localeCompare(b.name));
+    const active = categoryDetails
+      .filter((c) => c.isActive)
+      .sort((a, b) => a.sortOrder - b.sortOrder || a.name.localeCompare(b.name));
     return active
       .filter((c) => !c.parentId)
       .map((parent) => ({ ...parent, children: active.filter((c) => c.parentId === parent.id) }));
@@ -387,7 +485,15 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   // ---- auth ----
   const finishAuth = (token: string, u: any) => {
     setToken(token);
-    setUser({ id: u.id, name: u.name, email: u.email, role: u.role, avatar: u.avatar, phone: u.phone ?? "", address: u.address ?? {} });
+    setUser({
+      id: u.id,
+      name: u.name,
+      email: u.email,
+      role: u.role,
+      avatar: u.avatar,
+      phone: u.phone ?? "",
+      address: u.address ?? {},
+    });
     toast.success(`Welcome, ${u.name}!`);
   };
 
@@ -442,7 +548,11 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         throw e;
       }
     } else {
-      setUser({ email: "devotee@gmail.com", name: "Krishna Devotee", avatar: "https://api.dicebear.com/9.x/initials/svg?seed=KD" });
+      setUser({
+        email: "devotee@gmail.com",
+        name: "Krishna Devotee",
+        avatar: "https://api.dicebear.com/9.x/initials/svg?seed=KD",
+      });
       toast.success("Signed in with Google");
     }
   };
@@ -502,6 +612,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
           mrp: Number(p.mrp ?? 0),
           image: p.image,
           images: p.images ?? [],
+          featuredDeal: !!p.featuredDeal,
           category: p.category,
           stock: Number(p.stock ?? 100),
           rating: Number(p.rating ?? 4.7),
@@ -515,7 +626,11 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         const saved = mapProduct(r.product);
         setAdminProducts((arr) => {
           const i = arr.findIndex((x) => x.id === saved.id);
-          if (i >= 0) { const next = [...arr]; next[i] = saved; return next; }
+          if (i >= 0) {
+            const next = [...arr];
+            next[i] = saved;
+            return next;
+          }
           return [saved, ...arr];
         });
         toast.success("Product saved");
@@ -525,7 +640,11 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     } else {
       setAdminProducts((arr) => {
         const i = arr.findIndex((x) => x.id === p.id);
-        if (i >= 0) { const next = [...arr]; next[i] = p; return next; }
+        if (i >= 0) {
+          const next = [...arr];
+          next[i] = p;
+          return next;
+        }
         return [{ ...p, id: p.id || `p${Date.now()}` }, ...arr];
       });
     }
@@ -533,7 +652,12 @@ export function StoreProvider({ children }: { children: ReactNode }) {
 
   const deleteProduct: Store["deleteProduct"] = async (id) => {
     if (apiEnabled) {
-      try { await api(`/products/${id}`, { method: "DELETE" }); } catch (e: any) { toast.error(e?.message); return; }
+      try {
+        await api(`/products/${id}`, { method: "DELETE" });
+      } catch (e: any) {
+        toast.error(e?.message);
+        return;
+      }
     }
     setAdminProducts((arr) => arr.filter((p) => p.id !== id));
     toast("Product deleted");
@@ -567,7 +691,12 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         throw e;
       }
     }
-    const order: Order = { ...o, id: `OD${Date.now().toString().slice(-8)}`, createdAt: Date.now(), status: "Placed" };
+    const order: Order = {
+      ...o,
+      id: `OD${Date.now().toString().slice(-8)}`,
+      createdAt: Date.now(),
+      status: "Placed",
+    };
     setOrders((arr) => [order, ...arr]);
     setCart([]);
     return order;
@@ -575,46 +704,84 @@ export function StoreProvider({ children }: { children: ReactNode }) {
 
   const updateOrderStatus: Store["updateOrderStatus"] = async (id, status) => {
     if (apiEnabled) {
-      try { await api(`/admin/orders/${id}/status`, { method: "PATCH", body: { status } }); }
-      catch (e: any) { toast.error(e?.message); return; }
+      try {
+        await api(`/admin/orders/${id}/status`, { method: "PATCH", body: { status } });
+      } catch (e: any) {
+        toast.error(e?.message);
+        return;
+      }
     }
-    setOrders((arr) => arr.map((o) => o.id === id ? { ...o, status } : o));
+    setOrders((arr) => arr.map((o) => (o.id === id ? { ...o, status } : o)));
   };
 
   const updateOrderTracking: Store["updateOrderTracking"] = async (id, patch) => {
     if (apiEnabled) {
       try {
-        const r = await api<{ order: any }>(`/admin/orders/${id}`, { method: "PATCH", body: patch });
+        const r = await api<{ order: any }>(`/admin/orders/${id}`, {
+          method: "PATCH",
+          body: patch,
+        });
         const lookup = new Map(adminProducts.map((p) => [p.id, p]));
         const updated = mapOrder(r.order, lookup);
-        setOrders((arr) => arr.map((o) => o.id === id ? updated : o));
+        setOrders((arr) => arr.map((o) => (o.id === id ? updated : o)));
         toast.success("Order updated");
         return;
-      } catch (e: any) { toast.error(e?.message); return; }
+      } catch (e: any) {
+        toast.error(e?.message);
+        return;
+      }
     }
-    setOrders((arr) => arr.map((o) => o.id === id ? { ...o, ...patch } : o));
+    setOrders((arr) => arr.map((o) => (o.id === id ? { ...o, ...patch } : o)));
     toast.success("Order updated");
   };
 
   const verifyOrderPayment: Store["verifyOrderPayment"] = async (id, status) => {
     if (apiEnabled) {
       try {
-        const r = await api<{ order: any }>(`/admin/orders/${id}/payment`, { method: "PATCH", body: { status } });
+        const r = await api<{ order: any }>(`/admin/orders/${id}/payment`, {
+          method: "PATCH",
+          body: { status },
+        });
         const lookup = new Map(adminProducts.map((p) => [p.id, p]));
         const updated = mapOrder(r.order, lookup);
-        setOrders((arr) => arr.map((o) => o.id === id ? updated : o));
-        toast.success(status === "paid" ? "Payment marked paid · email sent" : "Payment marked failed · order cancelled");
+        setOrders((arr) => arr.map((o) => (o.id === id ? updated : o)));
+        toast.success(
+          status === "paid"
+            ? "Payment marked paid · email sent"
+            : status === "failed"
+              ? "Payment marked failed · order cancelled"
+              : `Payment marked ${status}`,
+        );
         return;
-      } catch (e: any) { toast.error(e?.message); return; }
+      } catch (e: any) {
+        toast.error(e?.message);
+        return;
+      }
     }
-    setOrders((arr) => arr.map((o) => o.id === id ? { ...o, payment: { ...o.payment, status }, status: status === "failed" ? "Cancelled" : o.status } : o));
-    toast.success(status === "paid" ? "Marked paid" : "Marked failed · cancelled");
+    setOrders((arr) =>
+      arr.map((o) =>
+        o.id === id
+          ? {
+              ...o,
+              payment: { ...o.payment, status },
+              status: status === "failed" ? "Cancelled" : o.status,
+            }
+          : o,
+      ),
+    );
+    toast.success(
+      status === "paid"
+        ? "Marked paid"
+        : status === "failed"
+          ? "Marked failed · cancelled"
+          : `Marked ${status}`,
+    );
   };
-
 
   // ---- categories ----
   const addCategory: Store["addCategory"] = async (name, parentId = null) => {
-    const n = name.trim(); if (!n) return;
+    const n = name.trim();
+    if (!n) return;
     await saveCategory({ name: n, parentId, isActive: true, sortOrder: categoryDetails.length });
   };
 
@@ -622,7 +789,16 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     if (apiEnabled && getToken()) {
       try {
         const r = await api<{ user: any }>("/auth/me", { method: "PATCH", body: patch });
-        setUser((current) => current ? { ...current, name: r.user.name, phone: r.user.phone ?? "", address: r.user.address ?? {} } : current);
+        setUser((current) =>
+          current
+            ? {
+                ...current,
+                name: r.user.name,
+                phone: r.user.phone ?? "",
+                address: r.user.address ?? {},
+              }
+            : current,
+        );
         toast.success("Profile updated");
         return true;
       } catch (e: any) {
@@ -630,13 +806,14 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         return false;
       }
     }
-    setUser((current) => current ? { ...current, ...patch } : current);
+    setUser((current) => (current ? { ...current, ...patch } : current));
     toast.success("Profile updated");
     return true;
   };
 
   const saveCategory: Store["saveCategory"] = async (category) => {
-    const n = category.name.trim(); if (!n) return;
+    const n = category.name.trim();
+    if (!n) return;
     const payload = {
       name: n,
       slug: category.slug || slugify(n),
@@ -651,22 +828,34 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     if (apiEnabled) {
       try {
         const r = category.id
-          ? await api<{ category: any }>(`/categories/${category.id}`, { method: "PATCH", body: payload })
+          ? await api<{ category: any }>(`/categories/${category.id}`, {
+              method: "PATCH",
+              body: payload,
+            })
           : await api<{ category: any }>("/categories", { method: "POST", body: payload });
         const saved = mapCategory(r.category);
         setCategoryIds((m) => ({ ...m, [saved.name]: saved.id }));
         setCategoryDetails((arr) => {
           const i = arr.findIndex((x) => x.id === saved.id);
-          const next = i >= 0 ? arr.map((x) => x.id === saved.id ? { ...x, ...saved } : x) : [...arr, saved];
+          const next =
+            i >= 0 ? arr.map((x) => (x.id === saved.id ? { ...x, ...saved } : x)) : [...arr, saved];
           setCategories(next.filter((x) => x.isActive).map((x) => x.name));
           return next;
         });
         toast.success("Category saved");
-      } catch (e: any) { toast.error(e?.message); }
+      } catch (e: any) {
+        toast.error(e?.message);
+      }
     } else {
-      const saved: Category = { id: category.id || `local-${Date.now()}`, productCount: 0, ...payload };
+      const saved: Category = {
+        id: category.id || `local-${Date.now()}`,
+        productCount: 0,
+        ...payload,
+      };
       setCategoryDetails((arr) => {
-        const next = category.id ? arr.map((x) => x.id === category.id ? { ...x, ...saved } : x) : [...arr, saved];
+        const next = category.id
+          ? arr.map((x) => (x.id === category.id ? { ...x, ...saved } : x))
+          : [...arr, saved];
         setCategories(next.filter((x) => x.isActive).map((x) => x.name));
         return next;
       });
@@ -675,22 +864,41 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   };
 
   const renameCategory: Store["renameCategory"] = async (oldName, newName) => {
-    const n = newName.trim(); if (!n || oldName === n) return;
+    const n = newName.trim();
+    if (!n || oldName === n) return;
     if (apiEnabled) {
       const id = categoryIds[oldName];
-      if (!id) { toast.error("Unknown category"); return; }
+      if (!id) {
+        toast.error("Unknown category");
+        return;
+      }
       try {
         await api(`/categories/${id}`, { method: "PATCH", body: { name: n } });
-        setCategoryIds((m) => { const x = { ...m }; delete x[oldName]; x[n] = id; return x; });
-        setCategories((c) => c.map((x) => x === oldName ? n : x));
-        setCategoryDetails((arr) => arr.map((x) => x.name === oldName ? { ...x, name: n, slug: slugify(n) } : x));
-        setAdminProducts((arr) => arr.map((p) => p.category === oldName ? { ...p, category: n } : p));
+        setCategoryIds((m) => {
+          const x = { ...m };
+          delete x[oldName];
+          x[n] = id;
+          return x;
+        });
+        setCategories((c) => c.map((x) => (x === oldName ? n : x)));
+        setCategoryDetails((arr) =>
+          arr.map((x) => (x.name === oldName ? { ...x, name: n, slug: slugify(n) } : x)),
+        );
+        setAdminProducts((arr) =>
+          arr.map((p) => (p.category === oldName ? { ...p, category: n } : p)),
+        );
         toast.success("Category renamed");
-      } catch (e: any) { toast.error(e?.message); }
+      } catch (e: any) {
+        toast.error(e?.message);
+      }
     } else {
-      setCategories((c) => c.map((x) => x === oldName ? n : x));
-      setCategoryDetails((arr) => arr.map((x) => x.name === oldName ? { ...x, name: n, slug: slugify(n) } : x));
-      setAdminProducts((arr) => arr.map((p) => p.category === oldName ? { ...p, category: n } : p));
+      setCategories((c) => c.map((x) => (x === oldName ? n : x)));
+      setCategoryDetails((arr) =>
+        arr.map((x) => (x.name === oldName ? { ...x, name: n, slug: slugify(n) } : x)),
+      );
+      setAdminProducts((arr) =>
+        arr.map((p) => (p.category === oldName ? { ...p, category: n } : p)),
+      );
       toast.success("Category renamed");
     }
   };
@@ -698,14 +906,26 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   const deleteCategory: Store["deleteCategory"] = async (name) => {
     if (apiEnabled) {
       const id = categoryIds[name];
-      if (!id) { toast.error("Unknown category"); return; }
+      if (!id) {
+        toast.error("Unknown category");
+        return;
+      }
       try {
         await api(`/categories/${id}`, { method: "DELETE" });
-        setCategoryIds((m) => { const x = { ...m }; delete x[name]; return x; });
-      } catch (e: any) { toast.error(e?.message); return; }
+        setCategoryIds((m) => {
+          const x = { ...m };
+          delete x[name];
+          return x;
+        });
+      } catch (e: any) {
+        toast.error(e?.message);
+        return;
+      }
     }
     setCategories((c) => c.filter((x) => x !== name));
-    setCategoryDetails((arr) => arr.filter((x) => x.name !== name && x.parentId !== categoryIds[name]));
+    setCategoryDetails((arr) =>
+      arr.filter((x) => x.name !== name && x.parentId !== categoryIds[name]),
+    );
     setAdminProducts((arr) => arr.filter((p) => p.category !== name));
     toast("Category & its products removed");
   };
@@ -713,18 +933,28 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   const reorderCategories: Store["reorderCategories"] = async (items) => {
     if (apiEnabled) {
       try {
-        const r = await api<{ categories: any[] }>("/categories/sort/bulk", { method: "PATCH", body: { items } });
+        const r = await api<{ categories: any[] }>("/categories/sort/bulk", {
+          method: "PATCH",
+          body: { items },
+        });
         const mapped = r.categories.map(mapCategory);
         setCategoryDetails(mapped);
         setCategories(mapped.filter((c) => c.isActive).map((c) => c.name));
         toast.success("Category order saved");
         return;
-      } catch (e: any) { toast.error(e?.message); return; }
+      } catch (e: any) {
+        toast.error(e?.message);
+        return;
+      }
     }
-    setCategoryDetails((arr) => arr.map((c) => {
-      const item = items.find((x) => x.id === c.id);
-      return item ? { ...c, sortOrder: item.sortOrder, parentId: item.parentId ?? c.parentId } : c;
-    }));
+    setCategoryDetails((arr) =>
+      arr.map((c) => {
+        const item = items.find((x) => x.id === c.id);
+        return item
+          ? { ...c, sortOrder: item.sortOrder, parentId: item.parentId ?? c.parentId }
+          : c;
+      }),
+    );
     toast.success("Category order saved");
   };
 
@@ -737,20 +967,34 @@ export function StoreProvider({ children }: { children: ReactNode }) {
           ? await api<{ blog: any }>(`/blogs/${blog.id}`, { method: "PATCH", body: payload })
           : await api<{ blog: any }>("/blogs", { method: "POST", body: payload });
         const saved = mapBlog(r.blog);
-        setBlogs((arr) => arr.some((x) => x.id === saved.id) ? arr.map((x) => x.id === saved.id ? saved : x) : [saved, ...arr]);
+        setBlogs((arr) =>
+          arr.some((x) => x.id === saved.id)
+            ? arr.map((x) => (x.id === saved.id ? saved : x))
+            : [saved, ...arr],
+        );
         toast.success("Blog saved");
-      } catch (e: any) { toast.error(e?.message ?? "Blog save failed"); }
+      } catch (e: any) {
+        toast.error(e?.message ?? "Blog save failed");
+      }
       return;
     }
     const saved = { ...payload, id: blog.id || `blog-${Date.now()}` };
-    setBlogs((arr) => arr.some((x) => x.id === saved.id) ? arr.map((x) => x.id === saved.id ? saved : x) : [saved, ...arr]);
+    setBlogs((arr) =>
+      arr.some((x) => x.id === saved.id)
+        ? arr.map((x) => (x.id === saved.id ? saved : x))
+        : [saved, ...arr],
+    );
     toast.success("Blog saved");
   };
 
   const deleteBlog: Store["deleteBlog"] = async (id) => {
     if (apiEnabled) {
-      try { await api(`/blogs/${id}`, { method: "DELETE" }); }
-      catch (e: any) { toast.error(e?.message ?? "Delete failed"); return; }
+      try {
+        await api(`/blogs/${id}`, { method: "DELETE" });
+      } catch (e: any) {
+        toast.error(e?.message ?? "Delete failed");
+        return;
+      }
     }
     setBlogs((arr) => arr.filter((b) => b.id !== id));
     toast("Blog deleted");
@@ -768,7 +1012,10 @@ export function StoreProvider({ children }: { children: ReactNode }) {
 
   const resetPassword: Store["resetPassword"] = async (email, password) => {
     if (apiEnabled) {
-      const r = await api<{ token: string; user: any }>("/auth/reset-password", { method: "POST", body: { email, password } });
+      const r = await api<{ token: string; user: any }>("/auth/reset-password", {
+        method: "POST",
+        body: { email, password },
+      });
       finishAuth(r.token, r.user);
       return;
     }
@@ -780,10 +1027,15 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   const updateSettings: Store["updateSettings"] = async (patch) => {
     if (apiEnabled) {
       try {
-        const r = await api<{ settings: any }>("/settings", { method: "PATCH", body: { ...patch, email: patch.supportEmail } });
+        const r = await api<{ settings: any }>("/settings", {
+          method: "PATCH",
+          body: { ...patch, email: patch.supportEmail },
+        });
         setSettings((s) => ({ ...s, ...mapSettings(r.settings) }));
         toast.success("Settings saved");
-      } catch (e: any) { toast.error(e?.message); }
+      } catch (e: any) {
+        toast.error(e?.message);
+      }
     } else {
       setSettings((s) => ({ ...s, ...patch }));
       toast.success("Settings saved");
@@ -810,7 +1062,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
           totalSpent: u.totalSpent ?? 0,
           createdAt: u.createdAt,
           lastLoginAt: u.lastLoginAt ?? null,
-        }))
+        })),
       );
     } catch (e: any) {
       toast.error(e?.message ?? "Failed to load users");
@@ -842,7 +1094,6 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     }
   };
 
-
   const value: Store = {
     apiEnabled,
     user,
@@ -855,22 +1106,30 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     addToCart: (productId, qty = 1) => {
       setCart((c) => {
         const e = c.find((i) => i.productId === productId);
-        if (e) return c.map((i) => i.productId === productId ? { ...i, qty: i.qty + qty } : i);
+        if (e) return c.map((i) => (i.productId === productId ? { ...i, qty: i.qty + qty } : i));
         return [...c, { productId, qty }];
       });
       toast.success("Added to cart");
     },
     buyNow: (productId, qty = 1) => setCart([{ productId, qty }]),
     updateQty: (productId, qty) =>
-      setCart((c) => qty <= 0 ? c.filter((i) => i.productId !== productId) : c.map((i) => i.productId === productId ? { ...i, qty } : i)),
-    removeFromCart: (productId) => { setCart((c) => c.filter((i) => i.productId !== productId)); toast("Removed from cart"); },
+      setCart((c) =>
+        qty <= 0
+          ? c.filter((i) => i.productId !== productId)
+          : c.map((i) => (i.productId === productId ? { ...i, qty } : i)),
+      ),
+    removeFromCart: (productId) => {
+      setCart((c) => c.filter((i) => i.productId !== productId));
+      toast("Removed from cart");
+    },
     clearCart: () => setCart([]),
     wishlist,
-    toggleWishlist: (productId) => setWishlist((w) => {
-      const has = w.includes(productId);
-      toast(has ? "Removed from wishlist" : "Added to wishlist");
-      return has ? w.filter((i) => i !== productId) : [...w, productId];
-    }),
+    toggleWishlist: (productId) =>
+      setWishlist((w) => {
+        const has = w.includes(productId);
+        toast(has ? "Removed from wishlist" : "Added to wishlist");
+        return has ? w.filter((i) => i !== productId) : [...w, productId];
+      }),
     orders,
     placeOrder,
     adminAuthed,
@@ -915,4 +1174,8 @@ export const useStore = () => {
 };
 
 export const formatINR = (n: number) =>
-  new Intl.NumberFormat("en-IN", { style: "currency", currency: "INR", maximumFractionDigits: 0 }).format(n);
+  new Intl.NumberFormat("en-IN", {
+    style: "currency",
+    currency: "INR",
+    maximumFractionDigits: 0,
+  }).format(n);

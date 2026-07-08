@@ -35,29 +35,29 @@
 }
 
 :root {
-  --radius: 0.625rem;
-  --background: #faf8f1;
-  --foreground: #173f43;
-  --card: #fffdf7;
-  --card-foreground: #173f43;
-  --popover: #fffdf7;
-  --popover-foreground: #173f43;
+  --radius: 0.5rem;
+  --background: #ffffff;
+  --foreground: #000000;
+  --card: #ffffff;
+  --card-foreground: #000000;
+  --popover: #ffffff;
+  --popover-foreground: #000000;
   /* Teal — from Shri Radha Govind Store logo */
-  --primary: #1f777d;
-  --primary-foreground: #fffdf7;
-  --secondary: #e8f1ee;
-  --secondary-foreground: #155b61;
-  --muted: #f1eee4;
-  --muted-foreground: #607477;
-  --accent: #c69b4b;
-  --accent-foreground: #1f383a;
+  --primary: #212020;
+  --primary-foreground: #ffffff;
+  --secondary: #f4f3f3;
+  --secondary-foreground: #212020;
+  --muted: #f6f6f6;
+  --muted-foreground: #5e595d;
+  --accent: #90878e;
+  --accent-foreground: #ffffff;
   --destructive: oklch(0.55 0.22 27);
   --destructive-foreground: oklch(0.99 0 0);
-  --border: #d7dfd9;
-  --input: #cbd8d4;
-  --ring: #1f777d;
-  --gold: #d6b56f;
-  --saffron: #b78332;
+  --border: #e7e5e6;
+  --input: #d7d2d5;
+  --ring: #212020;
+  --gold: #ffd814;
+  --saffron: #f3a847;
 }
 
 .dark {
@@ -85,63 +85,207 @@
 }
 
 @layer base {
-  * { border-color: var(--color-border); }
-  html { font-family: var(--font-sans); }
+  * {
+    border-color: var(--color-border);
+  }
+  html {
+    font-family: var(--font-sans);
+  }
   body {
     background-color: var(--color-background);
-    background-image:
-      radial-gradient(circle at 8% 8%, rgba(31,119,125,.11), transparent 26rem),
-      radial-gradient(circle at 92% 18%, rgba(198,155,75,.10), transparent 24rem);
-    background-attachment: fixed;
+    background-image: none;
     color: var(--color-foreground);
     font-feature-settings: "ss01", "cv11";
   }
-  h1, h2, h3, h4, .font-display {
+  h1,
+  h2,
+  h3,
+  h4,
+  .font-display {
     font-family: var(--font-display);
     letter-spacing: 0;
   }
 }
 
 @layer utilities {
-  .container-app { @apply mx-auto max-w-7xl px-4 sm:px-6 lg:px-8; }
-  .premium-shadow { box-shadow: 0 2px 3px rgba(20,76,80,.06), 0 22px 50px -26px rgba(20,76,80,.45); }
-  .premium-card {
-    @apply bg-card rounded-xl border border-white/70 transition-all duration-300;
-    box-shadow: 8px 8px 22px rgba(23,63,67,.09), -7px -7px 20px rgba(255,255,255,.88);
+  .container-app {
+    @apply mx-auto max-w-7xl px-4 sm:px-6 lg:px-8;
   }
-  .premium-card:hover { transform: translateY(-5px); box-shadow: 12px 16px 32px rgba(23,63,67,.14), -8px -8px 22px rgba(255,255,255,.95); }
+  .premium-shadow {
+    box-shadow:
+      0 1px 2px rgba(33, 32, 32, 0.08),
+      0 18px 42px -30px rgba(33, 32, 32, 0.55);
+  }
+  .premium-card {
+    @apply bg-card rounded-lg border border-border transition-all duration-300;
+    box-shadow:
+      0 1px 2px rgba(33, 32, 32, 0.06),
+      0 12px 24px -22px rgba(33, 32, 32, 0.45);
+  }
+  .premium-card:hover {
+    transform: translateY(-3px);
+    border-color: rgba(33, 32, 32, 0.22);
+    box-shadow: 0 12px 30px -24px rgba(33, 32, 32, 0.58);
+  }
   .glass-panel {
-    background: linear-gradient(135deg, rgba(255,253,247,.82), rgba(232,241,238,.64));
-    border: 1px solid rgba(255,255,255,.78);
-    box-shadow: 0 16px 44px -24px rgba(23,63,67,.42), inset 0 1px 0 rgba(255,255,255,.9);
+    background: rgba(255, 255, 255, 0.92);
+    border: 1px solid rgba(231, 229, 230, 0.95);
+    box-shadow:
+      0 16px 44px -28px rgba(33, 32, 32, 0.52),
+      inset 0 1px 0 rgba(255, 255, 255, 0.9);
     -webkit-backdrop-filter: blur(18px) saturate(1.25);
     backdrop-filter: blur(18px) saturate(1.25);
   }
-  .neo-surface { box-shadow: inset 1px 1px 0 rgba(255,255,255,.92), 7px 7px 18px rgba(23,63,67,.10), -6px -6px 16px rgba(255,255,255,.9); }
-  .fx-button { position: relative; isolation: isolate; overflow: hidden; transition: transform .22s cubic-bezier(.2,.8,.2,1), box-shadow .22s ease, filter .22s ease; box-shadow: 0 10px 22px -12px rgba(23,63,67,.55), inset 0 1px 0 rgba(255,255,255,.34); }
-  .fx-button::after { content: ""; position: absolute; z-index: -1; inset: 0; background: linear-gradient(115deg, transparent 20%, rgba(255,255,255,.38) 46%, transparent 72%); transform: translateX(-120%); transition: transform .65s ease; }
-  .fx-button:hover { transform: translateY(-2px); filter: saturate(1.08) brightness(1.03); box-shadow: 0 15px 28px -13px rgba(23,63,67,.62), inset 0 1px 0 rgba(255,255,255,.42); }
-  .fx-button:hover::after { transform: translateX(120%); }
-  .fx-button:active { transform: translateY(1px) scale(.96); transition-duration: .08s; }
-  .card-3d { transform: perspective(1000px) translateZ(0); transform-style: preserve-3d; transition: transform .38s cubic-bezier(.2,.8,.2,1), box-shadow .38s ease, border-color .3s ease; box-shadow: 0 14px 34px -24px rgba(23,63,67,.42), inset 0 1px 0 rgba(255,255,255,.86); }
-  .card-3d:hover { transform: perspective(1000px) rotateX(1.5deg) rotateY(-1.5deg) translateY(-7px) translateZ(8px); box-shadow: 0 25px 48px -22px rgba(23,63,67,.42), inset 0 1px 0 rgba(255,255,255,.95); }
-  .card-3d:hover img { transform: translateZ(18px) scale(1.055); }
-  .float-soft { animation: float-soft 5s ease-in-out infinite; }
-  .reveal-up { animation: reveal-up .7s cubic-bezier(.2,.8,.2,1) both; }
-  .reveal-delay-1 { animation-delay: .12s; }
-  .reveal-delay-2 { animation-delay: .24s; }
-  .icon-bounce:hover svg { animation: icon-bounce .55s cubic-bezier(.34,1.56,.64,1); }
-  .gold-accent { background: linear-gradient(135deg, #e4c98d 0%, var(--gold) 35%, var(--saffron) 100%); box-shadow: inset 0 1px 0 rgba(255,255,255,.45), 0 18px 48px -26px rgba(120,78,20,.7); }
+  .neo-surface {
+    box-shadow:
+      inset 1px 1px 0 rgba(255, 255, 255, 0.92),
+      6px 6px 16px rgba(33, 32, 32, 0.08);
+  }
+  .fx-button {
+    position: relative;
+    isolation: isolate;
+    overflow: hidden;
+    transition:
+      transform 0.22s cubic-bezier(0.2, 0.8, 0.2, 1),
+      box-shadow 0.22s ease,
+      filter 0.22s ease;
+    box-shadow:
+      0 10px 22px -14px rgba(33, 32, 32, 0.55),
+      inset 0 1px 0 rgba(255, 255, 255, 0.34);
+  }
+  .fx-button::after {
+    content: "";
+    position: absolute;
+    z-index: -1;
+    inset: 0;
+    background: linear-gradient(
+      115deg,
+      transparent 20%,
+      rgba(255, 255, 255, 0.38) 46%,
+      transparent 72%
+    );
+    transform: translateX(-120%);
+    transition: transform 0.65s ease;
+  }
+  .fx-button:hover {
+    transform: translateY(-2px);
+    filter: saturate(1.08) brightness(1.03);
+    box-shadow:
+      0 15px 28px -14px rgba(33, 32, 32, 0.62),
+      inset 0 1px 0 rgba(255, 255, 255, 0.42);
+  }
+  .fx-button:hover::after {
+    transform: translateX(120%);
+  }
+  .fx-button:active {
+    transform: translateY(1px) scale(0.96);
+    transition-duration: 0.08s;
+  }
+  .card-3d {
+    transform: perspective(1000px) translateZ(0);
+    transform-style: preserve-3d;
+    transition:
+      transform 0.32s cubic-bezier(0.2, 0.8, 0.2, 1),
+      box-shadow 0.32s ease,
+      border-color 0.3s ease;
+    box-shadow:
+      0 12px 28px -24px rgba(33, 32, 32, 0.5),
+      inset 0 1px 0 rgba(255, 255, 255, 0.86);
+  }
+  .card-3d:hover {
+    transform: perspective(1000px) translateY(-5px) translateZ(6px);
+    box-shadow:
+      0 22px 42px -26px rgba(33, 32, 32, 0.58),
+      inset 0 1px 0 rgba(255, 255, 255, 0.95);
+  }
+  .card-3d:hover img {
+    transform: translateZ(18px) scale(1.055);
+  }
+  .float-soft {
+    animation: float-soft 5s ease-in-out infinite;
+  }
+  .reveal-up {
+    animation: reveal-up 0.7s cubic-bezier(0.2, 0.8, 0.2, 1) both;
+  }
+  .reveal-delay-1 {
+    animation-delay: 0.12s;
+  }
+  .reveal-delay-2 {
+    animation-delay: 0.24s;
+  }
+  .icon-bounce:hover svg {
+    animation: icon-bounce 0.55s cubic-bezier(0.34, 1.56, 0.64, 1);
+  }
+  .gold-accent {
+    background: linear-gradient(135deg, #212020 0%, #353132 58%, #90878e 100%);
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.18),
+      0 18px 48px -26px rgba(33, 32, 32, 0.7);
+  }
 }
 
-@keyframes reveal-up { from { opacity: 0; transform: translateY(22px) scale(.985); } to { opacity: 1; transform: translateY(0) scale(1); } }
-@keyframes float-soft { 0%,100% { transform: translateY(0) rotate(-1deg); } 50% { transform: translateY(-10px) rotate(1deg); } }
-@keyframes icon-bounce { 0%,100% { transform: translateY(0) scale(1); } 45% { transform: translateY(-5px) scale(1.08); } 70% { transform: translateY(1px) scale(.98); } }
-@keyframes whatsapp-bounce { 0%, 88%, 100% { transform: translateY(0) scale(1); } 92% { transform: translateY(-8px) scale(1.06); } 96% { transform: translateY(1px) scale(.98); } }
-.whatsapp-bounce { animation: whatsapp-bounce 3.2s cubic-bezier(.34,1.56,.64,1) infinite; }
+@keyframes reveal-up {
+  from {
+    opacity: 0;
+    transform: translateY(22px) scale(0.985);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+@keyframes float-soft {
+  0%,
+  100% {
+    transform: translateY(0) rotate(-1deg);
+  }
+  50% {
+    transform: translateY(-10px) rotate(1deg);
+  }
+}
+@keyframes icon-bounce {
+  0%,
+  100% {
+    transform: translateY(0) scale(1);
+  }
+  45% {
+    transform: translateY(-5px) scale(1.08);
+  }
+  70% {
+    transform: translateY(1px) scale(0.98);
+  }
+}
+@keyframes whatsapp-bounce {
+  0%,
+  88%,
+  100% {
+    transform: translateY(0) scale(1);
+  }
+  92% {
+    transform: translateY(-8px) scale(1.06);
+  }
+  96% {
+    transform: translateY(1px) scale(0.98);
+  }
+}
+.whatsapp-bounce {
+  animation: whatsapp-bounce 3.2s cubic-bezier(0.34, 1.56, 0.64, 1) infinite;
+}
 
 @media (prefers-reduced-motion: reduce) {
-  *, *::before, *::after { scroll-behavior: auto !important; animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; }
+  *,
+  *::before,
+  *::after {
+    scroll-behavior: auto !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
 }
 
-@media (hover: none) { .premium-card:hover, .card-3d:hover { transform: none; } }
+@media (hover: none) {
+  .premium-card:hover,
+  .card-3d:hover {
+    transform: none;
+  }
+}

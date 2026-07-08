@@ -16,9 +16,16 @@ export const Route = createFileRoute("/shop")({
   head: () => ({
     meta: [
       { title: "Shop Sacred Vrindavan Essentials — Shri Radha Govind Store" },
-      { name: "description", content: "Browse the full collection of Krishna & Radha Rani poshak, gopi chandan, itra, mala, puja items and Janmashtami specials." },
+      {
+        name: "description",
+        content:
+          "Browse the full collection of Krishna & Radha Rani poshak, gopi chandan, itra, mala, puja items and Janmashtami specials.",
+      },
       { property: "og:title", content: "Shop — Shri Radha Govind Store" },
-      { property: "og:description", content: "Browse authentic sacred essentials hand-curated from Vrindavan." },
+      {
+        property: "og:description",
+        content: "Browse authentic sacred essentials hand-curated from Vrindavan.",
+      },
       { property: "og:url", content: "https://shriradhagovindstore.com/shop" },
     ],
     links: [{ rel: "canonical", href: "https://shriradhagovindstore.com/shop" }],
@@ -39,7 +46,10 @@ function Shop() {
 
   const selectCategory = (category: string) => {
     setCat(category);
-    navigate({ to: "/shop", search: { ...search, cat: category === "All" ? undefined : category } });
+    navigate({
+      to: "/shop",
+      search: { ...search, cat: category === "All" ? undefined : category },
+    });
   };
 
   const products = useMemo(() => {
@@ -63,37 +73,79 @@ function Shop() {
   return (
     <Layout>
       <div className="container-app py-10">
-        <h1 className="font-display text-4xl md:text-5xl">Shop {cat !== "All" ? <span className="italic text-primary">— {cat}</span> : ""}</h1>
-        <p className="text-muted-foreground mt-2 text-sm">{products.length} sacred products{search.q ? ` for "${search.q}"` : ""}</p>
+        <h1 className="font-display text-4xl md:text-5xl">
+          Shop {cat !== "All" ? <span className="italic text-primary">— {cat}</span> : ""}
+        </h1>
+        <p className="text-muted-foreground mt-2 text-sm">
+          {products.length} sacred products{search.q ? ` for "${search.q}"` : ""}
+        </p>
 
         <div className="grid lg:grid-cols-[260px_1fr] gap-8 mt-8">
           <aside className="space-y-6">
             <div>
-              <h3 className="font-display text-lg mb-3 flex items-center gap-2"><SlidersHorizontal className="h-4 w-4" /> Categories</h3>
+              <h3 className="font-display text-lg mb-3 flex items-center gap-2">
+                <SlidersHorizontal className="h-4 w-4" /> Categories
+              </h3>
               <div className="flex flex-col gap-1">
-                <button onClick={() => selectCategory("All")} className={`text-left px-3 py-2 rounded-lg text-sm transition ${cat === "All" ? "bg-primary text-primary-foreground" : "hover:bg-muted"}`}>All</button>
-                {categoryTree.length > 0 ? categoryTree.map((parent) => (
-                  <div key={parent.id}>
-                    <button onClick={() => selectCategory(parent.name)} className={`w-full text-left px-3 py-2 rounded-lg text-sm font-semibold transition ${cat === parent.name ? "bg-primary text-primary-foreground" : "hover:bg-muted"}`}>{parent.name}</button>
-                    <div className="ml-3 mt-1 space-y-1 border-l pl-2">
-                      {parent.children.map((child) => (
-                        <button key={child.id} onClick={() => selectCategory(child.name)} className={`w-full text-left px-3 py-1.5 rounded-lg text-xs transition ${cat === child.name ? "bg-primary text-primary-foreground" : "hover:bg-muted"}`}>{child.name}</button>
-                      ))}
-                    </div>
-                  </div>
-                )) : categories.map((c) => (
-                  <button key={c} onClick={() => selectCategory(c)} className={`text-left px-3 py-2 rounded-lg text-sm transition ${cat === c ? "bg-primary text-primary-foreground" : "hover:bg-muted"}`}>{c}</button>
-                ))}
+                <button
+                  onClick={() => selectCategory("All")}
+                  className={`text-left px-3 py-2 rounded-lg text-sm transition ${cat === "All" ? "bg-primary text-primary-foreground" : "hover:bg-muted"}`}
+                >
+                  All
+                </button>
+                {categoryTree.length > 0
+                  ? categoryTree.map((parent) => (
+                      <div key={parent.id}>
+                        <button
+                          onClick={() => selectCategory(parent.name)}
+                          className={`w-full text-left px-3 py-2 rounded-lg text-sm font-semibold transition ${cat === parent.name ? "bg-primary text-primary-foreground" : "hover:bg-muted"}`}
+                        >
+                          {parent.name}
+                        </button>
+                        <div className="ml-3 mt-1 space-y-1 border-l pl-2">
+                          {parent.children.map((child) => (
+                            <button
+                              key={child.id}
+                              onClick={() => selectCategory(child.name)}
+                              className={`w-full text-left px-3 py-1.5 rounded-lg text-xs transition ${cat === child.name ? "bg-primary text-primary-foreground" : "hover:bg-muted"}`}
+                            >
+                              {child.name}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    ))
+                  : categories.map((c) => (
+                      <button
+                        key={c}
+                        onClick={() => selectCategory(c)}
+                        className={`text-left px-3 py-2 rounded-lg text-sm transition ${cat === c ? "bg-primary text-primary-foreground" : "hover:bg-muted"}`}
+                      >
+                        {c}
+                      </button>
+                    ))}
               </div>
             </div>
             <div>
               <h3 className="font-display text-lg mb-3">Price</h3>
-              <input type="range" min={100} max={2500} step={50} value={maxPrice} onChange={(e) => setMaxPrice(+e.target.value)} className="w-full accent-primary" />
+              <input
+                type="range"
+                min={100}
+                max={2500}
+                step={50}
+                value={maxPrice}
+                onChange={(e) => setMaxPrice(+e.target.value)}
+                className="w-full accent-primary"
+              />
               <p className="text-xs text-muted-foreground mt-1">Up to ₹{maxPrice}</p>
             </div>
             <div>
               <h3 className="font-display text-lg mb-3">Sort</h3>
-              <select value={sort} onChange={(e) => setSort(e.target.value)} className="w-full h-10 rounded-lg border bg-card px-3 text-sm">
+              <select
+                value={sort}
+                onChange={(e) => setSort(e.target.value)}
+                className="w-full h-10 rounded-lg border bg-card px-3 text-sm"
+              >
                 <option value="featured">Featured</option>
                 <option value="low">Price: Low to High</option>
                 <option value="high">Price: High to Low</option>
@@ -103,10 +155,14 @@ function Shop() {
           </aside>
           <div>
             {products.length === 0 ? (
-              <div className="text-center py-20 text-muted-foreground">No products match your filters.</div>
+              <div className="text-center py-20 text-muted-foreground">
+                No products match your filters.
+              </div>
             ) : (
-              <div className="grid grid-cols-2 md:grid-cols-3 gap-5">
-                {products.map((p) => <ProductCard key={p.id} product={p} />)}
+              <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6">
+                {products.map((p) => (
+                  <ProductCard key={p.id} product={p} />
+                ))}
               </div>
             )}
           </div>

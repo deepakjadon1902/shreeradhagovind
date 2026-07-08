@@ -15,13 +15,14 @@ export function ProductCard({ product }: { product: Product }) {
   const { wishlist, toggleWishlist, addToCart, buyNow } = useStore();
   const nav = useNavigate();
   const wished = wishlist.includes(product.id);
-  const off = product.mrp > product.price
-    ? Math.round(((product.mrp - product.price) / product.mrp) * 100)
-    : 0;
+  const off =
+    product.mrp > product.price
+      ? Math.round(((product.mrp - product.price) / product.mrp) * 100)
+      : 0;
   const outOfStock = product.stock === 0;
 
   return (
-    <div className="card-3d group relative flex h-full flex-col overflow-hidden rounded-xl border border-white/80 bg-card/95 hover:border-primary/35">
+    <div className="card-3d group relative flex h-full flex-col overflow-hidden rounded-lg border border-border bg-white hover:border-primary/35">
       <Link
         to="/product/$id"
         params={{ id: product.id }}
@@ -31,10 +32,10 @@ export function ProductCard({ product }: { product: Product }) {
           src={product.image}
           alt={product.name}
           loading="lazy"
-          className="h-full w-full object-contain p-3 transition-transform duration-300 group-hover:scale-[1.03]"
+          className="h-full w-full object-contain p-2.5 transition-transform duration-300 group-hover:scale-[1.03]"
         />
         {off > 0 && (
-          <span className="absolute left-2 top-2 rounded bg-primary px-2 py-1 text-[10px] font-bold text-primary-foreground shadow-sm">
+          <span className="absolute left-2 top-2 rounded bg-[#212020] px-2 py-1 text-[10px] font-bold text-white shadow-sm">
             {off}% OFF
           </span>
         )}
@@ -44,22 +45,29 @@ export function ProductCard({ product }: { product: Product }) {
           </span>
         )}
         <button
-          onClick={(e) => { e.preventDefault(); toggleWishlist(product.id); }}
+          onClick={(e) => {
+            e.preventDefault();
+            toggleWishlist(product.id);
+          }}
           className="glass-panel icon-bounce absolute right-2 top-2 grid h-8 w-8 place-items-center rounded-full transition hover:scale-110"
-          aria-label="Add to wishlist"
+          aria-label={
+            wished ? `Remove ${product.name} from wishlist` : `Add ${product.name} to wishlist`
+          }
         >
-          <Heart className={`h-4 w-4 ${wished ? "fill-destructive text-destructive" : "text-foreground/70"}`} />
+          <Heart
+            className={`h-4 w-4 ${wished ? "fill-destructive text-destructive" : "text-foreground/70"}`}
+          />
         </button>
       </Link>
 
-      <div className="flex flex-1 flex-col gap-1.5 p-3">
+      <div className="flex flex-1 flex-col gap-1.5 p-2.5 sm:p-3">
         <p className="text-[10px] uppercase tracking-wider text-muted-foreground truncate">
           {product.category}
         </p>
         <Link
           to="/product/$id"
           params={{ id: product.id }}
-          className="line-clamp-2 min-h-10 text-sm font-medium leading-snug hover:text-primary"
+          className="line-clamp-2 min-h-9 text-xs font-medium leading-snug hover:text-primary sm:min-h-10 sm:text-sm"
         >
           {product.name}
         </Link>
@@ -69,7 +77,9 @@ export function ProductCard({ product }: { product: Product }) {
           <span className="inline-flex items-center gap-0.5 rounded bg-green-600 px-1.5 py-0.5 text-[11px] font-semibold text-white">
             {product.rating.toFixed(1)} <Star className="h-2.5 w-2.5 fill-current" />
           </span>
-          <span className="text-muted-foreground text-[11px]">({product.reviews.toLocaleString("en-IN")})</span>
+          <span className="text-muted-foreground text-[11px]">
+            ({product.reviews.toLocaleString("en-IN")})
+          </span>
         </div>
 
         {/* Amazon-style price block */}
@@ -77,7 +87,9 @@ export function ProductCard({ product }: { product: Product }) {
           <span className="text-base font-bold text-foreground">{formatINR(product.price)}</span>
           {off > 0 && (
             <>
-              <span className="text-xs text-muted-foreground line-through">{formatINR(product.mrp)}</span>
+              <span className="text-xs text-muted-foreground line-through">
+                {formatINR(product.mrp)}
+              </span>
               <span className="text-xs font-semibold text-green-700">{off}% off</span>
             </>
           )}
@@ -89,14 +101,17 @@ export function ProductCard({ product }: { product: Product }) {
           <button
             disabled={outOfStock}
             onClick={() => addToCart(product.id)}
-            className="fx-button icon-bounce inline-flex h-9 items-center justify-center gap-1 rounded-md border border-foreground/15 bg-secondary/70 text-xs font-semibold text-foreground hover:bg-secondary disabled:opacity-40"
+            className="fx-button icon-bounce inline-flex h-9 items-center justify-center gap-1 rounded-md border border-[#212020]/15 bg-white text-xs font-semibold text-black hover:bg-secondary disabled:opacity-40"
           >
             <ShoppingBag className="h-3.5 w-3.5" /> Add
           </button>
           <button
             disabled={outOfStock}
-            onClick={() => { buyNow(product.id); nav({ to: "/checkout" }); }}
-            className="fx-button icon-bounce inline-flex h-9 items-center justify-center gap-1 rounded-md bg-accent text-xs font-semibold text-accent-foreground disabled:opacity-40"
+            onClick={() => {
+              buyNow(product.id);
+              nav({ to: "/checkout" });
+            }}
+            className="fx-button icon-bounce inline-flex h-9 items-center justify-center gap-1 rounded-md bg-[#ffd814] text-xs font-semibold text-black hover:bg-[#f7ca00] disabled:opacity-40"
           >
             <Zap className="h-3.5 w-3.5" /> Buy
           </button>
