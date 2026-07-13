@@ -116,6 +116,9 @@ r.post("/", requireAuth, async (req, res, next) => {
     const subtotal = items.reduce((s, i) => s + i.price * i.qty, 0);
     const settings =
       (await Settings.findOne({ key: "global" })) ?? (await Settings.create({ key: "global" }));
+    if (body.payment.method === "cod" && !settings.codEnabled) {
+      throw new HttpError(400, "Cash on Delivery is currently disabled by the store admin");
+    }
     const shipping = subtotal >= settings.freeShipThreshold ? 0 : settings.shippingFee;
     const total = subtotal + shipping;
 
@@ -130,6 +133,7 @@ r.post("/", requireAuth, async (req, res, next) => {
       subtotal,
       shipping,
       total,
+      courier: body.payment.method === "cod" ? "DTDC" : null,
       address: body.address,
       payment: {
         method: body.payment.method,
@@ -143,11 +147,13 @@ r.post("/", requireAuth, async (req, res, next) => {
 
     const user = await User.findById(req.user!.sub);
     const payment = order.payment;
-    if (user?.email && payment?.status === "paid") {
+    if (user?.email && (payment?.status === "paid" || payment?.method === "cod")) {
       sendOrderConfirmationWithInvoice(user.email, user.name, {
         _id: order._id,
         trackingId: order.trackingId ?? undefined,
         courier: order.courier ?? undefined,
+        courierTrackingUrl: order.courierTrackingUrl ?? undefined,
+        status: order.status,
         items,
         subtotal,
         shipping,

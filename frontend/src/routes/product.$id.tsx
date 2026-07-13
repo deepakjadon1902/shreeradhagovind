@@ -6,7 +6,7 @@ import { PRODUCTS, type Product } from "@/lib/products";
 import { Heart, ShoppingBag, Star, Truck, ShieldCheck, RefreshCw, Check } from "lucide-react";
 import { useEffect, useState } from "react";
 import { ProductCard } from "@/components/ProductCard";
-import { cleanMetaText, pageSeo, slugify, STORE_NAME } from "@/lib/seo";
+import { cleanMetaText, pageSeo, slugify } from "@/lib/seo";
 
 function normalizeProduct(value: Record<string, unknown>): Product {
   return {
@@ -50,11 +50,11 @@ export const Route = createFileRoute("/product/$id")({
   loader: ({ params }) => loadProductForMeta(params.id),
   head: ({ params, loaderData: product }) => {
     const productName = product?.name || "Sacred Product";
-    const title = cleanMetaText(`${productName} | ${STORE_NAME}`, 60);
+    const title = cleanMetaText(productName, 300);
     const description = cleanMetaText(
       product?.description ||
-        `Shop ${productName}, an authentic sacred essential from Vrindavan at ${STORE_NAME}.`,
-      160,
+        `Shop ${productName}, an authentic sacred essential from Vrindavan.`,
+      1000,
     );
     const slug = product?.slug ?? params.id;
 

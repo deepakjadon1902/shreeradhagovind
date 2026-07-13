@@ -7,6 +7,8 @@ export type InvoiceData = {
   orderId: string;
   trackingId?: string;
   courier?: string | null;
+  courierTrackingUrl?: string;
+  status?: string;
   customerName: string;
   customerEmail?: string;
   items: InvoiceItem[];
@@ -50,7 +52,7 @@ export function generateInvoicePDF(data: InvoiceData): Promise<Buffer> {
       doc.rect(0, 0, pageW, 90).fill(ACCENT);
       doc.fillColor("#ffffff").font("Helvetica-Bold").fontSize(22).text(BRAND, left, 24);
       doc.font("Helvetica").fontSize(9).fillColor("#d1faf3").text(STORE_ADDRESS, left, 50, { width: usable * 0.6 });
-      doc.fontSize(9).fillColor("#d1faf3").text(`${SUPPORT_EMAIL}  ·  ${SUPPORT_PHONE}`, left, 72);
+      doc.fontSize(9).fillColor("#d1faf3").text(`${SUPPORT_EMAIL}  |  ${SUPPORT_PHONE}`, left, 72);
 
       doc.fillColor("#ffffff").font("Helvetica-Bold").fontSize(20).text("INVOICE", left, 28, { width: usable, align: "right" });
       doc.font("Helvetica").fontSize(9).fillColor("#d1faf3").text(`#${data.trackingId ?? data.orderId.slice(-8).toUpperCase()}`, left, 56, { width: usable, align: "right" });
@@ -69,11 +71,13 @@ export function generateInvoicePDF(data: InvoiceData): Promise<Buffer> {
       const rx = left + usable / 2 + 20;
       const metaRows: [string, string][] = [
         ["Order ID", data.orderId],
-        ["Tracking ID", data.trackingId ?? "—"],
+        ["Tracking ID", data.trackingId ?? "-"],
         ["Courier", data.courier || "To be assigned"],
+        ["Shipment Status", data.status ?? "Placed"],
         ["Invoice Date", new Date(data.createdAt ?? Date.now()).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" })],
-        ["Payment", `${data.payment.method.toUpperCase()} · ${data.payment.status.toUpperCase()}`],
+        ["Payment", `${data.payment.method.toUpperCase()} | ${data.payment.status.toUpperCase()}`],
       ];
+      if (data.courierTrackingUrl) metaRows.push(["Courier URL", data.courierTrackingUrl]);
       if (data.payment.razorpayPaymentId) metaRows.push(["Txn ID", data.payment.razorpayPaymentId]);
 
       doc.font("Helvetica-Bold").fontSize(11).fillColor("#1f2937").text("Order Details", rx, y);
@@ -167,7 +171,7 @@ export function generateInvoicePDF(data: InvoiceData): Promise<Buffer> {
         { width: usable }
       );
       doc.fontSize(8).fillColor(MUTED)
-        .text(`© ${new Date().getFullYear()} ${BRAND} · Radhe Radhe`, left, footerY + 70, { width: usable, align: "center", lineBreak: false });
+        .text(`(c) ${new Date().getFullYear()} ${BRAND} | Radhe Radhe`, left, footerY + 70, { width: usable, align: "center", lineBreak: false });
 
       doc.end();
     } catch (e) {

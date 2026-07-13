@@ -1323,6 +1323,8 @@ function OrderManager({
 
   const STATUSES: Order["status"][] = [
     "Placed",
+    "Confirmed",
+    "Processing",
     "Packed",
     "Shipped",
     "Out for delivery",
@@ -1375,6 +1377,8 @@ function OrderManager({
   // ----- timeline derived from current status + timestamps -----
   const TIMELINE: Order["status"][] = [
     "Placed",
+    "Confirmed",
+    "Processing",
     "Packed",
     "Shipped",
     "Out for delivery",
@@ -1537,7 +1541,11 @@ function OrderManager({
                           ? `Shipped via ${order.courier}. In transit to ${order.address.city}.`
                           : order.status === "Packed"
                             ? `Handed over to ${order.courier} for pickup.`
-                            : `Assigned to ${order.courier}. Awaiting pickup.`}
+                            : order.status === "Processing"
+                              ? `Processing for ${order.courier} shipment.`
+                              : order.status === "Confirmed"
+                                ? `Confirmed. ${order.courier} shipment will be prepared soon.`
+                                : `Assigned to ${order.courier}. Awaiting pickup.`}
                   </p>
                   {order.courierTrackingUrl && (
                     <a

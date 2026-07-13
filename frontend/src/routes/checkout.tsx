@@ -1,7 +1,7 @@
 import { createFileRoute, useNavigate, Link } from "@tanstack/react-router";
 import { Layout } from "@/components/Layout";
 import { useStore, formatINR } from "@/lib/store";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { CreditCard, Truck, Lock, Check } from "lucide-react";
 import { toast } from "sonner";
 import { api, isApiEnabled, getToken, API_URL } from "@/lib/api";
@@ -59,6 +59,11 @@ function Checkout() {
   });
   const [method, setMethod] = useState<"razorpay" | "cod">("razorpay");
   const [processing, setProcessing] = useState(false);
+  const codAvailable = settings.codEnabled;
+
+  useEffect(() => {
+    if (!codAvailable && method === "cod") setMethod("razorpay");
+  }, [codAvailable, method]);
 
   if (items.length === 0) {
     return (
@@ -267,13 +272,18 @@ function Checkout() {
                   title="Razorpay — Cards, UPI, Netbanking, Wallets"
                   desc="Pay securely via Razorpay. Verified server-side; failed payments auto-cancel."
                 />
-                {settings.codEnabled && (
+                {codAvailable && (
                   <PayOption
                     checked={method === "cod"}
                     onClick={() => setMethod("cod")}
-                    title="Cash on Delivery"
-                    desc="Pay with cash when your order arrives."
+                    title="Cash on Delivery — DTDC only"
+                    desc="COD is available only when enabled by admin and ships through DTDC."
                   />
+                )}
+                {!codAvailable && (
+                  <p className="rounded-lg border border-amber-500/20 bg-amber-500/10 px-3 py-2 text-xs text-amber-700">
+                    Cash on Delivery is currently disabled by the store admin.
+                  </p>
                 )}
               </div>
               {!API_URL && (

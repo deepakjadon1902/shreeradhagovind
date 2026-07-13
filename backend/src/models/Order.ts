@@ -17,7 +17,7 @@ const orderSchema = new Schema(
     trackingId: { type: String, unique: true, sparse: true, index: true },
     courier: {
       type: String,
-      enum: ["Ekart", "DTDC", "Shree Murti", "India Post", "Delhivery", "Bluedart", null],
+      enum: ["Ekart", "DTDC", "Shree Maruti", "Shree Murti", "India Post", "Delhivery", "Bluedart", null],
       default: null,
     },
     courierTrackingUrl: { type: String, default: "" },
@@ -43,7 +43,7 @@ const orderSchema = new Schema(
     },
     status: {
       type: String,
-      enum: ["Placed", "Packed", "Shipped", "Out for delivery", "Delivered", "Cancelled"],
+      enum: ["Placed", "Confirmed", "Processing", "Packed", "Shipped", "Out for delivery", "Delivered", "Cancelled"],
       default: "Placed",
       index: true,
     },

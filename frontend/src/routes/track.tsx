@@ -8,7 +8,7 @@ import { toast } from "sonner";
 
 type Search = { id?: string };
 
-const STAGES = ["Placed", "Packed", "Shipped", "Out for delivery", "Delivered"] as const;
+const STAGES = ["Placed", "Confirmed", "Processing", "Packed", "Shipped", "Out for delivery", "Delivered"] as const;
 
 type TrackedOrder = {
   trackingId: string;

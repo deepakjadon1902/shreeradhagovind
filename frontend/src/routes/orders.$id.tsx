@@ -8,7 +8,7 @@ export const Route = createFileRoute("/orders/$id")({
   head: () => ({ meta: [{ title: "Order Details — Shri Radha Govind Store" }, { name: "robots", content: "noindex" }] }),
 });
 
-const STAGES: Order["status"][] = ["Placed", "Packed", "Shipped", "Out for delivery", "Delivered"];
+const STAGES: Order["status"][] = ["Placed", "Confirmed", "Processing", "Packed", "Shipped", "Out for delivery", "Delivered"];
 
 function OrderDetail() {
   const { id } = Route.useParams();

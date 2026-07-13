@@ -4,7 +4,7 @@ import { Order } from "../models/Order";
 import { User } from "../models/User";
 import { requireAuth, requireAdmin } from "../middleware/auth";
 import { HttpError } from "../middleware/error";
-import { sendEmail, sendOrderConfirmationWithInvoice, tpl } from "../utils/email";
+import { sendEmail, sendOrderConfirmationWithInvoice, sendOrderStatusUpdateWithInvoice, tpl } from "../utils/email";
 
 const r = Router();
 r.use(requireAuth, requireAdmin);
@@ -23,17 +23,14 @@ r.patch("/orders/:id/status", async (req, res, next) => {
   try {
     const { status } = z
       .object({
-        status: z.enum(["Placed", "Packed", "Shipped", "Out for delivery", "Delivered", "Cancelled"]),
+        status: z.enum(["Placed", "Confirmed", "Processing", "Packed", "Shipped", "Out for delivery", "Delivered", "Cancelled"]),
       })
       .parse(req.body);
     const o = await Order.findByIdAndUpdate(req.params.id, { status }, { new: true }).populate("user", "name email");
     if (!o) throw new HttpError(404, "Not found");
     const u: any = o.user;
     if (u?.email) {
-      sendEmail({
-        to: u.email,
-        ...tpl.statusUpdate(u.name, o.trackingId ?? String(o._id).slice(-6).toUpperCase(), status, o.trackingId ?? undefined, o.courier, o.courierTrackingUrl),
-      }).catch(() => {});
+      sendOrderStatusUpdateWithInvoice(u.email, u.name, buildEmailOrder(o)).catch(() => {});
     }
     res.json({ order: o });
   } catch (e) {
@@ -46,26 +43,29 @@ r.patch("/orders/:id", async (req, res, next) => {
   try {
     const data = z
       .object({
-        status: z.enum(["Placed", "Packed", "Shipped", "Out for delivery", "Delivered", "Cancelled"]).optional(),
-        courier: z.enum(["Ekart", "DTDC", "Shree Murti", "India Post", "Delhivery", "Bluedart"]).nullable().optional(),
+        status: z.enum(["Placed", "Confirmed", "Processing", "Packed", "Shipped", "Out for delivery", "Delivered", "Cancelled"]).optional(),
+        courier: z.enum(["Ekart", "DTDC", "Shree Maruti", "Shree Murti", "India Post", "Delhivery", "Bluedart"]).nullable().optional(),
         trackingId: z.string().min(3).max(40).optional(),
         courierTrackingUrl: z.string().url().or(z.literal("")).optional(),
       })
       .parse(req.body);
     const update: any = {};
     if (data.status !== undefined) update.status = data.status;
-    if (data.courier !== undefined) update.courier = data.courier;
+    const existing = await Order.findById(req.params.id);
+    if (!existing) throw new HttpError(404, "Not found");
+    const requestedCourier = data.courier === "Shree Murti" ? "Shree Maruti" : data.courier;
+    if (existing.payment?.method === "cod" && requestedCourier && requestedCourier !== "DTDC") {
+      throw new HttpError(400, "COD orders can only be shipped with DTDC");
+    }
+    if (data.courier !== undefined) update.courier = requestedCourier;
     if (data.trackingId !== undefined) update.trackingId = data.trackingId.toUpperCase();
     if (data.courierTrackingUrl !== undefined) update.courierTrackingUrl = data.courierTrackingUrl;
 
     const o = await Order.findByIdAndUpdate(req.params.id, update, { new: true }).populate("user", "name email");
     if (!o) throw new HttpError(404, "Not found");
     const u: any = o.user;
-    if (u?.email && (data.status || data.courier || data.trackingId)) {
-      sendEmail({
-        to: u.email,
-        ...tpl.statusUpdate(u.name, o.trackingId ?? String(o._id).slice(-6).toUpperCase(), o.status!, o.trackingId ?? undefined, o.courier, o.courierTrackingUrl),
-      }).catch(() => {});
+    if (u?.email && (data.status || data.courier || data.trackingId || data.courierTrackingUrl !== undefined)) {
+      sendOrderStatusUpdateWithInvoice(u.email, u.name, buildEmailOrder(o)).catch(() => {});
     }
     res.json({ order: o });
   } catch (e) {
@@ -91,6 +91,8 @@ r.patch("/orders/:id/payment", async (req, res, next) => {
           _id: o._id,
           trackingId: o.trackingId ?? undefined,
           courier: o.courier ?? undefined,
+          courierTrackingUrl: o.courierTrackingUrl ?? undefined,
+          status: o.status,
           items: o.items as any,
           subtotal: o.subtotal!,
           shipping: o.shipping!,
@@ -155,22 +157,45 @@ r.get("/orders/:id", async (req, res, next) => {
   }
 });
 
+function buildEmailOrder(o: any) {
+  return {
+    _id: o._id,
+    trackingId: o.trackingId ?? undefined,
+    courier: o.courier ?? undefined,
+    courierTrackingUrl: o.courierTrackingUrl ?? undefined,
+    status: o.status ?? "Placed",
+    items: o.items as any,
+    subtotal: o.subtotal ?? 0,
+    shipping: o.shipping ?? 0,
+    total: o.total ?? 0,
+    address: o.address as any,
+    payment: {
+      method: o.payment?.method ?? "cod",
+      status: o.payment?.status ?? "pending",
+      razorpayPaymentId: o.payment?.razorpayPaymentId ?? undefined,
+    },
+    createdAt: o.createdAt,
+  };
+}
+
 function deriveEvents(o: any) {
   const placedAt = o.createdAt instanceof Date ? o.createdAt : new Date(o.createdAt);
   const updatedAt = o.updatedAt instanceof Date ? o.updatedAt : new Date(o.updatedAt ?? placedAt);
   const courier = o.courier ?? "Courier partner";
   const city = o.address?.city ?? "destination";
-  const order = ["Placed", "Packed", "Shipped", "Out for delivery", "Delivered"];
+  const order = ["Placed", "Confirmed", "Processing", "Packed", "Shipped", "Out for delivery", "Delivered"];
   const idx = o.status === "Cancelled" ? -1 : Math.max(0, order.indexOf(o.status));
   const evts: { at: Date; label: string; description: string }[] = [];
   if (o.status === "Cancelled") {
     evts.push({ at: updatedAt, label: "Cancelled", description: "Order was cancelled. Customer was notified by email." });
   } else {
     if (idx >= 0) evts.push({ at: placedAt, label: "Placed", description: `Order placed successfully (#${o.trackingId ?? String(o._id).slice(-6).toUpperCase()}).` });
-    if (idx >= 1) evts.push({ at: updatedAt, label: "Packed", description: `Items packed at warehouse. Handed over to ${courier}.` });
-    if (idx >= 2) evts.push({ at: updatedAt, label: "Shipped", description: `Shipped via ${courier}. In transit to ${city}.` });
-    if (idx >= 3) evts.push({ at: updatedAt, label: "Out for delivery", description: `${courier} agent is out for delivery in ${city}.` });
-    if (idx >= 4) evts.push({ at: updatedAt, label: "Delivered", description: `Delivered by ${courier} to ${city}.` });
+    if (idx >= 1) evts.push({ at: updatedAt, label: "Confirmed", description: "Order confirmed by admin. Customer was notified by email." });
+    if (idx >= 2) evts.push({ at: updatedAt, label: "Processing", description: "Order is being processed and prepared for packing." });
+    if (idx >= 3) evts.push({ at: updatedAt, label: "Packed", description: `Items packed at warehouse. Handed over to ${courier}.` });
+    if (idx >= 4) evts.push({ at: updatedAt, label: "Shipped", description: `Shipped via ${courier}. In transit to ${city}.` });
+    if (idx >= 5) evts.push({ at: updatedAt, label: "Out for delivery", description: `${courier} agent is out for delivery in ${city}.` });
+    if (idx >= 6) evts.push({ at: updatedAt, label: "Delivered", description: `Delivered by ${courier} to ${city}.` });
   }
   return evts.map((e) => ({ at: e.at.toISOString(), label: e.label, description: e.description }));
 }

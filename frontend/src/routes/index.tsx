@@ -17,22 +17,6 @@ import { DEFAULT_DESCRIPTION, DEFAULT_TITLE, pageSeo, slugify } from "@/lib/seo"
 export const Route = createFileRoute("/")({
   component: Home,
   head: () => ({
-    meta: [
-      { title: "Shri Radha Govind Store — Sacred Vrindavan Essentials Online" },
-      {
-        name: "description",
-        content:
-          "Authentic Krishna & Radha Rani poshak, gopi chandan, itra, mala and puja items — handcrafted in Vrindavan and delivered across India.",
-      },
-      { property: "og:title", content: "Shri Radha Govind Store — Sacred Vrindavan Essentials" },
-      {
-        property: "og:description",
-        content:
-          "Shop authentic Vrindavan products — poshak, chandan, itra, mala, puja items. Free shipping above ₹999.",
-      },
-      { property: "og:url", content: "https://www.shriradhagovindstore.com/" },
-    ],
-    links: [{ rel: "canonical", href: "https://www.shriradhagovindstore.com/" }],
     ...pageSeo({
       title: DEFAULT_TITLE,
       description: DEFAULT_DESCRIPTION,

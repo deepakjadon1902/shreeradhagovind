@@ -13,11 +13,11 @@ import { api, isApiEnabled, setToken, getToken } from "./api";
 import { slugify } from "./seo";
 
 export type CartItem = { productId: string; qty: number };
-export type Courier = "Ekart" | "DTDC" | "Shree Murti" | "India Post" | "Delhivery" | "Bluedart";
+export type Courier = "Ekart" | "DTDC" | "Shree Maruti" | "India Post" | "Delhivery" | "Bluedart";
 export const COURIERS: Courier[] = [
   "Ekart",
   "DTDC",
-  "Shree Murti",
+  "Shree Maruti",
   "India Post",
   "Delhivery",
   "Bluedart",
@@ -46,7 +46,15 @@ export type Order = {
     razorpaySignature?: string;
     failureReason?: string;
   };
-  status: "Placed" | "Packed" | "Shipped" | "Out for delivery" | "Delivered" | "Cancelled";
+  status:
+    | "Placed"
+    | "Confirmed"
+    | "Processing"
+    | "Packed"
+    | "Shipped"
+    | "Out for delivery"
+    | "Delivered"
+    | "Cancelled";
   createdAt: number;
 };
 export type Address = { line1: string; city: string; state: string; pincode: string };
