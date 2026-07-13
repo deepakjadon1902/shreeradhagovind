@@ -2,6 +2,7 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { Layout } from "@/components/Layout";
 import { useStore, formatINR } from "@/lib/store";
 import { Minus, Plus, Trash2, ShoppingBag, Heart, Tag, ShieldCheck, Truck } from "lucide-react";
+import { slugify } from "@/lib/seo";
 
 export const Route = createFileRoute("/cart")({
   component: CartPage,
@@ -74,7 +75,7 @@ function CartPage() {
                 <div key={i.productId} className="bg-card border border-border/60 rounded-xl p-4 flex gap-4">
                   <Link
                     to="/product/$id"
-                    params={{ id: i.product.id }}
+                    params={{ id: i.product.slug ?? slugify(i.product.name) }}
                     className="h-28 w-28 sm:h-32 sm:w-32 rounded-lg overflow-hidden bg-muted shrink-0"
                   >
                     <img src={i.product.image} alt={i.product.name} className="h-full w-full object-cover" />
@@ -83,7 +84,7 @@ function CartPage() {
                     <p className="text-[10px] uppercase tracking-wider text-muted-foreground">{i.product.category}</p>
                     <Link
                       to="/product/$id"
-                      params={{ id: i.product.id }}
+                      params={{ id: i.product.slug ?? slugify(i.product.name) }}
                       className="font-medium hover:text-primary line-clamp-2 text-sm sm:text-base"
                     >
                       {i.product.name}

@@ -6,6 +6,14 @@ import { HttpError } from "../middleware/error";
 
 const r = Router();
 
+const slugify = (value: string) =>
+  value
+    .toLowerCase()
+    .trim()
+    .replace(/&/g, " and ")
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-|-$/g, "");
+
 r.get("/", async (req, res, next) => {
   try {
     const { category, q, sort } = req.query as Record<string, string | undefined>;
@@ -25,9 +33,17 @@ r.get("/", async (req, res, next) => {
   }
 });
 
-r.get("/:id", async (req, res, next) => {
+r.get("/:idOrSlug", async (req, res, next) => {
   try {
-    const p = await Product.findById(req.params.id);
+    const idOrSlug = req.params.idOrSlug;
+    const looksLikeObjectId = /^[a-f\d]{24}$/i.test(idOrSlug);
+    let p = looksLikeObjectId
+      ? await Product.findById(idOrSlug)
+      : await Product.findOne({ slug: idOrSlug, isActive: true });
+    if (!p && !looksLikeObjectId) {
+      const products = await Product.find({ isActive: true });
+      p = products.find((product) => slugify(product.name) === idOrSlug) ?? null;
+    }
     if (!p) throw new HttpError(404, "Product not found");
     res.json({ product: p });
   } catch (e) {
@@ -42,6 +58,7 @@ const productSchema = z.object({
   mrp: z.number().min(0).optional().default(0),
   image: z.string().optional().default(""),
   images: z.array(z.string()).optional().default([]),
+  slug: z.string().optional().default(""),
   featuredDeal: z.boolean().optional().default(false),
   category: z.string().min(1),
   stock: z.number().min(0).optional().default(100),
@@ -54,7 +71,7 @@ const productSchema = z.object({
 r.post("/", requireAuth, requireAdmin, async (req, res, next) => {
   try {
     const data = productSchema.parse(req.body);
-    const p = await Product.create(data);
+    const p = await Product.create({ ...data, slug: slugify(data.slug || data.name) });
     res.status(201).json({ product: p });
   } catch (e) {
     next(e);
@@ -64,7 +81,9 @@ r.post("/", requireAuth, requireAdmin, async (req, res, next) => {
 r.patch("/:id", requireAuth, requireAdmin, async (req, res, next) => {
   try {
     const data = productSchema.partial().parse(req.body);
-    const p = await Product.findByIdAndUpdate(req.params.id, data, { new: true });
+    const patch: any = { ...data };
+    if (data.name || data.slug) patch.slug = slugify(data.slug || data.name!);
+    const p = await Product.findByIdAndUpdate(req.params.id, patch, { new: true, runValidators: true });
     if (!p) throw new HttpError(404, "Not found");
     res.json({ product: p });
   } catch (e) {

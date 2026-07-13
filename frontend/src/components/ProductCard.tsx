@@ -2,6 +2,7 @@ import { Link, useNavigate } from "@tanstack/react-router";
 import { Heart, Star, ShoppingBag, Zap } from "lucide-react";
 import { type Product } from "@/lib/products";
 import { useStore, formatINR } from "@/lib/store";
+import { slugify } from "@/lib/seo";
 
 /**
  * Marketplace-style product card inspired by Flipkart / Meesho / Amazon:
@@ -20,12 +21,13 @@ export function ProductCard({ product }: { product: Product }) {
       ? Math.round(((product.mrp - product.price) / product.mrp) * 100)
       : 0;
   const outOfStock = product.stock === 0;
+  const productSlug = product.slug ?? slugify(product.name);
 
   return (
     <div className="card-3d group relative flex h-full flex-col overflow-hidden rounded-lg border border-border bg-white hover:border-primary/35">
       <Link
         to="/product/$id"
-        params={{ id: product.id }}
+        params={{ id: productSlug }}
         className="relative block aspect-[1/1.02] overflow-hidden bg-white"
       >
         <img
@@ -66,7 +68,7 @@ export function ProductCard({ product }: { product: Product }) {
         </p>
         <Link
           to="/product/$id"
-          params={{ id: product.id }}
+          params={{ id: productSlug }}
           className="line-clamp-2 min-h-9 text-xs font-medium leading-snug hover:text-primary sm:min-h-10 sm:text-sm"
         >
           {product.name}

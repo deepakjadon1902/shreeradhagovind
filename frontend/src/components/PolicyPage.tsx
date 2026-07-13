@@ -41,3 +41,38 @@ export function Section({ title, children }: { title: string; children: ReactNod
     </section>
   );
 }
+
+export function PolicyText({ text }: { text: string }) {
+  const blocks = text.trim().split(/\n{2,}/);
+
+  return (
+    <div className="space-y-5 text-sm md:text-base text-foreground/85 leading-relaxed">
+      {blocks.map((block, index) => {
+        const lines = block.split("\n").map((line) => line.trim()).filter(Boolean);
+        const first = lines[0] ?? "";
+        const isSectionTitle = /^\d+\.\s/.test(first);
+
+        if (isSectionTitle) {
+          return (
+            <section key={index} className="border-b border-border/70 pb-5 last:border-0">
+              <h2 className="font-display text-xl md:text-2xl text-primary mb-3">{first}</h2>
+              <div className="space-y-2">
+                {lines.slice(1).map((line, lineIndex) => (
+                  <p key={lineIndex}>{line}</p>
+                ))}
+              </div>
+            </section>
+          );
+        }
+
+        return (
+          <div key={index} className="space-y-2">
+            {lines.map((line, lineIndex) => (
+              <p key={lineIndex}>{line}</p>
+            ))}
+          </div>
+        );
+      })}
+    </div>
+  );
+}

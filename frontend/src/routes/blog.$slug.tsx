@@ -1,9 +1,24 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { Layout } from "@/components/Layout";
 import { useStore } from "@/lib/store";
+import { pageSeo } from "@/lib/seo";
 
 export const Route = createFileRoute("/blog/$slug")({
   component: BlogPost,
+  head: ({ params }) => {
+    const title = `${params.slug
+      .split("-")
+      .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+      .join(" ")} | Shri Radha Govind Store Blog`;
+
+    return pageSeo({
+      title,
+      description:
+        "Read devotional guidance, product care tips, festival notes and Vrindavan stories from Shri Radha Govind Store.",
+      path: `/blog/${params.slug}`,
+      type: "article",
+    });
+  },
 });
 
 function BlogPost() {

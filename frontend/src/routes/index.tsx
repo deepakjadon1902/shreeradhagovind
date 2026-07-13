@@ -12,6 +12,7 @@ import {
   Truck,
 } from "lucide-react";
 import heroKrishna from "@/assets/hero-krishna.jpg";
+import { DEFAULT_DESCRIPTION, DEFAULT_TITLE, pageSeo, slugify } from "@/lib/seo";
 
 export const Route = createFileRoute("/")({
   component: Home,
@@ -32,6 +33,11 @@ export const Route = createFileRoute("/")({
       { property: "og:url", content: "https://shriradhagovindstore.com/" },
     ],
     links: [{ rel: "canonical", href: "https://shriradhagovindstore.com/" }],
+    ...pageSeo({
+      title: DEFAULT_TITLE,
+      description: DEFAULT_DESCRIPTION,
+      path: "/",
+    }),
     scripts: [
       {
         type: "application/ld+json",
@@ -204,7 +210,7 @@ function Home() {
                   <Link
                     key={product.id}
                     to="/product/$id"
-                    params={{ id: product.id }}
+                    params={{ id: product.slug ?? slugify(product.name) }}
                     className="group rounded-lg border border-border bg-white p-3 transition hover:border-primary hover:shadow-md"
                   >
                     <div className="relative aspect-square overflow-hidden rounded-md bg-muted">

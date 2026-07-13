@@ -1,8 +1,17 @@
 import { Schema, model } from "mongoose";
 
+const slugify = (value: string) =>
+  value
+    .toLowerCase()
+    .trim()
+    .replace(/&/g, " and ")
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-|-$/g, "");
+
 const productSchema = new Schema(
   {
     name: { type: String, required: true, trim: true },
+    slug: { type: String, unique: true, sparse: true, lowercase: true, trim: true, index: true },
     description: { type: String, default: "" },
     price: { type: Number, required: true, min: 0 },
     mrp: { type: Number, default: 0, min: 0 },
@@ -18,5 +27,12 @@ const productSchema = new Schema(
   },
   { timestamps: true }
 );
+
+productSchema.pre("validate", function (next) {
+  if (!this.slug && this.name) {
+    this.slug = slugify(this.name);
+  }
+  next();
+});
 
 export const Product = model("Product", productSchema);

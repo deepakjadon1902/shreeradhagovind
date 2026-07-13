@@ -4,6 +4,7 @@ import { Layout } from "@/components/Layout";
 import { ProductCard } from "@/components/ProductCard";
 import { useStore } from "@/lib/store";
 import { SlidersHorizontal } from "lucide-react";
+import { pageSeo } from "@/lib/seo";
 
 type Search = { q?: string; cat?: string };
 
@@ -13,23 +14,21 @@ export const Route = createFileRoute("/shop")({
     cat: typeof s.cat === "string" ? s.cat : undefined,
   }),
   component: Shop,
-  head: () => ({
-    meta: [
-      { title: "Shop Sacred Vrindavan Essentials — Shri Radha Govind Store" },
-      {
-        name: "description",
-        content:
-          "Browse the full collection of Krishna & Radha Rani poshak, gopi chandan, itra, mala, puja items and Janmashtami specials.",
-      },
-      { property: "og:title", content: "Shop — Shri Radha Govind Store" },
-      {
-        property: "og:description",
-        content: "Browse authentic sacred essentials hand-curated from Vrindavan.",
-      },
-      { property: "og:url", content: "https://shriradhagovindstore.com/shop" },
-    ],
-    links: [{ rel: "canonical", href: "https://shriradhagovindstore.com/shop" }],
-  }),
+  head: ({ search }) => {
+    const category = search.cat;
+    const title = category
+      ? `Buy ${category} Online | Shri Radha Govind Store`
+      : "Shop Tulsi Mala, Puja Items, Itra & Temple Gifts | Shri Radha Govind Store";
+    const description = category
+      ? `Buy authentic ${category} online from Shri Radha Govind Store, Vrindavan. Explore trusted devotional products with fast shipping across India.`
+      : "Shop Tulsi Mala, Kanthi Mala, Puja Essentials, Chandan, Tilak, Itra, Keychains, Temple Gifts and spiritual products from Vrindavan.";
+
+    return pageSeo({
+      title,
+      description,
+      path: category ? `/shop?cat=${encodeURIComponent(category)}` : "/shop",
+    });
+  },
 });
 
 function Shop() {

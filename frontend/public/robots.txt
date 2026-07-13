@@ -3,11 +3,15 @@ Allow: /
 
 Disallow: /admin
 Disallow: /admin/
-Disallow: /checkout
 Disallow: /cart
+Disallow: /checkout
+Disallow: /login
+Disallow: /signup
+Disallow: /forgot-password
 Disallow: /orders
 Disallow: /orders/
 Disallow: /profile
+Disallow: /wishlist
 Disallow: /api/
 
 Sitemap: https://shriradhagovindstore.com/sitemap.xml

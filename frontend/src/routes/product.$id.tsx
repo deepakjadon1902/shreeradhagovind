@@ -1,4 +1,4 @@
-import { createFileRoute, Link, useNavigate, notFound } from "@tanstack/react-router";
+import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { Layout } from "@/components/Layout";
 import { useStore, formatINR } from "@/lib/store";
 import { API_URL } from "@/lib/api";
@@ -6,23 +6,12 @@ import { PRODUCTS, type Product } from "@/lib/products";
 import { Heart, ShoppingBag, Star, Truck, ShieldCheck, RefreshCw, Check } from "lucide-react";
 import { useEffect, useState } from "react";
 import { ProductCard } from "@/components/ProductCard";
-
-const STORE_NAME = "Shri Radha Govind Store";
-const SITE_URL = "https://shriradhagovindstore.com";
-
-function cleanMetaText(value: string, maxLength: number) {
-  const text = value
-    .replace(/<[^>]*>/g, " ")
-    .replace(/\s+/g, " ")
-    .trim();
-
-  if (text.length <= maxLength) return text;
-  return `${text.slice(0, maxLength - 1).replace(/\s+\S*$/, "")}...`;
-}
+import { cleanMetaText, pageSeo, slugify, STORE_NAME } from "@/lib/seo";
 
 function normalizeProduct(value: Record<string, unknown>): Product {
   return {
     id: String(value.id ?? value._id ?? ""),
+    slug: String(value.slug ?? slugify(String(value.name ?? value._id ?? ""))),
     name: String(value.name ?? ""),
     category: String(value.category ?? ""),
     price: Number(value.price ?? 0),
@@ -38,12 +27,16 @@ function normalizeProduct(value: Record<string, unknown>): Product {
   };
 }
 
-async function loadProductForMeta(id: string) {
-  const localProduct = PRODUCTS.find((product) => product.id === id);
-  if (!API_URL) return localProduct ?? null;
+function matchesProduct(product: Product, idOrSlug: string) {
+  return product.id === idOrSlug || (product.slug ?? slugify(product.name)) === idOrSlug;
+}
+
+async function loadProductForMeta(idOrSlug: string) {
+  const localProduct = PRODUCTS.find((product) => matchesProduct(product, idOrSlug));
+  if (!API_URL) return localProduct ? { ...localProduct, slug: localProduct.slug ?? slugify(localProduct.name) } : null;
 
   try {
-    const response = await fetch(`${API_URL}/products/${encodeURIComponent(id)}`);
+    const response = await fetch(`${API_URL}/products/${encodeURIComponent(idOrSlug)}`);
     if (!response.ok) return localProduct ?? null;
     const data = (await response.json()) as { product?: Record<string, unknown> };
     return data.product ? normalizeProduct(data.product) : (localProduct ?? null);
@@ -63,24 +56,15 @@ export const Route = createFileRoute("/product/$id")({
         `Shop ${productName}, an authentic sacred essential from Vrindavan at ${STORE_NAME}.`,
       160,
     );
-    const canonical = `${SITE_URL}/product/${params.id}`;
+    const slug = product?.slug ?? params.id;
 
-    return {
-      meta: [
-        { title },
-        { name: "description", content: description },
-        { property: "og:title", content: title },
-        { property: "og:description", content: description },
-        { property: "og:type", content: "product" },
-        { property: "og:url", content: canonical },
-        ...(product?.image ? [{ property: "og:image", content: product.image }] : []),
-        { name: "twitter:card", content: "summary_large_image" },
-        { name: "twitter:title", content: title },
-        { name: "twitter:description", content: description },
-        ...(product?.image ? [{ name: "twitter:image", content: product.image }] : []),
-      ],
-      links: [{ rel: "canonical", href: canonical }],
-    };
+    return pageSeo({
+      title,
+      description,
+      path: `/product/${slug}`,
+      image: product?.image,
+      type: "product",
+    });
   },
 });
 
@@ -89,7 +73,7 @@ function ProductDetail() {
   const loadedProduct = Route.useLoaderData();
   const { adminProducts, addToCart, wishlist, toggleWishlist } = useStore();
   const nav = useNavigate();
-  const product = adminProducts.find((p) => p.id === id) ?? loadedProduct;
+  const product = adminProducts.find((p) => matchesProduct(p, id)) ?? loadedProduct;
   const [qty, setQty] = useState(1);
   const [recentIds, setRecentIds] = useState<string[]>([]);
   const [selectedImage, setSelectedImage] = useState("");

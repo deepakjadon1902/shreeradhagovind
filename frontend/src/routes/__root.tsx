@@ -9,6 +9,7 @@ import {
 } from "@tanstack/react-router";
 import { Toaster } from "sonner";
 import { StoreProvider } from "@/lib/store";
+import { DEFAULT_DESCRIPTION, DEFAULT_IMAGE, DEFAULT_TITLE, SITE_URL, STORE_NAME } from "@/lib/seo";
 
 import appCss from "../styles.css?url";
 
@@ -47,6 +48,16 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
     meta: [
       { charSet: "utf-8" },
       { name: "viewport", content: "width=device-width, initial-scale=1" },
+      { title: DEFAULT_TITLE },
+      { name: "description", content: DEFAULT_DESCRIPTION },
+      { property: "og:site_name", content: STORE_NAME },
+      { property: "og:title", content: DEFAULT_TITLE },
+      { name: "twitter:title", content: DEFAULT_TITLE },
+      { property: "og:description", content: DEFAULT_DESCRIPTION },
+      { name: "twitter:description", content: DEFAULT_DESCRIPTION },
+      { property: "og:image", content: DEFAULT_IMAGE },
+      { name: "twitter:image", content: DEFAULT_IMAGE },
+      { property: "og:url", content: SITE_URL },
       { title: "Shri Radha Govind Store — Sacred Products from Vrindavan" },
       { name: "description", content: "Authentic Krishna & Radha Rani products from Vrindavan — dresses, chandan, itra, mala, puja items. Delivered with devotion." },
       { property: "og:title", content: "Shri Radha Govind Store — Sacred Products from Vrindavan" },
@@ -57,6 +68,16 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       { name: "twitter:image", content: "https://shriradhagovindstore.com/icon-512.png" },
       { name: "twitter:card", content: "summary_large_image" },
       { property: "og:type", content: "website" },
+      { title: DEFAULT_TITLE },
+      { name: "description", content: DEFAULT_DESCRIPTION },
+      { property: "og:site_name", content: STORE_NAME },
+      { property: "og:title", content: DEFAULT_TITLE },
+      { name: "twitter:title", content: DEFAULT_TITLE },
+      { property: "og:description", content: DEFAULT_DESCRIPTION },
+      { name: "twitter:description", content: DEFAULT_DESCRIPTION },
+      { property: "og:image", content: DEFAULT_IMAGE },
+      { name: "twitter:image", content: DEFAULT_IMAGE },
+      { property: "og:url", content: SITE_URL },
     ],
     links: [
       { rel: "stylesheet", href: appCss },

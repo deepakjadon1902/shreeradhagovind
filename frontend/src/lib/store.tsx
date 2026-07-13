@@ -10,6 +10,7 @@ import {
 import { PRODUCTS, DEFAULT_CATEGORIES, DEFAULT_CATEGORY_TREE, type Product } from "./products";
 import { toast } from "sonner";
 import { api, isApiEnabled, setToken, getToken } from "./api";
+import { slugify } from "./seo";
 
 export type CartItem = { productId: string; qty: number };
 export type Courier = "Ekart" | "DTDC" | "Shree Murti" | "India Post" | "Delhivery" | "Bluedart";
@@ -213,6 +214,7 @@ function save(k: string, v: unknown) {
 // ---------- backend ↔ frontend mappers ----------
 const mapProduct = (p: any): Product => ({
   id: String(p._id ?? p.id),
+  slug: p.slug ?? slugify(p.name ?? String(p._id ?? p.id)),
   name: p.name,
   description: p.description ?? "",
   price: p.price,
@@ -238,13 +240,6 @@ const mapSettings = (s: any): Partial<Settings> => ({
   codEnabled: s.codEnabled,
   announcement: s.announcement,
 });
-
-const slugify = (s: string) =>
-  s
-    .toLowerCase()
-    .trim()
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/^-|-$/g, "");
 
 const mapCategory = (c: any): Category => ({
   id: String(c._id ?? c.id),
@@ -618,6 +613,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
           rating: Number(p.rating ?? 4.7),
           reviews: Number(p.reviews ?? 0),
           details: p.details ?? [],
+          slug: p.slug || slugify(p.name),
         };
         const isExisting = p.id && adminProducts.some((x) => x.id === p.id);
         const r = isExisting

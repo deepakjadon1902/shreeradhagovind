@@ -2,6 +2,7 @@ import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { Layout } from "@/components/Layout";
 import { useStore, formatINR } from "@/lib/store";
 import { Heart, ShoppingBag, X, Zap } from "lucide-react";
+import { slugify } from "@/lib/seo";
 
 export const Route = createFileRoute("/wishlist")({
   component: WishlistPage,
@@ -53,7 +54,7 @@ function WishlistPage() {
                 <div key={p.id} className="p-4 flex gap-4 hover:bg-muted/30 transition relative">
                   <Link
                     to="/product/$id"
-                    params={{ id: p.id }}
+                    params={{ id: p.slug ?? slugify(p.name) }}
                     className="h-28 w-28 sm:h-32 sm:w-32 rounded-lg overflow-hidden bg-muted shrink-0"
                   >
                     <img src={p.image} alt={p.name} className="h-full w-full object-cover" />
@@ -63,7 +64,7 @@ function WishlistPage() {
                     <p className="text-[10px] uppercase tracking-wider text-muted-foreground">{p.category}</p>
                     <Link
                       to="/product/$id"
-                      params={{ id: p.id }}
+                      params={{ id: p.slug ?? slugify(p.name) }}
                       className="font-medium text-sm sm:text-base hover:text-primary line-clamp-2"
                     >
                       {p.name}
