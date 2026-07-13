@@ -116,9 +116,9 @@ export const Route = createFileRoute("/returns")({
       { title: "Return & Refund Policy | Shri Radha Govind Store" },
       { name: "description", content: "Read Shri Radha Govind Store return, replacement, repair, refund, cancellation, damaged product, wrong product, and missing item policy." },
       { property: "og:title", content: "Return & Refund Policy | Shri Radha Govind Store" },
-      { property: "og:url", content: "https://shriradhagovindstore.com/returns" },
+      { property: "og:url", content: "https://www.shriradhagovindstore.com/returns" },
     ],
-    links: [{ rel: "canonical", href: "https://shriradhagovindstore.com/returns" }],
+    links: [{ rel: "canonical", href: "https://www.shriradhagovindstore.com/returns" }],
   }),
 });
 

@@ -188,9 +188,9 @@ export const Route = createFileRoute("/terms")({
       { title: "Terms and Conditions | Shri Radha Govind Store" },
       { name: "description", content: "Read Shri Radha Govind Store Terms and Conditions for account use, orders, payments, COD, shipping, returns, offers, liability, and jurisdiction." },
       { property: "og:title", content: "Terms and Conditions | Shri Radha Govind Store" },
-      { property: "og:url", content: "https://shriradhagovindstore.com/terms" },
+      { property: "og:url", content: "https://www.shriradhagovindstore.com/terms" },
     ],
-    links: [{ rel: "canonical", href: "https://shriradhagovindstore.com/terms" }],
+    links: [{ rel: "canonical", href: "https://www.shriradhagovindstore.com/terms" }],
   }),
 });
 

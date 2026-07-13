@@ -14,4 +14,4 @@ Disallow: /profile
 Disallow: /wishlist
 Disallow: /api/
 
-Sitemap: https://shriradhagovindstore.com/sitemap.xml
+Sitemap: https://www.shriradhagovindstore.com/sitemap.xml

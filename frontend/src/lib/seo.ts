@@ -1,4 +1,4 @@
-export const SITE_URL = "https://shriradhagovindstore.com";
+export const SITE_URL = "https://www.shriradhagovindstore.com";
 export const STORE_NAME = "Shri Radha Govind Store";
 export const DEFAULT_IMAGE = `${SITE_URL}/icon-512.png`;
 

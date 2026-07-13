@@ -30,9 +30,9 @@ export const Route = createFileRoute("/")({
         content:
           "Shop authentic Vrindavan products — poshak, chandan, itra, mala, puja items. Free shipping above ₹999.",
       },
-      { property: "og:url", content: "https://shriradhagovindstore.com/" },
+      { property: "og:url", content: "https://www.shriradhagovindstore.com/" },
     ],
-    links: [{ rel: "canonical", href: "https://shriradhagovindstore.com/" }],
+    links: [{ rel: "canonical", href: "https://www.shriradhagovindstore.com/" }],
     ...pageSeo({
       title: DEFAULT_TITLE,
       description: DEFAULT_DESCRIPTION,
@@ -45,7 +45,7 @@ export const Route = createFileRoute("/")({
           "@context": "https://schema.org",
           "@type": "Organization",
           name: "Shri Radha Govind Store",
-          url: "https://shriradhagovindstore.com/",
+          url: "https://www.shriradhagovindstore.com/",
           description:
             "Sacred essentials from Vrindavan — poshak, chandan, itra, mala, puja items.",
         }),

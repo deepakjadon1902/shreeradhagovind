@@ -12,9 +12,9 @@ export const Route = createFileRoute("/contact")({
       { name: "description", content: "Reach Shri Radha Govind Store in Vrindavan for orders, custom poshak and devotional queries. Call +91 7500533505 or email support@shriradhagovindstore.com." },
       { property: "og:title", content: "Contact Us — Shri Radha Govind Store" },
       { property: "og:description", content: "Call, email or visit our Vrindavan store. We respond within 24 hours." },
-      { property: "og:url", content: "https://shriradhagovindstore.com/contact" },
+      { property: "og:url", content: "https://www.shriradhagovindstore.com/contact" },
     ],
-    links: [{ rel: "canonical", href: "https://shriradhagovindstore.com/contact" }],
+    links: [{ rel: "canonical", href: "https://www.shriradhagovindstore.com/contact" }],
   }),
 });
 
@@ -51,7 +51,7 @@ function ContactPage() {
               <br /><a href="mailto:shriradhagovindstore@gmail.com" className="text-primary hover:underline">shriradhagovindstore@gmail.com</a>
             </InfoCard>
             <InfoCard icon={Globe} title="Website">
-              <a href="https://shriradhagovindstore.com" target="_blank" rel="noreferrer" className="text-primary hover:underline">shriradhagovindstore.com</a>
+              <a href="https://www.shriradhagovindstore.com" target="_blank" rel="noreferrer" className="text-primary hover:underline">shriradhagovindstore.com</a>
             </InfoCard>
             <a href="https://wa.me/917500533505" target="_blank" rel="noreferrer" className="flex items-center gap-3 bg-green-600 text-white rounded-2xl p-5 hover:bg-green-700 transition">
               <MessageCircle className="h-5 w-5" />

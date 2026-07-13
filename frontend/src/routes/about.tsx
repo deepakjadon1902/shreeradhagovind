@@ -29,9 +29,9 @@ export const Route = createFileRoute("/about")({
         content:
           "Devotional essentials curated from Vrindavan and delivered with care across India.",
       },
-      { property: "og:url", content: "https://shriradhagovindstore.com/about" },
+      { property: "og:url", content: "https://www.shriradhagovindstore.com/about" },
     ],
-    links: [{ rel: "canonical", href: "https://shriradhagovindstore.com/about" }],
+    links: [{ rel: "canonical", href: "https://www.shriradhagovindstore.com/about" }],
   }),
 });
 

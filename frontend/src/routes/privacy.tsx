@@ -125,9 +125,9 @@ export const Route = createFileRoute("/privacy")({
       { title: "Privacy Policy | Shri Radha Govind Store" },
       { name: "description", content: "Read the Shri Radha Govind Store Privacy Policy for how customer, order, payment, account, cookie, and support data is collected, used, shared, and protected." },
       { property: "og:title", content: "Privacy Policy | Shri Radha Govind Store" },
-      { property: "og:url", content: "https://shriradhagovindstore.com/privacy" },
+      { property: "og:url", content: "https://www.shriradhagovindstore.com/privacy" },
     ],
-    links: [{ rel: "canonical", href: "https://shriradhagovindstore.com/privacy" }],
+    links: [{ rel: "canonical", href: "https://www.shriradhagovindstore.com/privacy" }],
   }),
 });
 

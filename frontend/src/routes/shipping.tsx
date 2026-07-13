@@ -156,9 +156,9 @@ export const Route = createFileRoute("/shipping")({
       { title: "Shipping Policy | Shri Radha Govind Store" },
       { name: "description", content: "Read Shri Radha Govind Store shipping policy for processing time, dispatch, delivery timelines, shipping charges, tracking, COD, damaged packages, and support." },
       { property: "og:title", content: "Shipping Policy | Shri Radha Govind Store" },
-      { property: "og:url", content: "https://shriradhagovindstore.com/shipping" },
+      { property: "og:url", content: "https://www.shriradhagovindstore.com/shipping" },
     ],
-    links: [{ rel: "canonical", href: "https://shriradhagovindstore.com/shipping" }],
+    links: [{ rel: "canonical", href: "https://www.shriradhagovindstore.com/shipping" }],
   }),
 });
 

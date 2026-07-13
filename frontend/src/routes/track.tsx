@@ -31,9 +31,9 @@ export const Route = createFileRoute("/track")({
       { name: "description", content: "Track your Shri Radha Govind Store order in real time using your unique tracking ID. See courier, status and delivery updates." },
       { property: "og:title", content: "Track Your Order — Shri Radha Govind Store" },
       { property: "og:description", content: "Live order tracking for sacred essentials from Vrindavan." },
-      { property: "og:url", content: "https://shriradhagovindstore.com/track" },
+      { property: "og:url", content: "https://www.shriradhagovindstore.com/track" },
     ],
-    links: [{ rel: "canonical", href: "https://shriradhagovindstore.com/track" }],
+    links: [{ rel: "canonical", href: "https://www.shriradhagovindstore.com/track" }],
   }),
 });
 
