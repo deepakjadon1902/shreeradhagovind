@@ -37,11 +37,19 @@ function Shop() {
   const { adminProducts, categories, categoryTree } = useStore();
   const [cat, setCat] = useState<string>(search.cat ?? "All");
   const [sort, setSort] = useState("featured");
-  const [maxPrice, setMaxPrice] = useState(2500);
+  const catalogMaxPrice = useMemo(
+    () => Math.max(100, ...adminProducts.map((product) => product.price)),
+    [adminProducts],
+  );
+  const [maxPrice, setMaxPrice] = useState(catalogMaxPrice);
 
   useEffect(() => {
     setCat(search.cat ?? "All");
   }, [search.cat]);
+
+  useEffect(() => {
+    setMaxPrice((value) => Math.max(value, catalogMaxPrice));
+  }, [catalogMaxPrice]);
 
   const selectCategory = (category: string) => {
     setCat(category);
@@ -71,24 +79,27 @@ function Shop() {
 
   return (
     <Layout>
-      <div className="container-app py-10">
-        <h1 className="font-display text-4xl md:text-5xl">
-          Shop {cat !== "All" ? <span className="italic text-primary">— {cat}</span> : ""}
-        </h1>
-        <p className="text-muted-foreground mt-2 text-sm">
-          {products.length} sacred products{search.q ? ` for "${search.q}"` : ""}
-        </p>
+      <div className="container-app py-8 md:py-10">
+        <div className="flex flex-col gap-2 border-b border-border pb-5">
+          <p className="eyebrow">Store collection</p>
+          <h1 className="section-title">
+            Shop {cat !== "All" ? <span className="text-primary">- {cat}</span> : "all products"}
+          </h1>
+          <p className="text-sm text-muted-foreground">
+            {products.length} sacred products{search.q ? ` for "${search.q}"` : ""}
+          </p>
+        </div>
 
-        <div className="grid lg:grid-cols-[260px_1fr] gap-8 mt-8">
-          <aside className="space-y-6">
+        <div className="mt-6 grid gap-6 lg:grid-cols-[260px_1fr]">
+          <aside className="h-fit space-y-6 rounded-lg border border-border bg-white p-4 lg:sticky lg:top-32">
             <div>
-              <h3 className="font-display text-lg mb-3 flex items-center gap-2">
+              <h3 className="mb-3 flex items-center gap-2 text-sm font-semibold">
                 <SlidersHorizontal className="h-4 w-4" /> Categories
               </h3>
               <div className="flex flex-col gap-1">
                 <button
                   onClick={() => selectCategory("All")}
-                  className={`text-left px-3 py-2 rounded-lg text-sm transition ${cat === "All" ? "bg-primary text-primary-foreground" : "hover:bg-muted"}`}
+                  className={`rounded-md px-3 py-2 text-left text-sm transition ${cat === "All" ? "bg-primary text-primary-foreground" : "hover:bg-muted"}`}
                 >
                   All
                 </button>
@@ -97,7 +108,7 @@ function Shop() {
                       <div key={parent.id}>
                         <button
                           onClick={() => selectCategory(parent.name)}
-                          className={`w-full text-left px-3 py-2 rounded-lg text-sm font-semibold transition ${cat === parent.name ? "bg-primary text-primary-foreground" : "hover:bg-muted"}`}
+                          className={`w-full rounded-md px-3 py-2 text-left text-sm font-semibold transition ${cat === parent.name ? "bg-primary text-primary-foreground" : "hover:bg-muted"}`}
                         >
                           {parent.name}
                         </button>
@@ -106,7 +117,7 @@ function Shop() {
                             <button
                               key={child.id}
                               onClick={() => selectCategory(child.name)}
-                              className={`w-full text-left px-3 py-1.5 rounded-lg text-xs transition ${cat === child.name ? "bg-primary text-primary-foreground" : "hover:bg-muted"}`}
+                              className={`w-full rounded-md px-3 py-1.5 text-left text-xs transition ${cat === child.name ? "bg-primary text-primary-foreground" : "hover:bg-muted"}`}
                             >
                               {child.name}
                             </button>
@@ -118,7 +129,7 @@ function Shop() {
                       <button
                         key={c}
                         onClick={() => selectCategory(c)}
-                        className={`text-left px-3 py-2 rounded-lg text-sm transition ${cat === c ? "bg-primary text-primary-foreground" : "hover:bg-muted"}`}
+                        className={`rounded-md px-3 py-2 text-left text-sm transition ${cat === c ? "bg-primary text-primary-foreground" : "hover:bg-muted"}`}
                       >
                         {c}
                       </button>
@@ -126,24 +137,24 @@ function Shop() {
               </div>
             </div>
             <div>
-              <h3 className="font-display text-lg mb-3">Price</h3>
+              <h3 className="mb-3 text-sm font-semibold">Price</h3>
               <input
                 type="range"
                 min={100}
-                max={2500}
+                max={catalogMaxPrice}
                 step={50}
                 value={maxPrice}
                 onChange={(e) => setMaxPrice(+e.target.value)}
                 className="w-full accent-primary"
               />
-              <p className="text-xs text-muted-foreground mt-1">Up to ₹{maxPrice}</p>
+              <p className="mt-1 text-xs text-muted-foreground">Up to Rs. {maxPrice}</p>
             </div>
             <div>
-              <h3 className="font-display text-lg mb-3">Sort</h3>
+              <h3 className="mb-3 text-sm font-semibold">Sort</h3>
               <select
                 value={sort}
                 onChange={(e) => setSort(e.target.value)}
-                className="w-full h-10 rounded-lg border bg-card px-3 text-sm"
+                className="h-10 w-full rounded-md border bg-card px-3 text-sm outline-none focus:border-primary"
               >
                 <option value="featured">Featured</option>
                 <option value="low">Price: Low to High</option>
@@ -154,11 +165,11 @@ function Shop() {
           </aside>
           <div>
             {products.length === 0 ? (
-              <div className="text-center py-20 text-muted-foreground">
+              <div className="rounded-lg border border-dashed border-border bg-white py-20 text-center text-muted-foreground">
                 No products match your filters.
               </div>
             ) : (
-              <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6">
+              <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
                 {products.map((p) => (
                   <ProductCard key={p.id} product={p} />
                 ))}

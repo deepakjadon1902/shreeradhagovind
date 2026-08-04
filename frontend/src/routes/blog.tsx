@@ -39,3 +39,4 @@ function BlogIndex() {
     </Layout>
   );
 }
+

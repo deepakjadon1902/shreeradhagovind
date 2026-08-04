@@ -175,3 +175,4 @@ function ShippingPolicy() {
     </Layout>
   );
 }
+

@@ -14,6 +14,7 @@ const orderItemSchema = new Schema(
 const orderSchema = new Schema(
   {
     user: { type: Schema.Types.ObjectId, ref: "User", required: true, index: true },
+    orderNo: { type: Number, unique: true, sparse: true, index: true },
     trackingId: { type: String, unique: true, sparse: true, index: true },
     courier: {
       type: String,

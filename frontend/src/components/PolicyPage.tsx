@@ -20,12 +20,12 @@ export function PolicyPage({
         {intro && <p className="text-foreground/80 mt-5 leading-relaxed max-w-2xl mx-auto">{intro}</p>}
       </header>
 
-      <div className="mt-10 bg-card border border-border rounded-2xl p-6 md:p-10 premium-shadow space-y-2">
+      <div className="mt-10 bg-card border border-border rounded-lg p-6 md:p-10 premium-shadow space-y-2">
         {children}
       </div>
 
       <footer className="text-center mt-8 text-xs text-muted-foreground">
-        Shri Radha Govind Store · 155, 2nd Floor, Madan Mohan Ghera, Vrindavan, Mathura, UP – 281121
+        Shri Radha Govind Store  -  155, 2nd Floor, Madan Mohan Ghera, Vrindavan, Mathura, UP - 281121
       </footer>
     </article>
   );
@@ -76,3 +76,4 @@ export function PolicyText({ text }: { text: string }) {
     </div>
   );
 }
+

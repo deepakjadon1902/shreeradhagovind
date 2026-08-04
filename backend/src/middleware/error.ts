@@ -16,6 +16,10 @@ export const errorHandler = (err: any, _req: Request, res: Response, _next: Next
     const message = err.issues.map((issue) => issue.message).join(", ");
     return res.status(400).json({ error: message || "Invalid request" });
   }
+  if (err?.code === 11000) {
+    const field = Object.keys(err.keyPattern ?? err.keyValue ?? {})[0] ?? "field";
+    return res.status(409).json({ error: `This ${field} already exists. Please use a different value.` });
+  }
   const status = err.status || err.statusCode || 500;
   // eslint-disable-next-line no-console
   if (status >= 500) console.error(err);

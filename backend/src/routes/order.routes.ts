@@ -5,6 +5,7 @@ import { Order } from "../models/Order";
 import { Product } from "../models/Product";
 import { Settings } from "../models/Settings";
 import { User } from "../models/User";
+import { Counter } from "../models/Counter";
 import { requireAuth } from "../middleware/auth";
 import { HttpError } from "../middleware/error";
 import { sendEmail, sendOrderConfirmationWithInvoice, tpl } from "../utils/email";
@@ -12,6 +13,19 @@ import { generateTrackingId } from "../utils/trackingId";
 import { env } from "../config/env";
 
 const r = Router();
+const FIRST_ORDER_NO = 51121;
+
+async function nextOrderNo() {
+  const counter = await Counter.findOneAndUpdate({ name: "orderNo" }, { $inc: { value: 1 } }, { new: true });
+  if (counter) return counter.value;
+  try {
+    const created = await Counter.create({ name: "orderNo", value: FIRST_ORDER_NO });
+    return created.value;
+  } catch (error: any) {
+    if (error?.code === 11000) return nextOrderNo();
+    throw error;
+  }
+}
 
 // ---- public tracking (no auth) ----
 r.get("/track/:trackingId", async (req, res, next) => {
@@ -128,6 +142,7 @@ r.post("/", requireAuth, async (req, res, next) => {
 
     const order = await Order.create({
       user: req.user!.sub,
+      orderNo: await nextOrderNo(),
       trackingId,
       items,
       subtotal,
@@ -215,6 +230,7 @@ r.post("/payment-failed", requireAuth, async (req, res, next) => {
 
       order = await Order.create({
         user: req.user!.sub,
+        orderNo: await nextOrderNo(),
         trackingId,
         items,
         subtotal,

@@ -5,7 +5,7 @@
 @custom-variant dark (&:is(.dark *));
 
 @theme inline {
-  --font-display: "Cormorant Garamond", serif;
+  --font-display: "Inter", sans-serif;
   --font-sans: "Inter", sans-serif;
   --radius-sm: calc(var(--radius) - 4px);
   --radius-md: calc(var(--radius) - 2px);
@@ -36,28 +36,27 @@
 
 :root {
   --radius: 0.5rem;
-  --background: #ffffff;
-  --foreground: #000000;
+  --background: #fbfaf7;
+  --foreground: #102f33;
   --card: #ffffff;
-  --card-foreground: #000000;
+  --card-foreground: #102f33;
   --popover: #ffffff;
-  --popover-foreground: #000000;
-  /* Teal — from Shri Radha Govind Store logo */
-  --primary: #212020;
+  --popover-foreground: #102f33;
+  --primary: #0f6f72;
   --primary-foreground: #ffffff;
-  --secondary: #f4f3f3;
-  --secondary-foreground: #212020;
-  --muted: #f6f6f6;
-  --muted-foreground: #5e595d;
-  --accent: #90878e;
-  --accent-foreground: #ffffff;
+  --secondary: #f1eadf;
+  --secondary-foreground: #113a3e;
+  --muted: #f3f0ea;
+  --muted-foreground: #647174;
+  --accent: #b89a57;
+  --accent-foreground: #172f32;
   --destructive: oklch(0.55 0.22 27);
   --destructive-foreground: oklch(0.99 0 0);
-  --border: #e7e5e6;
-  --input: #d7d2d5;
-  --ring: #212020;
-  --gold: #ffd814;
-  --saffron: #f3a847;
+  --border: #e5ded2;
+  --input: #d8d0c3;
+  --ring: #0f6f72;
+  --gold: #b89a57;
+  --saffron: #cba962;
 }
 
 .dark {
@@ -93,9 +92,14 @@
   }
   body {
     background-color: var(--color-background);
-    background-image: none;
+    background-image: linear-gradient(
+      180deg,
+      rgba(255, 255, 255, 0.9),
+      rgba(251, 250, 247, 0) 220px
+    );
     color: var(--color-foreground);
     font-feature-settings: "ss01", "cv11";
+    text-rendering: optimizeLegibility;
   }
   h1,
   h2,
@@ -104,6 +108,7 @@
   .font-display {
     font-family: var(--font-display);
     letter-spacing: 0;
+    font-weight: 700;
   }
 }
 
@@ -113,44 +118,44 @@
   }
   .premium-shadow {
     box-shadow:
-      0 1px 2px rgba(33, 32, 32, 0.08),
-      0 18px 42px -30px rgba(33, 32, 32, 0.55);
+      0 1px 2px rgba(16, 47, 51, 0.06),
+      0 18px 38px -30px rgba(15, 111, 114, 0.34);
   }
   .premium-card {
-    @apply bg-card rounded-lg border border-border transition-all duration-300;
+    @apply rounded-lg border border-border bg-card transition-all duration-200;
     box-shadow:
-      0 1px 2px rgba(33, 32, 32, 0.06),
-      0 12px 24px -22px rgba(33, 32, 32, 0.45);
+      0 1px 2px rgba(16, 47, 51, 0.05),
+      0 10px 28px -26px rgba(15, 111, 114, 0.28);
   }
   .premium-card:hover {
-    transform: translateY(-3px);
-    border-color: rgba(33, 32, 32, 0.22);
-    box-shadow: 0 12px 30px -24px rgba(33, 32, 32, 0.58);
+    transform: translateY(-1px);
+    border-color: rgba(15, 111, 114, 0.22);
+    box-shadow: 0 16px 34px -28px rgba(15, 111, 114, 0.34);
   }
   .glass-panel {
-    background: rgba(255, 255, 255, 0.92);
-    border: 1px solid rgba(231, 229, 230, 0.95);
+    background: rgba(255, 255, 255, 0.94);
+    border: 1px solid rgba(229, 222, 210, 0.95);
     box-shadow:
-      0 16px 44px -28px rgba(33, 32, 32, 0.52),
+      0 14px 32px -28px rgba(15, 111, 114, 0.32),
       inset 0 1px 0 rgba(255, 255, 255, 0.9);
-    -webkit-backdrop-filter: blur(18px) saturate(1.25);
-    backdrop-filter: blur(18px) saturate(1.25);
+    -webkit-backdrop-filter: blur(14px) saturate(1.1);
+    backdrop-filter: blur(14px) saturate(1.1);
   }
   .neo-surface {
     box-shadow:
       inset 1px 1px 0 rgba(255, 255, 255, 0.92),
-      6px 6px 16px rgba(33, 32, 32, 0.08);
+      6px 6px 16px rgba(16, 47, 51, 0.06);
   }
   .fx-button {
     position: relative;
     isolation: isolate;
     overflow: hidden;
     transition:
-      transform 0.22s cubic-bezier(0.2, 0.8, 0.2, 1),
+      transform 0.18s ease,
       box-shadow 0.22s ease,
       filter 0.22s ease;
     box-shadow:
-      0 10px 22px -14px rgba(33, 32, 32, 0.55),
+      0 10px 22px -16px rgba(15, 111, 114, 0.38),
       inset 0 1px 0 rgba(255, 255, 255, 0.34);
   }
   .fx-button::after {
@@ -168,10 +173,10 @@
     transition: transform 0.65s ease;
   }
   .fx-button:hover {
-    transform: translateY(-2px);
-    filter: saturate(1.08) brightness(1.03);
+    transform: translateY(-1px);
+    filter: saturate(1.04) brightness(1.02);
     box-shadow:
-      0 15px 28px -14px rgba(33, 32, 32, 0.62),
+      0 14px 26px -16px rgba(15, 111, 114, 0.42),
       inset 0 1px 0 rgba(255, 255, 255, 0.42);
   }
   .fx-button:hover::after {
@@ -182,24 +187,24 @@
     transition-duration: 0.08s;
   }
   .card-3d {
-    transform: perspective(1000px) translateZ(0);
-    transform-style: preserve-3d;
+    transform: translateZ(0);
+    transform-style: flat;
     transition:
       transform 0.32s cubic-bezier(0.2, 0.8, 0.2, 1),
       box-shadow 0.32s ease,
       border-color 0.3s ease;
     box-shadow:
-      0 12px 28px -24px rgba(33, 32, 32, 0.5),
+      0 12px 28px -24px rgba(15, 111, 114, 0.28),
       inset 0 1px 0 rgba(255, 255, 255, 0.86);
   }
   .card-3d:hover {
-    transform: perspective(1000px) translateY(-5px) translateZ(6px);
+    transform: translateY(-2px);
     box-shadow:
-      0 22px 42px -26px rgba(33, 32, 32, 0.58),
+      0 18px 36px -28px rgba(15, 111, 114, 0.34),
       inset 0 1px 0 rgba(255, 255, 255, 0.95);
   }
   .card-3d:hover img {
-    transform: translateZ(18px) scale(1.055);
+    transform: scale(1.025);
   }
   .float-soft {
     animation: float-soft 5s ease-in-out infinite;
@@ -217,10 +222,17 @@
     animation: icon-bounce 0.55s cubic-bezier(0.34, 1.56, 0.64, 1);
   }
   .gold-accent {
-    background: linear-gradient(135deg, #212020 0%, #353132 58%, #90878e 100%);
+    background: linear-gradient(135deg, #0f6f72 0%, #0b5558 62%, #b89a57 100%);
     box-shadow:
       inset 0 1px 0 rgba(255, 255, 255, 0.18),
-      0 18px 48px -26px rgba(33, 32, 32, 0.7);
+      0 18px 48px -28px rgba(15, 111, 114, 0.44);
+  }
+  .section-title {
+    @apply text-2xl font-semibold leading-tight text-foreground md:text-3xl;
+  }
+  .eyebrow {
+    @apply text-xs font-bold uppercase text-muted-foreground;
+    letter-spacing: 0.18em;
   }
 }
 

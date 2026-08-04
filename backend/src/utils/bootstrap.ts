@@ -3,8 +3,14 @@ import { env } from "../config/env";
 import { User } from "../models/User";
 import { Settings } from "../models/Settings";
 import { Category } from "../models/Category";
+import { Counter } from "../models/Counter";
+import { Order } from "../models/Order";
+
+const FIRST_ORDER_NO = 51121;
 
 export async function ensureBootstrapAdmin() {
+  await cleanupStaleCategoryIndexes();
+
   if (env.ADMIN_EMAIL && env.ADMIN_PASSWORD) {
     const existing = await User.findOne({ email: env.ADMIN_EMAIL.toLowerCase() });
     if (!existing) {
@@ -64,5 +70,25 @@ export async function ensureBootstrapAdmin() {
         { upsert: true }
       );
     }
+  }
+
+  const latestOrder = await Order.findOne({ orderNo: { $exists: true } }).sort({ orderNo: -1 }).select("orderNo");
+  await Counter.updateOne(
+    { name: "orderNo" },
+    { $setOnInsert: { value: Math.max(FIRST_ORDER_NO - 1, latestOrder?.orderNo ?? 0) } },
+    { upsert: true },
+  );
+}
+
+async function cleanupStaleCategoryIndexes() {
+  try {
+    if (await Category.collection.indexExists("name_1")) {
+      await Category.collection.dropIndex("name_1");
+      // eslint-disable-next-line no-console
+      console.log("[bootstrap] dropped stale categories name_1 index");
+    }
+  } catch (error: any) {
+    // eslint-disable-next-line no-console
+    console.warn(`[bootstrap] could not drop stale categories name_1 index: ${error?.message ?? error}`);
   }
 }

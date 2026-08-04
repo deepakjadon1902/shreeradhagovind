@@ -2,6 +2,7 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import {
   useStore,
+  displayOrderNumber,
   formatINR,
   type Order,
   type Settings,
@@ -47,7 +48,7 @@ export const Route = createFileRoute("/admin")({
   component: AdminRoot,
   head: () => ({
     meta: [
-      { title: "Admin · Shri Radha Govind Store" },
+      { title: "Admin  -  Shri Radha Govind Store" },
       { name: "robots", content: "noindex,nofollow" },
     ],
   }),
@@ -63,10 +64,14 @@ type Tab =
   | "payments"
   | "settings";
 
+function errorMessage(error: unknown, fallback: string) {
+  return error instanceof Error ? error.message : fallback;
+}
+
 function paymentBadgeClass(status: Order["payment"]["status"]) {
   if (status === "paid") return "bg-green-600/10 text-green-700";
   if (status === "failed") return "bg-destructive/10 text-destructive";
-  if (status === "refunded") return "bg-[#90878e]/15 text-[#5e595d]";
+  if (status === "refunded") return "bg-[var(--primary)]/10 text-[var(--primary)]";
   return "bg-amber-500/10 text-amber-700";
 }
 
@@ -113,17 +118,17 @@ function AdminRoot() {
 
   if (!adminAuthed) {
     return (
-      <div className="min-h-screen grid place-items-center bg-[#212020] text-white p-6">
+      <div className="min-h-screen grid place-items-center bg-[var(--primary)] text-white p-6">
         <div className="w-full max-w-sm">
           <div className="flex items-center gap-3 mb-8 justify-center">
             <img
-              src="/brand-logo.webp"
+              src="/shriradhagovind store logo.jpeg"
               alt="Shri Radha Govind Store"
               className="h-14 w-14 rounded-full object-cover ring-2 ring-accent/70"
             />
             <span className="font-display text-2xl">Store Admin</span>
           </div>
-          <div className="bg-white text-black rounded-lg border border-border p-8 premium-shadow">
+          <div className="bg-white text-[var(--foreground)] rounded-lg border border-border p-8 premium-shadow">
             <Lock className="h-8 w-8 text-primary mx-auto" />
             <h1 className="font-display text-2xl text-center mt-3">Secure Admin Access</h1>
             <p className="text-sm text-muted-foreground text-center mt-1">
@@ -167,7 +172,7 @@ function AdminRoot() {
               to="/"
               className="block text-center text-xs text-muted-foreground mt-4 hover:text-primary"
             >
-              ← Back to store
+              Back to store
             </Link>
           </div>
         </div>
@@ -201,10 +206,10 @@ function AdminRoot() {
 
   return (
     <div className="min-h-screen flex flex-col bg-[#f6f6f6] md:flex-row">
-      <aside className="w-full bg-[#212020] text-white p-4 flex flex-col md:sticky md:top-0 md:h-screen md:w-64 md:p-5">
+      <aside className="w-full bg-[var(--primary)] text-white p-4 flex flex-col md:sticky md:top-0 md:h-screen md:w-64 md:p-5">
         <div className="flex items-center gap-3 mb-4 md:mb-10">
           <img
-            src="/brand-logo.webp"
+            src="/shriradhagovind store logo.jpeg"
             alt="Shri Radha Govind Store"
             className="h-11 w-11 rounded-full object-cover ring-2 ring-accent"
           />
@@ -256,7 +261,7 @@ function AdminRoot() {
             to="/"
             className="text-xs text-primary-foreground/60 hover:text-primary-foreground md:mt-2 md:block"
           >
-            ← View store
+            View store
           </Link>
         </div>
       </aside>
@@ -264,8 +269,8 @@ function AdminRoot() {
       <main className="min-w-0 flex-1 p-4 sm:p-6 lg:p-10 overflow-x-hidden">
         {tab === "dash" && (
           <div>
-            <section className="rounded-lg bg-[#212020] p-6 text-white premium-shadow">
-              <p className="text-xs font-bold uppercase tracking-[0.22em] text-[#ffd814]">
+            <section className="rounded-lg bg-[var(--primary)] p-6 text-white premium-shadow">
+              <p className="text-xs font-bold uppercase tracking-[0.22em] text-[var(--secondary)]">
                 Marketplace command center
               </p>
               <div className="mt-2 flex flex-wrap items-end justify-between gap-4">
@@ -319,7 +324,7 @@ function AdminRoot() {
                   <tbody>
                     {orders.slice(0, 5).map((o) => (
                       <tr key={o.id} className="border-t">
-                        <td className="py-3">#{o.id}</td>
+                        <td className="py-3">#{displayOrderNumber(o)}</td>
                         <td>{o.address.name}</td>
                         <td>{formatINR(o.total)}</td>
                         <td>
@@ -442,10 +447,10 @@ function AdminRoot() {
                   >
                     <div className="flex-1 min-w-0">
                       <p className="font-medium">
-                        #{o.id} · {o.address.name}
+                        #{displayOrderNumber(o)} - {o.address.name}
                       </p>
                       <p className="text-xs text-muted-foreground">
-                        {new Date(o.createdAt).toLocaleString()} · {o.items.length} items
+                        {new Date(o.createdAt).toLocaleString()} - {o.items.length} items
                       </p>
                       <address className="mt-2 max-w-2xl text-xs not-italic leading-5 text-foreground/80">
                         <span className="font-semibold text-foreground">Delivery address:</span>{" "}
@@ -456,7 +461,7 @@ function AdminRoot() {
                         <p className="text-xs mt-1">
                           <span className="text-muted-foreground">Tracking:</span>{" "}
                           <span className="font-mono text-primary">{o.trackingId}</span>
-                          {o.courier ? ` · ${o.courier}` : ""}
+                          {o.courier ? `  -  ${o.courier}` : ""}
                         </p>
                       )}
                     </div>
@@ -465,7 +470,7 @@ function AdminRoot() {
                       <p
                         className={`text-xs ${o.payment.status === "paid" ? "text-green-700" : o.payment.status === "failed" ? "text-destructive" : "text-amber-700"}`}
                       >
-                        {o.payment.method.toUpperCase()} · {o.payment.status}
+                        {o.payment.method.toUpperCase()} - {o.payment.status}
                       </p>
                     </div>
                     <span className="px-2 py-1 rounded-full bg-primary/10 text-primary text-xs">
@@ -555,8 +560,8 @@ function AdminRoot() {
                   )}
                   {orders.map((o) => (
                     <tr key={o.id} className="border-t">
-                      <td className="p-4 font-mono text-xs">TXN{o.id.slice(-6)}</td>
-                      <td>#{o.id}</td>
+                      <td className="p-4 font-mono text-xs">TXN{displayOrderNumber(o)}</td>
+                      <td>#{displayOrderNumber(o)}</td>
                       <td>{o.address.name}</td>
                       <td className="uppercase text-xs">{o.payment.method}</td>
                       <td className="font-medium">{formatINR(o.total)}</td>
@@ -607,7 +612,7 @@ function AdminRoot() {
                           <button
                             onClick={() => verifyOrderPayment(o.id, "refunded")}
                             disabled={o.payment.status === "refunded"}
-                            className="p-1.5 rounded-md bg-[#90878e]/15 text-[#5e595d] hover:bg-[#90878e]/25 disabled:opacity-30"
+                            className="p-1.5 rounded-md bg-[var(--primary)]/10 text-[var(--primary)] hover:bg-[var(--primary)]/20 disabled:opacity-30"
                             title="Mark refunded"
                           >
                             <CreditCard className="h-3.5 w-3.5" />
@@ -691,7 +696,7 @@ function AdminRoot() {
                         </div>
                       </td>
                       <td className="text-xs">
-                        {ru.phone || <span className="text-muted-foreground">—</span>}
+                        {ru.phone || <span className="text-muted-foreground">-</span>}
                         <p className="text-muted-foreground">
                           {ru.address?.city || ""}
                           {ru.address?.city && ru.address?.state ? ", " : ""}
@@ -699,7 +704,7 @@ function AdminRoot() {
                         </p>
                       </td>
                       <td className="text-xs text-muted-foreground">
-                        {ru.createdAt ? new Date(ru.createdAt).toLocaleDateString() : "—"}
+                        {ru.createdAt ? new Date(ru.createdAt).toLocaleDateString() : "-"}
                       </td>
                       <td>{ru.ordersCount ?? 0}</td>
                       <td className="font-medium">{formatINR(ru.totalSpent ?? 0)}</td>
@@ -773,7 +778,7 @@ function NavBtn({
   return (
     <button
       onClick={onClick}
-      className={`shrink-0 text-left px-3 py-2.5 rounded-md text-sm flex items-center gap-2 transition md:w-full md:gap-3 ${active ? "bg-[#ffd814] text-black" : "text-white/72 hover:bg-white/10 hover:text-white"}`}
+      className={`shrink-0 text-left px-3 py-2.5 rounded-md text-sm flex items-center gap-2 transition md:w-full md:gap-3 ${active ? "bg-[var(--secondary)] text-[var(--foreground)]" : "text-white/72 hover:bg-white/10 hover:text-white"}`}
     >
       <Icon className="h-4 w-4" />
       {children}
@@ -783,11 +788,11 @@ function NavBtn({
 function Stat({ icon: Icon, label, value }: { icon: typeof Users; label: string; value: string }) {
   return (
     <div className="rounded-lg border border-border bg-white p-5 premium-shadow">
-      <div className="grid h-10 w-10 place-items-center rounded-md bg-[#212020] text-white">
+      <div className="grid h-10 w-10 place-items-center rounded-md bg-[var(--primary)] text-white">
         <Icon className="h-5 w-5" />
       </div>
       <p className="text-xs uppercase tracking-wider text-muted-foreground mt-3">{label}</p>
-      <p className="font-display text-2xl mt-1 text-black">{value}</p>
+      <p className="font-display text-2xl mt-1 text-[var(--foreground)]">{value}</p>
     </div>
   );
 }
@@ -821,7 +826,7 @@ function CategoryPicker({
               <button
                 key={c}
                 onClick={() => onPick(c)}
-                className="p-4 rounded-xl border-2 border-border hover:border-primary hover:bg-primary/5 text-sm font-medium text-left transition"
+                className="p-4 rounded-lg border-2 border-border hover:border-primary hover:bg-primary/5 text-sm font-medium text-left transition"
               >
                 {c}
               </button>
@@ -867,13 +872,13 @@ function ProductEditor({
           <In label="Name" value={p.name} onChange={(v) => setP({ ...p, name: v })} />
           <div className="grid grid-cols-2 gap-3">
             <In
-              label="Price (₹)"
+              label="Price (Rs. )"
               type="number"
               value={String(p.price)}
               onChange={(v) => setP({ ...p, price: +v })}
             />
             <In
-              label="MRP (₹)"
+              label="MRP (Rs. )"
               type="number"
               value={String(p.mrp)}
               onChange={(v) => setP({ ...p, mrp: +v })}
@@ -927,7 +932,7 @@ function ProductEditor({
               className="mt-1"
             />
             <span>
-              <span className="block font-semibold text-black">
+              <span className="block font-semibold text-[var(--foreground)]">
                 Show in Today&apos;s Sacred Deals
               </span>
               <span className="text-xs text-muted-foreground">
@@ -1018,9 +1023,9 @@ function AdminImageUpload({
       const saved = result.originalBytes
         ? Math.max(0, Math.round((1 - result.optimizedBytes / result.originalBytes) * 100))
         : 0;
-      toast.success(`Converted to WebP${saved ? ` · ${saved}% smaller` : ""}`);
-    } catch (error: any) {
-      toast.error(error?.message ?? "Image upload failed");
+      toast.success(`Converted to WebP${saved ? `  -  ${saved}% smaller` : ""}`);
+    } catch (error: unknown) {
+      toast.error(errorMessage(error, "Image upload failed"));
     } finally {
       setUploading(false);
     }
@@ -1060,10 +1065,10 @@ function AdminImageUpload({
               className={`mx-auto h-8 w-8 text-primary ${uploading ? "animate-bounce" : ""}`}
             />
             <span className="mt-2 block text-sm font-semibold">
-              {uploading ? "Optimizing and uploading…" : "Browse device or drop image here"}
+              {uploading ? "Optimizing and uploading..." : "Browse device or drop image here"}
             </span>
             <span className="mt-1 block text-xs text-muted-foreground">
-              PNG, JPG, WebP, HEIC · max 12 MB
+              PNG, JPG, WebP, HEIC - max 12 MB
               <br />
               Automatically resized and converted to WebP
             </span>
@@ -1087,7 +1092,7 @@ function AdminImageUpload({
         <input
           value={value}
           onChange={(event) => onChange(event.target.value)}
-          placeholder="https://…"
+          placeholder="https://..."
           className="mt-2 h-10 w-full rounded-lg border bg-background px-3 text-foreground"
         />
       </details>
@@ -1132,8 +1137,8 @@ function AdminGalleryUpload({
       }
       onChange([...images, ...uploaded.filter((url) => !images.includes(url))]);
       toast.success(`${uploaded.length} photo${uploaded.length === 1 ? "" : "s"} uploaded`);
-    } catch (error: any) {
-      toast.error(error?.message ?? "Gallery upload failed");
+    } catch (error: unknown) {
+      toast.error(errorMessage(error, "Gallery upload failed"));
     } finally {
       setUploading(false);
     }
@@ -1183,7 +1188,7 @@ function AdminGalleryUpload({
             >
               <img src={image} alt="" className="aspect-square w-full object-contain p-1" />
               {index === 0 && (
-                <span className="absolute left-1 top-1 rounded bg-[#ffd814] px-1.5 py-0.5 text-[10px] font-bold text-black">
+                <span className="absolute left-1 top-1 rounded bg-[var(--secondary)] px-1.5 py-0.5 text-[10px] font-bold text-[var(--foreground)]">
                   Main
                 </span>
               )}
@@ -1191,7 +1196,7 @@ function AdminGalleryUpload({
                 <button
                   type="button"
                   onClick={() => setPrimary(image)}
-                  className="flex-1 rounded bg-white/95 px-1 py-1 text-[10px] font-semibold text-black shadow"
+                  className="flex-1 rounded bg-white/95 px-1 py-1 text-[10px] font-semibold text-[var(--foreground)] shadow"
                 >
                   Main
                 </button>
@@ -1223,7 +1228,7 @@ function SettingsPanel({
     <div>
       <h1 className="font-display text-3xl">Settings</h1>
       <p className="text-sm text-muted-foreground">
-        Tune the storefront — changes reflect immediately across the app.
+        Tune the storefront - changes reflect immediately across the app.
       </p>
       <div className="grid lg:grid-cols-2 gap-6 mt-6">
         <section className="bg-white rounded-lg border border-border p-6 premium-shadow space-y-3">
@@ -1252,13 +1257,13 @@ function SettingsPanel({
         <section className="bg-white rounded-lg border border-border p-6 premium-shadow space-y-3">
           <h2 className="font-display text-xl">Shipping</h2>
           <In
-            label="Free Shipping Above (₹)"
+            label="Free Shipping Above (Rs. )"
             type="number"
             value={String(s.freeShipThreshold)}
             onChange={(v) => setS({ ...s, freeShipThreshold: +v })}
           />
           <In
-            label="Default Shipping Fee (₹)"
+            label="Default Shipping Fee (Rs. )"
             type="number"
             value={String(s.shippingFee)}
             onChange={(v) => setS({ ...s, shippingFee: +v })}
@@ -1406,7 +1411,7 @@ function OrderManager({
           <div>
             <h2 className="font-display text-2xl">Manage Order</h2>
             <p className="text-xs text-muted-foreground mt-0.5">
-              #{order.id} · {order.address.name} · {formatINR(order.total)}
+              #{displayOrderNumber(order)} - {order.address.name} - {formatINR(order.total)}
             </p>
           </div>
           <div className="flex items-center gap-2">
@@ -1418,14 +1423,14 @@ function OrderManager({
                 <span
                   className={`h-1.5 w-1.5 rounded-full bg-green-600 ${syncing ? "animate-pulse" : ""}`}
                 />
-                Live ·{" "}
+                Live -{" "}
                 {lastSync
                   ? new Date(lastSync).toLocaleTimeString("en-IN", {
                       hour: "2-digit",
                       minute: "2-digit",
                       second: "2-digit",
                     })
-                  : "syncing…"}
+                  : "syncing..."}
               </div>
             )}
             {fetchEvents && (
@@ -1446,21 +1451,21 @@ function OrderManager({
 
         {/* ---- Quick facts: payment + courier snapshot ---- */}
         <div className="grid sm:grid-cols-3 gap-3 mt-4">
-          <div className={`rounded-xl border p-3 ${payBadge}`}>
+          <div className={`rounded-lg border p-3 ${payBadge}`}>
             <p className="text-[10px] uppercase tracking-wider opacity-80">Payment</p>
             <p className="font-semibold text-sm mt-0.5">
-              {order.payment.method.toUpperCase()} · {order.payment.status}
+              {order.payment.method.toUpperCase()} - {order.payment.status}
             </p>
             <p className="text-[11px] opacity-70 mt-0.5">{formatINR(order.total)}</p>
           </div>
-          <div className="rounded-xl border bg-muted/30 p-3">
+          <div className="rounded-lg border bg-muted/30 p-3">
             <p className="text-[10px] uppercase tracking-wider text-muted-foreground">Courier</p>
             <p className="font-semibold text-sm mt-0.5">{order.courier ?? "Not assigned"}</p>
             <p className="text-[11px] text-muted-foreground mt-0.5 truncate">
               {order.trackingId ?? "No tracking ID"}
             </p>
           </div>
-          <div className="rounded-xl border bg-muted/30 p-3">
+          <div className="rounded-lg border bg-muted/30 p-3">
             <p className="text-[10px] uppercase tracking-wider text-muted-foreground">
               Latest Status
             </p>
@@ -1476,7 +1481,7 @@ function OrderManager({
         </div>
 
         {/* ---- Timeline ---- */}
-        <div className="mt-5 rounded-xl border bg-card p-4">
+        <div className="mt-5 rounded-lg border bg-card p-4">
           <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground mb-3">
             Order Timeline
           </p>
@@ -1513,7 +1518,7 @@ function OrderManager({
                       )}
                       {active && i !== 0 && (
                         <p className="text-[11px] text-muted-foreground">
-                          Updated just now · email sent
+                          Updated just now - email sent
                         </p>
                       )}
                     </div>
@@ -1606,7 +1611,7 @@ function OrderManager({
                 onChange={(e) => setCourier(e.target.value as Courier | "")}
                 className="mt-1 w-full h-11 rounded-lg border px-3 bg-background focus:outline-none focus:border-primary"
               >
-                <option value="">— Not assigned —</option>
+                <option value="">- Not assigned -</option>
                 {COURIERS.map((c) => (
                   <option key={c} value={c}>
                     {c}
@@ -1686,8 +1691,8 @@ function UserDetail({
             <div>
               <h2 className="font-display text-xl">{user.name}</h2>
               <p className="text-xs text-muted-foreground">
-                {user.role.toUpperCase()} · {user.provider ?? "password"} · joined{" "}
-                {user.createdAt ? new Date(user.createdAt).toLocaleDateString() : "—"}
+                {user.role.toUpperCase()} - {user.provider ?? "password"} - joined{" "}
+                {user.createdAt ? new Date(user.createdAt).toLocaleDateString() : "-"}
               </p>
             </div>
           </div>
@@ -1933,7 +1938,7 @@ function CategoryRow({
           {category.name}
         </p>
         <p className="text-xs text-muted-foreground">
-          {count} products · {category.isActive ? "Visible" : "Hidden"}
+          {count} products - {category.isActive ? "Visible" : "Hidden"}
         </p>
       </div>
       <div className="flex items-center gap-1">

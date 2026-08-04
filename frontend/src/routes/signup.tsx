@@ -10,9 +10,9 @@ export const Route = createFileRoute("/signup")({
   component: Signup,
   head: () => ({
     meta: [
-      { title: "Create Account — Shri Radha Govind Store" },
+      { title: "Create Account - Shri Radha Govind Store" },
       { name: "description", content: "Create a free devotee account to shop sacred Vrindavan essentials and track your orders." },
-      { property: "og:title", content: "Create Account — Shri Radha Govind Store" },
+      { property: "og:title", content: "Create Account - Shri Radha Govind Store" },
       { property: "og:url", content: "https://www.shriradhagovindstore.com/signup" },
     ],
     links: [{ rel: "canonical", href: "https://www.shriradhagovindstore.com/signup" }],
@@ -58,7 +58,7 @@ function Signup() {
       <Field icon={Mail} type="email" placeholder="Email address" value={email} onChange={setEmail} />
       <Field icon={Phone} type="tel" placeholder="Phone (e.g. +91 98765 43210)" value={phone} onChange={setPhone} />
       <Field icon={Lock} type={show ? "text" : "password"} placeholder="Create password" value={pw} onChange={setPw} right={<button type="button" onClick={() => setShow(!show)} className="text-muted-foreground">{show ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}</button>} />
-      <details className="rounded-xl border border-border bg-card/60">
+      <details className="rounded-lg border border-border bg-card/60">
         <summary className="px-4 py-3 text-sm cursor-pointer flex items-center gap-2 text-foreground/80 hover:text-primary">
           <MapPin className="h-4 w-4" /> Add shipping address (optional)
         </summary>
@@ -76,3 +76,4 @@ function Signup() {
     <p className="text-center text-sm text-muted-foreground mt-6">Already a devotee? <Link to="/login" className="text-primary font-medium">Sign in</Link></p>
   </AuthShell>;
 }
+

@@ -2,15 +2,15 @@ import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useEffect, useRef, useState } from "react";
 import { useStore } from "@/lib/store";
 import { Mail, Lock, Eye, EyeOff } from "lucide-react";
-const logo = "/brand-logo.webp";
+const logo = "/shriradhagovind store logo.jpeg";
 
 export const Route = createFileRoute("/login")({
   component: Login,
   head: () => ({
     meta: [
-      { title: "Sign In — Shri Radha Govind Store" },
+      { title: "Sign In - Shri Radha Govind Store" },
       { name: "description", content: "Sign in to your Shri Radha Govind Store account to view orders, wishlist and track shipments." },
-      { property: "og:title", content: "Sign In — Shri Radha Govind Store" },
+      { property: "og:title", content: "Sign In - Shri Radha Govind Store" },
       { property: "og:url", content: "https://www.shriradhagovindstore.com/login" },
     ],
     links: [{ rel: "canonical", href: "https://www.shriradhagovindstore.com/login" }],
@@ -136,3 +136,4 @@ export function GoogleSignInButton({ onCredential, text = "continue_with" }: {
   if (!clientId) return <p className="text-sm text-destructive">Google sign-in is not configured.</p>;
   return <div ref={container} className="w-full min-h-11 flex justify-center" />;
 }
+

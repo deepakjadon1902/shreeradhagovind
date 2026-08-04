@@ -1,11 +1,11 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { Layout } from "@/components/Layout";
-import { useStore, formatINR } from "@/lib/store";
+import { displayOrderNumber, useStore, formatINR } from "@/lib/store";
 import { Package } from "lucide-react";
 
 export const Route = createFileRoute("/orders/")({
   component: OrdersPage,
-  head: () => ({ meta: [{ title: "My Orders — Shri Radha Govind Store" }, { name: "description", content: "View your order history, payment status and delivery progress." }, { name: "robots", content: "noindex" }] }),
+  head: () => ({ meta: [{ title: "My Orders - Shri Radha Govind Store" }, { name: "description", content: "View your order history, payment status and delivery progress." }, { name: "robots", content: "noindex" }] }),
 });
 
 function OrdersPage() {
@@ -32,8 +32,8 @@ function OrdersPage() {
                   ))}
                 </div>
                 <div className="flex-1 min-w-0">
-                  <p className="font-medium">Order #{o.id}</p>
-                  <p className="text-xs text-muted-foreground">{new Date(o.createdAt).toLocaleDateString()} · {o.items.length} items</p>
+                  <p className="font-medium">Order #{displayOrderNumber(o)}</p>
+                  <p className="text-xs text-muted-foreground">{new Date(o.createdAt).toLocaleDateString()}  -  {o.items.length} items</p>
                 </div>
                 <div className="text-right">
                   <p className="font-semibold">{formatINR(o.total)}</p>
@@ -47,3 +47,4 @@ function OrdersPage() {
     </Layout>
   );
 }
+

@@ -9,15 +9,13 @@ import {
   Package,
   Search,
   ShoppingCart,
-  Sparkles,
-  Star,
   User,
   X,
 } from "lucide-react";
 import { useEffect, useState, type ComponentType, type FormEvent, type ReactNode } from "react";
 import { useStore, type Category } from "@/lib/store";
 
-const logo = "/brand-logo.webp";
+const logo = "/shriradhagovind store logo.jpeg";
 
 export function Header() {
   const { cart, wishlist, user, settings, categoryTree, logout } = useStore();
@@ -55,12 +53,12 @@ export function Header() {
   };
 
   return (
-    <header className="sticky top-0 z-40 shadow-md">
-      <div className="bg-[#212020] text-white">
-        <div className="container-app flex min-h-[70px] flex-wrap items-center gap-2 py-2 sm:flex-nowrap sm:gap-4">
+    <header className="sticky top-0 z-40 border-b border-border/80 bg-white/95 shadow-sm backdrop-blur">
+      <div className="text-foreground">
+        <div className="container-app flex min-h-[74px] flex-wrap items-center gap-3 py-3 sm:flex-nowrap sm:gap-5">
           <button
             onClick={() => setMobileOpen((value) => !value)}
-            className="grid h-10 w-10 shrink-0 place-items-center rounded-md border border-white/25 lg:hidden"
+            className="grid h-10 w-10 shrink-0 place-items-center rounded-md border border-border bg-white lg:hidden"
             aria-label="Toggle navigation"
           >
             {mobileOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
@@ -69,20 +67,15 @@ export function Header() {
           <Link
             to="/"
             onClick={closeMenus}
-            className="flex shrink-0 items-center gap-2 rounded-md p-1 hover:outline hover:outline-1 hover:outline-white/60"
+            className="flex shrink-0 items-center rounded-md p-1 transition hover:bg-secondary"
+            aria-label="Shri Radha Govind Store home"
           >
-            <span className="grid h-12 w-12 place-items-center overflow-hidden rounded-full border border-[#90878e] bg-white">
+            <span className="grid h-14 w-14 place-items-center overflow-hidden rounded-full border border-border bg-white shadow-sm">
               <img
                 src={logo}
                 alt="Shri Radha Govind Store"
                 className="h-full w-full object-contain"
               />
-            </span>
-            <span className="hidden xl:block">
-              <strong className="block font-display text-lg leading-none">Shri Radha Govind</strong>
-              <small className="text-[10px] uppercase tracking-[.18em] text-[#ffd814]">
-                Premium marketplace
-              </small>
             </span>
           </Link>
 
@@ -98,11 +91,11 @@ export function Header() {
 
           <form
             onSubmit={submit}
-            className="order-last flex h-11 w-full overflow-hidden rounded-md bg-white text-black ring-2 ring-transparent transition focus-within:ring-[#ffd814] sm:order-none sm:flex-1"
+            className="order-last flex h-11 w-full overflow-hidden rounded-md border border-border bg-white text-foreground shadow-sm ring-2 ring-transparent transition focus-within:border-primary/40 focus-within:ring-primary/10 sm:order-none sm:flex-1"
           >
             <select
               aria-label="Search category"
-              className="hidden w-28 border-r bg-stone-100 px-2 text-xs outline-none md:block"
+              className="hidden w-28 border-r border-border bg-secondary/60 px-2 text-xs outline-none md:block"
             >
               <option>All</option>
               {categoryTree.map((category) => (
@@ -116,7 +109,7 @@ export function Header() {
               className="min-w-0 flex-1 px-4 text-sm outline-none"
             />
             <button
-              className="grid w-14 place-items-center bg-[#ffd814] text-[#212020] transition hover:bg-[#f7ca00]"
+              className="grid w-14 place-items-center bg-primary text-primary-foreground transition hover:bg-primary/90"
               aria-label="Search"
             >
               <Search className="h-5 w-5" />
@@ -131,9 +124,9 @@ export function Header() {
             >
               <button
                 onClick={() => setAccountOpen((value) => !value)}
-                className="rounded-md px-3 py-2 text-left hover:outline hover:outline-1 hover:outline-white/60"
+                className="rounded-md px-3 py-2 text-left transition hover:bg-secondary"
               >
-                <span className="block text-[11px]">Hello, {firstName}</span>
+                <span className="block text-[11px] text-muted-foreground">Hello, {firstName}</span>
                 <strong className="flex items-center text-sm">
                   Account & Lists <ChevronDown className="h-3.5 w-3.5" />
                 </strong>
@@ -149,14 +142,14 @@ export function Header() {
             </div>
             <Link
               to={user ? "/orders" : "/login"}
-              className="rounded-md px-3 py-2 hover:outline hover:outline-1 hover:outline-white/60"
+              className="rounded-md px-3 py-2 transition hover:bg-secondary"
             >
-              <span className="block text-[11px]">Returns</span>
+              <span className="block text-[11px] text-muted-foreground">Returns</span>
               <strong className="text-sm">& Orders</strong>
             </Link>
             <Link
               to="/wishlist"
-              className="relative grid h-12 w-12 place-items-center rounded-md hover:outline hover:outline-1 hover:outline-white/60"
+              className="relative grid h-12 w-12 place-items-center rounded-md transition hover:bg-secondary"
               aria-label="Wishlist"
             >
               <Heart className="h-6 w-6" />
@@ -164,7 +157,7 @@ export function Header() {
             </Link>
             <Link
               to="/cart"
-              className="relative flex h-12 items-end gap-1 rounded-md px-2 pb-2 hover:outline hover:outline-1 hover:outline-white/60"
+              className="relative flex h-12 items-end gap-1 rounded-md px-2 pb-2 transition hover:bg-secondary"
             >
               <ShoppingCart className="h-8 w-8" />
               <strong className="text-sm">Cart</strong>
@@ -174,16 +167,21 @@ export function Header() {
         </div>
       </div>
 
-      <div className="bg-[#90878e] text-white">
+      <div className="border-t border-primary/10 bg-primary text-primary-foreground">
         <div className="container-app flex h-11 items-center gap-1 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
           <button
             onClick={() => setDrawerOpen(true)}
-            className="flex h-9 shrink-0 items-center gap-2 rounded px-3 text-sm font-bold hover:outline hover:outline-1 hover:outline-white"
+            className="flex h-9 shrink-0 items-center gap-2 rounded-md px-3 text-sm font-semibold transition hover:bg-white/10"
           >
             <Menu className="h-5 w-5" /> All
           </button>
-          <Shortcut label="Trending" search="trending" />
-          <Shortcut label="Today's Sacred Picks" search="sacred-picks" icon={Sparkles} />
+          <Shortcut label="Sacred Picks" search="sacred-picks" />
+          <Link
+            to="/about"
+            className="flex h-11 shrink-0 items-center gap-1 rounded-md px-3 text-sm font-medium hover:bg-white/10"
+          >
+            About Us
+          </Link>
           {categoryTree.map((category) => (
             <div
               key={category.id}
@@ -194,7 +192,7 @@ export function Header() {
               <Link
                 to="/shop"
                 search={{ cat: category.name } as never}
-                className="flex h-11 items-center gap-1 rounded px-3 text-sm font-medium hover:bg-white/10"
+                className="flex h-11 items-center gap-1 rounded-md px-3 text-sm font-medium hover:bg-white/10"
               >
                 {category.name}
                 {category.children.length > 0 && <ChevronDown className="h-3.5 w-3.5" />}
@@ -206,7 +204,7 @@ export function Header() {
           ))}
           <Link
             to="/blog"
-            className="flex h-11 shrink-0 items-center gap-1 rounded px-3 text-sm font-medium hover:bg-white/10"
+            className="flex h-11 shrink-0 items-center gap-1 rounded-md px-3 text-sm font-medium hover:bg-white/10"
           >
             <Newspaper className="h-4 w-4" /> Devotional Blog
           </Link>
@@ -227,7 +225,7 @@ export function Header() {
               onClick={() => setMobileOpen(false)}
               className="flex-1 rounded-lg bg-muted px-3 py-2 text-sm font-semibold"
             >
-              Hello, {firstName} · Account
+              Hello, {firstName} - Account
             </Link>
             <Link
               to={user ? "/orders" : "/login"}
@@ -244,7 +242,7 @@ export function Header() {
                 to="/shop"
                 search={{ cat: category.name } as never}
                 onClick={() => setMobileOpen(false)}
-                className="shrink-0 rounded-full border border-primary/20 px-4 py-2 text-sm font-medium"
+                className="shrink-0 rounded-md border border-primary/20 px-4 py-2 text-sm font-medium"
               >
                 {category.name}
               </Link>
@@ -265,22 +263,13 @@ export function Header() {
   );
 }
 
-function Shortcut({
-  label,
-  search,
-  icon: Icon,
-}: {
-  label: string;
-  search: string;
-  icon?: ComponentType<{ className?: string }>;
-}) {
+function Shortcut({ label, search }: { label: string; search: string }) {
   return (
     <Link
       to="/shop"
       search={{ q: search } as never}
-      className="flex h-11 shrink-0 items-center gap-1.5 rounded px-3 text-sm font-medium hover:bg-white/10"
+      className="flex h-11 shrink-0 items-center rounded px-3 text-sm font-medium hover:bg-white/10"
     >
-      {Icon && <Icon className="h-4 w-4 text-[#ffd814]" />}
       {label}
     </Link>
   );
@@ -317,7 +306,7 @@ function MegaMenu({
   onClose: () => void;
 }) {
   return (
-    <div className="absolute left-0 top-full z-50 w-[620px] rounded-b-lg border border-t-0 bg-white p-5 text-black shadow-2xl">
+    <div className="absolute left-0 top-full z-50 w-[620px] rounded-b-md border border-t-0 bg-white p-5 text-foreground shadow-xl">
       <div className="grid grid-cols-[1fr_180px] gap-5">
         <div>
           <p className="mb-3 text-xs font-bold uppercase tracking-[.15em] text-primary">
@@ -345,7 +334,7 @@ function MegaMenu({
           to="/shop"
           search={{ cat: category.name } as never}
           onClick={onClose}
-          className="relative flex min-h-40 flex-col justify-end overflow-hidden rounded-lg bg-[#212020] p-4 text-white"
+          className="relative flex min-h-40 flex-col justify-end overflow-hidden rounded-md bg-primary p-4 text-primary-foreground"
         >
           {category.image && (
             <img
@@ -354,8 +343,7 @@ function MegaMenu({
               className="absolute inset-0 h-full w-full object-cover opacity-25"
             />
           )}
-          <Star className="relative mb-2 h-6 w-6 text-[#ffd814]" />
-          <strong className="relative font-display text-xl">Sacred {category.name}</strong>
+          <strong className="relative text-lg font-semibold">Sacred {category.name}</strong>
           <span className="relative mt-1 text-xs text-white/75">View the complete collection</span>
         </Link>
       </div>
@@ -385,10 +373,10 @@ function AllDrawer({
         role="dialog"
         aria-modal="true"
         aria-label="All store categories"
-        className="h-full w-[min(92vw,390px)] overflow-y-auto bg-white text-black shadow-2xl"
+        className="h-full w-[min(92vw,390px)] overflow-y-auto bg-white text-foreground shadow-2xl"
         onMouseDown={(event) => event.stopPropagation()}
       >
-        <div className="sticky top-0 z-10 flex h-16 items-center justify-between bg-[#212020] px-5 text-white">
+        <div className="sticky top-0 z-10 flex h-16 items-center justify-between bg-primary px-5 text-primary-foreground">
           <Link
             to="/profile"
             onClick={onClose}
@@ -404,11 +392,6 @@ function AllDrawer({
             <X className="h-6 w-6" />
           </button>
         </div>
-        <DrawerSection title="Trending">
-          <DrawerLink label="Bestsellers" query="bestsellers" onClose={onClose} />
-          <DrawerLink label="New Arrivals" query="new" onClose={onClose} />
-          <DrawerLink label="Today's Sacred Picks" query="sacred-picks" onClose={onClose} />
-        </DrawerSection>
         <DrawerSection title="Shop by Category">
           {categories.map((category) => (
             <div key={category.id}>
@@ -434,7 +417,7 @@ function AllDrawer({
                 )}
               </div>
               {expanded === category.id && (
-                <div className="bg-[#f6f6f6] py-1">
+                <div className="bg-muted py-1">
                   {category.children.map((child) => (
                     <Link
                       key={child.id}
@@ -452,6 +435,9 @@ function AllDrawer({
           ))}
         </DrawerSection>
         <DrawerSection title="Help & Account">
+          <Link to="/about" onClick={onClose} className="block px-5 py-3 text-sm hover:bg-muted">
+            About Us
+          </Link>
           <Link to="/orders" onClick={onClose} className="block px-5 py-3 text-sm hover:bg-muted">
             Your Orders
           </Link>
@@ -476,27 +462,6 @@ function DrawerSection({ title, children }: { title: string; children: ReactNode
   );
 }
 
-function DrawerLink({
-  label,
-  query,
-  onClose,
-}: {
-  label: string;
-  query: string;
-  onClose: () => void;
-}) {
-  return (
-    <Link
-      to="/shop"
-      search={{ q: query } as never}
-      onClick={onClose}
-      className="block px-5 py-3 text-sm hover:bg-muted"
-    >
-      {label}
-    </Link>
-  );
-}
-
 function AccountMenu({
   user,
   wishlistCount,
@@ -509,7 +474,7 @@ function AccountMenu({
   onLogout: () => void;
 }) {
   return (
-    <div className="absolute right-0 top-full z-50 w-64 rounded-xl border bg-white p-2 text-foreground shadow-2xl">
+    <div className="absolute right-0 top-full z-50 w-64 rounded-lg border bg-white p-2 text-foreground shadow-2xl">
       <p className="px-3 py-2 text-xs font-bold uppercase tracking-wider text-muted-foreground">
         Your account
       </p>
@@ -536,7 +501,7 @@ function AccountMenu({
       ) : (
         <>
           <AccountLink to="/login" icon={User} label="Sign in" onClick={onClose} />
-          <AccountLink to="/signup" icon={Star} label="Create account" onClick={onClose} />
+          <AccountLink to="/signup" icon={User} label="Create account" onClick={onClose} />
         </>
       )}
     </div>
@@ -568,7 +533,7 @@ function AccountLink({
 
 function Badge({ children }: { children: ReactNode }) {
   return (
-    <span className="absolute right-0 top-0 grid h-5 min-w-5 place-items-center rounded-full bg-[#ffd814] px-1 text-[10px] font-bold text-[#212020]">
+    <span className="absolute right-0 top-0 grid h-5 min-w-5 place-items-center rounded-full bg-accent px-1 text-[10px] font-bold text-accent-foreground">
       {children}
     </span>
   );

@@ -25,6 +25,7 @@ export const COURIERS: Courier[] = [
 export type PaymentStatus = "paid" | "pending" | "failed" | "refunded";
 export type Order = {
   id: string;
+  orderNo?: number;
   trackingId?: string;
   courier?: Courier | null;
   courierTrackingUrl?: string;
@@ -120,7 +121,7 @@ const DEFAULT_SETTINGS: Settings = {
   razorpayKeyId: "rzp_test_XXXXXXXXXXXXXX",
   codEnabled: true,
   announcement:
-    "॥ Radhe Radhe ॥ · Made With Love From The Heart Of Vrindavan · Free shipping above ₹999",
+    "॥ Radhe Radhe ॥  -  Made With Love From The Heart Of Vrindavan  -  Free shipping above Rs. 999",
 };
 
 export type RegisteredUser = {
@@ -331,6 +332,7 @@ const fallbackProduct = (i: any): Product => ({
 
 const mapOrder = (o: any, productLookup: Map<string, Product>): Order => ({
   id: String(o._id ?? o.id),
+  orderNo: typeof o.orderNo === "number" ? o.orderNo : undefined,
   trackingId: o.trackingId ?? undefined,
   courier: o.courier ?? null,
   courierTrackingUrl: o.courierTrackingUrl ?? "",
@@ -351,6 +353,9 @@ const mapOrder = (o: any, productLookup: Map<string, Product>): Order => ({
   status: o.status ?? "Placed",
   createdAt: o.createdAt ? new Date(o.createdAt).getTime() : Date.now(),
 });
+
+export const displayOrderNumber = (order: Pick<Order, "id" | "orderNo">) =>
+  order.orderNo ? String(order.orderNo) : order.id;
 
 export function StoreProvider({ children }: { children: ReactNode }) {
   const apiEnabled = isApiEnabled();
@@ -467,7 +472,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       } else
         map.set(key, {
           name: o.address.name,
-          email: "—",
+          email: "-",
           phone: o.address.phone,
           orders: 1,
           spent: o.total,
@@ -698,6 +703,13 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     const order: Order = {
       ...o,
       id: `OD${Date.now().toString().slice(-8)}`,
+      orderNo:
+        Math.max(
+          51120,
+          ...orders.map(
+            (existing) => (existing.orderNo ?? Number(String(existing.id).replace(/\D/g, ""))) || 0,
+          ),
+        ) + 1,
       createdAt: Date.now(),
       status: "Placed",
     };
@@ -751,9 +763,9 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         setOrders((arr) => arr.map((o) => (o.id === id ? updated : o)));
         toast.success(
           status === "paid"
-            ? "Payment marked paid · email sent"
+            ? "Payment marked paid  -  email sent"
             : status === "failed"
-              ? "Payment marked failed · order cancelled"
+              ? "Payment marked failed  -  order cancelled"
               : `Payment marked ${status}`,
         );
         return;
@@ -777,7 +789,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       status === "paid"
         ? "Marked paid"
         : status === "failed"
-          ? "Marked failed · cancelled"
+          ? "Marked failed  -  cancelled"
           : `Marked ${status}`,
     );
   };

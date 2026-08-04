@@ -42,7 +42,7 @@ const img = (key: string) => IMG[key] ?? poshak;
 export const PRODUCTS: Product[] = [
   {
     id: "p1",
-    name: "Radha Krishna Silk Poshak — Saffron & Gold",
+    name: "Radha Krishna Silk Poshak - Saffron & Gold",
     category: "Festival Collection",
     price: 1499,
     mrp: 2299,
@@ -69,7 +69,7 @@ export const PRODUCTS: Product[] = [
   },
   {
     id: "p3",
-    name: "Mogra Itra Attar — Roll-on 12ml",
+    name: "Mogra Itra Attar - Roll-on 12ml",
     category: "Other Itra",
     price: 449,
     mrp: 699,
@@ -83,7 +83,7 @@ export const PRODUCTS: Product[] = [
   },
   {
     id: "p4",
-    name: "Tulsi Kanthi Mala — 108 Beads",
+    name: "Tulsi Kanthi Mala - 108 Beads",
     category: "Kanthi Mala",
     price: 299,
     mrp: 499,
@@ -96,7 +96,7 @@ export const PRODUCTS: Product[] = [
   },
   {
     id: "p5",
-    name: "Brass Laddu Gopal Murti — 4 inch",
+    name: "Brass Laddu Gopal Murti - 4 inch",
     category: "Gift Items",
     price: 1199,
     mrp: 1899,
@@ -110,7 +110,7 @@ export const PRODUCTS: Product[] = [
   },
   {
     id: "p6",
-    name: "Panchamrit Puja Thali Set — 9 Items",
+    name: "Panchamrit Puja Thali Set - 9 Items",
     category: "Puja Accessories",
     price: 899,
     mrp: 1499,
@@ -136,7 +136,7 @@ export const PRODUCTS: Product[] = [
   },
   {
     id: "p8",
-    name: "Kesar Chandan Powder — 50g Glass Jar",
+    name: "Kesar Chandan Powder - 50g Glass Jar",
     category: "Chandan & Tilak",
     price: 349,
     mrp: 549,
@@ -149,7 +149,7 @@ export const PRODUCTS: Product[] = [
   },
   {
     id: "p9",
-    name: "Rose Gulab Attar — 8ml",
+    name: "Rose Gulab Attar - 8ml",
     category: "Rose Itra",
     price: 399,
     mrp: 599,
@@ -175,7 +175,7 @@ export const PRODUCTS: Product[] = [
   },
   {
     id: "p11",
-    name: "Bhagavad Gita — Hardcover Sanskrit-Hindi",
+    name: "Bhagavad Gita - Hardcover Sanskrit-Hindi",
     category: "Gift Items",
     price: 499,
     mrp: 799,
@@ -196,7 +196,7 @@ export const PRODUCTS: Product[] = [
     rating: 4.6,
     reviews: 890,
     image: img("puja"),
-    description: "Pre-filled ghee diyas with camphor for daily aarti — burns clean for 45 mins.",
+    description: "Pre-filled ghee diyas with camphor for daily aarti - burns clean for 45 mins.",
     details: ["Set of 12", "Pure ghee", "45 min burn time", "No mess"],
     stock: 250,
   },

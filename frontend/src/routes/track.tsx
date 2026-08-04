@@ -27,9 +27,9 @@ export const Route = createFileRoute("/track")({
   component: TrackPage,
   head: () => ({
     meta: [
-      { title: "Track Your Order — Shri Radha Govind Store" },
+      { title: "Track Your Order - Shri Radha Govind Store" },
       { name: "description", content: "Track your Shri Radha Govind Store order in real time using your unique tracking ID. See courier, status and delivery updates." },
-      { property: "og:title", content: "Track Your Order — Shri Radha Govind Store" },
+      { property: "og:title", content: "Track Your Order - Shri Radha Govind Store" },
       { property: "og:description", content: "Live order tracking for sacred essentials from Vrindavan." },
       { property: "og:url", content: "https://www.shriradhagovindstore.com/track" },
     ],
@@ -91,7 +91,7 @@ function TrackPage() {
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
             <input value={id} onChange={(e) => setId(e.target.value)} placeholder="e.g. SRG-AB12CD34" className="w-full h-12 pl-10 pr-4 rounded-full border bg-card focus:outline-none focus:border-primary text-sm uppercase tracking-wider" />
           </div>
-          <button disabled={loading} className="h-12 px-6 rounded-full bg-primary text-primary-foreground text-sm font-medium disabled:opacity-50">{loading ? "Searching…" : "Track"}</button>
+          <button disabled={loading} className="h-12 px-6 rounded-full bg-primary text-primary-foreground text-sm font-medium disabled:opacity-50">{loading ? "Searching..." : "Track"}</button>
         </form>
 
         {err && !order && <p className="text-sm text-destructive mt-4">{err}</p>}
@@ -144,13 +144,13 @@ function TrackPage() {
                     {i.image && <div className="h-14 w-14 rounded-lg overflow-hidden bg-muted shrink-0"><img src={i.image} alt="" className="h-full w-full object-cover" /></div>}
                     <div className="flex-1">
                       <p className="text-sm font-medium">{i.name}</p>
-                      <p className="text-xs text-muted-foreground">Qty {i.qty}{i.price ? ` · ${formatINR(i.price)}` : ""}</p>
+                      <p className="text-xs text-muted-foreground">Qty {i.qty}{i.price ? `  -  ${formatINR(i.price)}` : ""}</p>
                     </div>
                   </div>
                 ))}
               </div>
               <div className="border-t mt-4 pt-3 flex justify-between font-semibold"><span>Total</span><span>{formatINR(order.total)}</span></div>
-              <p className="text-xs text-muted-foreground mt-1">Payment: {order.payment.method.toUpperCase()} · {order.payment.status.toUpperCase()}</p>
+              <p className="text-xs text-muted-foreground mt-1">Payment: {order.payment.method.toUpperCase()}  -  {order.payment.status.toUpperCase()}</p>
             </div>
 
             <div className="premium-card p-6">
@@ -166,3 +166,4 @@ function TrackPage() {
     </Layout>
   );
 }
+

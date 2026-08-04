@@ -10,7 +10,7 @@ export const Route = createFileRoute("/checkout")({
   component: Checkout,
   head: () => ({
     meta: [
-      { title: "Secure Checkout — Shri Radha Govind Store" },
+      { title: "Secure Checkout - Shri Radha Govind Store" },
       {
         name: "description",
         content: "Complete your order with secure Razorpay payment or Cash on Delivery.",
@@ -22,8 +22,36 @@ export const Route = createFileRoute("/checkout")({
 
 declare global {
   interface Window {
-    Razorpay?: any;
+    Razorpay?: new (options: RazorpayOptions) => RazorpayInstance;
   }
+}
+
+type RazorpayOrder = { id: string; amount: number; currency: string };
+type RazorpaySuccessResponse = {
+  razorpay_order_id: string;
+  razorpay_payment_id: string;
+  razorpay_signature: string;
+};
+type RazorpayFailedResponse = { error?: { description?: string } };
+type RazorpayInstance = {
+  on: (event: "payment.failed", handler: (response: RazorpayFailedResponse) => void) => void;
+  open: () => void;
+};
+type RazorpayOptions = {
+  key: string;
+  amount: number;
+  currency: string;
+  order_id: string;
+  name: string;
+  description: string;
+  prefill: { name: string; contact: string; email: string };
+  theme: { color: string };
+  handler: (response: RazorpaySuccessResponse) => void;
+  modal: { ondismiss: () => void };
+};
+
+function errorMessage(error: unknown, fallback: string) {
+  return error instanceof Error ? error.message : fallback;
 }
 
 function loadRazorpayScript(): Promise<boolean> {
@@ -71,7 +99,7 @@ function Checkout() {
         <div className="container-app py-20 text-center">
           <h1 className="font-display text-3xl">Your cart is empty</h1>
           <Link to="/shop" className="text-primary mt-4 inline-block">
-            ← Continue shopping
+            Continue shopping
           </Link>
         </div>
       </Layout>
@@ -119,8 +147,8 @@ function Checkout() {
     const useRealRazorpay = isApiEnabled() && !!getToken();
 
     if (!useRealRazorpay) {
-      // Demo / local mode — simulate a successful payment
-      toast("Opening Razorpay secure checkout…");
+      // Demo / local mode - simulate a successful payment
+      toast("Opening Razorpay secure checkout...");
       await new Promise((r) => setTimeout(r, 1200));
       await finalizeOrder();
       return;
@@ -133,18 +161,18 @@ function Checkout() {
     }
 
     // Create a Razorpay order on the backend
-    let rzpOrder: { id: string; amount: number; currency: string };
+    let rzpOrder: RazorpayOrder;
     let keyId: string;
     try {
-      const r = await api<{ order: any; keyId: string }>("/payments/razorpay/order", {
+      const r = await api<{ order: RazorpayOrder; keyId?: string }>("/payments/razorpay/order", {
         method: "POST",
         body: { items: items.map((item) => ({ productId: item.product.id, qty: item.qty })) },
       });
       rzpOrder = r.order;
       keyId = r.keyId ?? settings.razorpayKeyId;
-    } catch (e: any) {
-      toast.error(e?.message ?? "Could not start payment");
-      throw e;
+    } catch (error: unknown) {
+      toast.error(errorMessage(error, "Could not start payment"));
+      throw error;
     }
 
     await new Promise<void>((resolve, reject) => {
@@ -154,10 +182,10 @@ function Checkout() {
         currency: rzpOrder.currency || "INR",
         order_id: rzpOrder.id,
         name: settings.siteName,
-        description: `Order payment · ${items.length} item${items.length === 1 ? "" : "s"}`,
+        description: `Order payment  -  ${items.length} item${items.length === 1 ? "" : "s"}`,
         prefill: { name: form.name, contact: form.phone, email: user?.email ?? "" },
-        theme: { color: "#b45309" },
-        handler: async (resp: any) => {
+        theme: { color: "#0f6f72" },
+        handler: async (resp) => {
           try {
             await finalizeOrder({
               razorpayOrderId: resp.razorpay_order_id,
@@ -165,10 +193,10 @@ function Checkout() {
               razorpaySignature: resp.razorpay_signature,
             });
             resolve();
-          } catch (err: any) {
+          } catch (err: unknown) {
             await reportPaymentFailed(
               resp.razorpay_order_id,
-              err?.message ?? "Order creation failed after payment",
+              errorMessage(err, "Order creation failed after payment"),
             );
             reject(err);
           }
@@ -176,14 +204,14 @@ function Checkout() {
         modal: {
           ondismiss: async () => {
             await reportPaymentFailed(rzpOrder.id, "Payment dismissed by user");
-            toast.error("Payment cancelled · order not placed. An email has been sent.");
+            toast.error("Payment cancelled  -  order not placed. An email has been sent.");
             reject(new Error("dismissed"));
           },
         },
       });
-      rzp.on("payment.failed", async (resp: any) => {
+      rzp.on("payment.failed", async (resp) => {
         await reportPaymentFailed(rzpOrder.id, resp?.error?.description ?? "Payment failed");
-        toast.error("Payment failed · order cancelled. We've emailed you the details.");
+        toast.error("Payment failed  -  order cancelled. We've emailed you the details.");
         reject(new Error(resp?.error?.description ?? "payment failed"));
       });
       rzp.open();
@@ -213,11 +241,14 @@ function Checkout() {
   return (
     <Layout>
       <div className="container-app py-10">
-        <h1 className="font-display text-4xl">Checkout</h1>
-        <form onSubmit={submit} className="grid lg:grid-cols-[1fr_400px] gap-8 mt-8">
+        <div className="border-b border-border pb-5">
+          <p className="eyebrow">Secure checkout</p>
+          <h1 className="section-title mt-1">Checkout</h1>
+        </div>
+        <form onSubmit={submit} className="mt-6 grid gap-6 lg:grid-cols-[1fr_400px]">
           <div className="space-y-6">
             <section className="premium-card p-6">
-              <h2 className="font-display text-2xl mb-4 flex items-center gap-2">
+              <h2 className="mb-4 flex items-center gap-2 text-xl font-semibold">
                 <Truck className="h-5 w-5 text-primary" /> Shipping Address
               </h2>
               <div className="grid sm:grid-cols-2 gap-3">
@@ -262,21 +293,21 @@ function Checkout() {
             </section>
 
             <section className="premium-card p-6">
-              <h2 className="font-display text-2xl mb-4 flex items-center gap-2">
+              <h2 className="mb-4 flex items-center gap-2 text-xl font-semibold">
                 <CreditCard className="h-5 w-5 text-primary" /> Payment Method
               </h2>
               <div className="space-y-3">
                 <PayOption
                   checked={method === "razorpay"}
                   onClick={() => setMethod("razorpay")}
-                  title="Razorpay — Cards, UPI, Netbanking, Wallets"
+                  title="Razorpay - Cards, UPI, Netbanking, Wallets"
                   desc="Pay securely via Razorpay. Verified server-side; failed payments auto-cancel."
                 />
                 {codAvailable && (
                   <PayOption
                     checked={method === "cod"}
                     onClick={() => setMethod("cod")}
-                    title="Cash on Delivery — DTDC only"
+                    title="Cash on Delivery - DTDC only"
                     desc="COD is available only when enabled by admin and ships through DTDC."
                   />
                 )}
@@ -288,19 +319,23 @@ function Checkout() {
               </div>
               {!API_URL && (
                 <p className="text-[11px] text-amber-700 mt-3">
-                  Demo mode · payments are simulated. Set VITE_API_URL to enable live Razorpay.
+                  Demo mode - payments are simulated. Set VITE_API_URL to enable live Razorpay.
                 </p>
               )}
             </section>
           </div>
 
           <aside className="premium-card p-6 h-fit lg:sticky lg:top-24">
-            <h2 className="font-display text-2xl mb-4">Order Summary</h2>
+            <h2 className="mb-4 text-xl font-semibold">Order Summary</h2>
             <div className="space-y-3 max-h-72 overflow-auto">
               {items.map((i) => (
                 <div key={i.productId} className="flex gap-3 text-sm">
-                  <div className="h-14 w-14 rounded-lg overflow-hidden bg-muted shrink-0">
-                    <img src={i.product.image} className="h-full w-full object-cover" alt="" />
+                  <div className="h-14 w-14 shrink-0 overflow-hidden rounded-lg bg-white">
+                    <img
+                      src={i.product.image}
+                      className="h-full w-full object-contain p-1.5"
+                      alt=""
+                    />
                   </div>
                   <div className="flex-1 min-w-0">
                     <p className="line-clamp-1 font-medium">{i.product.name}</p>
@@ -320,12 +355,13 @@ function Checkout() {
             <button
               disabled={processing}
               type="submit"
-              className="mt-6 w-full h-12 rounded-full bg-primary text-primary-foreground font-medium hover:opacity-90 inline-flex items-center justify-center gap-2 disabled:opacity-50"
+              className="mt-6 inline-flex h-12 w-full items-center justify-center gap-2 rounded-md bg-primary font-semibold text-primary-foreground transition hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-50"
             >
-              <Lock className="h-4 w-4" /> {processing ? "Processing…" : `Pay ${formatINR(total)}`}
+              <Lock className="h-4 w-4" />{" "}
+              {processing ? "Processing..." : `Pay ${formatINR(total)}`}
             </button>
             <p className="text-[11px] text-muted-foreground text-center mt-3">
-              Secure payment · 256-bit SSL
+              Secure payment - 256-bit SSL
             </p>
           </aside>
         </form>
@@ -354,7 +390,7 @@ function Input({
         value={value}
         readOnly={readOnly}
         onChange={(e) => onChange(e.target.value)}
-        className={`mt-1 w-full h-11 rounded-lg border px-3 focus:outline-none focus:border-primary ${readOnly ? "cursor-not-allowed bg-muted/70 text-muted-foreground" : "bg-card"}`}
+        className={`mt-1 h-11 w-full rounded-md border px-3 focus:border-primary focus:outline-none ${readOnly ? "cursor-not-allowed bg-muted/70 text-muted-foreground" : "bg-card"}`}
       />
     </label>
   );
@@ -374,7 +410,7 @@ function PayOption({
     <button
       type="button"
       onClick={onClick}
-      className={`w-full text-left p-4 rounded-xl border-2 transition ${checked ? "border-primary bg-primary/5" : "border-border hover:border-primary/50"}`}
+      className={`w-full rounded-lg border p-4 text-left transition ${checked ? "border-primary bg-primary/5" : "border-border hover:border-primary/50"}`}
     >
       <div className="flex items-start gap-3">
         <div

@@ -3,7 +3,7 @@ import { Layout } from "@/components/Layout";
 import { useStore, formatINR } from "@/lib/store";
 import { API_URL } from "@/lib/api";
 import { PRODUCTS, type Product } from "@/lib/products";
-import { Heart, ShoppingBag, Star, Truck, ShieldCheck, RefreshCw, Check } from "lucide-react";
+import { Heart, ShoppingBag, Star, Check } from "lucide-react";
 import { useEffect, useState } from "react";
 import { ProductCard } from "@/components/ProductCard";
 import { cleanMetaText, pageSeo, slugify } from "@/lib/seo";
@@ -33,7 +33,10 @@ function matchesProduct(product: Product, idOrSlug: string) {
 
 async function loadProductForMeta(idOrSlug: string) {
   const localProduct = PRODUCTS.find((product) => matchesProduct(product, idOrSlug));
-  if (!API_URL) return localProduct ? { ...localProduct, slug: localProduct.slug ?? slugify(localProduct.name) } : null;
+  if (!API_URL)
+    return localProduct
+      ? { ...localProduct, slug: localProduct.slug ?? slugify(localProduct.name) }
+      : null;
 
   try {
     const response = await fetch(`${API_URL}/products/${encodeURIComponent(idOrSlug)}`);
@@ -52,8 +55,7 @@ export const Route = createFileRoute("/product/$id")({
     const productName = product?.name || "Sacred Product";
     const title = cleanMetaText(productName, 300);
     const description = cleanMetaText(
-      product?.description ||
-        `Shop ${productName}, an authentic sacred essential from Vrindavan.`,
+      product?.description || `Shop ${productName}, an authentic sacred essential from Vrindavan.`,
       1000,
     );
     const slug = product?.slug ?? params.id;
@@ -102,7 +104,7 @@ function ProductDetail() {
         <div className="container-app py-20 text-center">
           <h1 className="font-display text-3xl">Product not found</h1>
           <Link to="/shop" className="text-primary mt-4 inline-block">
-            ← Back to shop
+            Back to shop
           </Link>
         </div>
       </Layout>
@@ -137,13 +139,13 @@ function ProductDetail() {
           </Link>{" "}
           / <span>{product.category}</span>
         </nav>
-        <div className="grid md:grid-cols-2 gap-10">
+        <div className="grid gap-8 md:grid-cols-[minmax(0,1fr)_minmax(320px,480px)] lg:gap-12">
           <div>
             <div className="aspect-square overflow-hidden rounded-lg border border-border bg-white premium-shadow">
               <img
                 src={selectedImage || product.image}
                 alt={product.name}
-                className="h-full w-full object-contain p-4"
+                className="h-full w-full object-contain p-5"
               />
             </div>
             {gallery.length > 1 && (
@@ -162,10 +164,12 @@ function ProductDetail() {
             )}
           </div>
           <div>
-            <p className="text-xs uppercase tracking-[0.25em] text-primary">{product.category}</p>
-            <h1 className="font-display text-3xl md:text-4xl mt-2">{product.name}</h1>
+            <p className="eyebrow text-primary">{product.category}</p>
+            <h1 className="mt-2 text-3xl font-semibold leading-tight md:text-4xl">
+              {product.name}
+            </h1>
             <div className="flex items-center gap-3 mt-3">
-              <span className="inline-flex items-center gap-1 bg-green-600/10 text-green-700 px-2 py-1 rounded text-xs">
+              <span className="inline-flex items-center gap-1 rounded bg-emerald-600/10 px-2 py-1 text-xs text-emerald-700">
                 <Star className="h-3 w-3 fill-current" />
                 {product.rating}
               </span>
@@ -178,7 +182,7 @@ function ProductDetail() {
               <span className="text-base text-muted-foreground line-through">
                 {formatINR(product.mrp)}
               </span>
-              {off > 0 && <span className="text-sm text-green-700 font-medium">{off}% off</span>}
+              {off > 0 && <span className="text-sm font-medium text-emerald-700">{off}% off</span>}
             </div>
             <p className="text-muted-foreground mt-4 leading-relaxed">{product.description}</p>
 
@@ -191,15 +195,19 @@ function ProductDetail() {
             </ul>
 
             <div className="flex items-center gap-3 mt-6">
-              <div className="inline-flex items-center border rounded-full overflow-hidden">
+              <div className="inline-flex items-center overflow-hidden rounded-md border bg-white">
                 <button
                   onClick={() => setQty(Math.max(1, qty - 1))}
                   className="h-11 w-11 hover:bg-muted"
                 >
-                  −
+                  -
                 </button>
-                <span className="w-10 text-center">{qty}</span>
-                <button onClick={() => setQty(qty + 1)} className="h-11 w-11 hover:bg-muted">
+                <span className="w-10 text-center text-sm font-semibold">{qty}</span>
+                <button
+                  onClick={() => setQty(Math.min(product.stock, qty + 1))}
+                  disabled={qty >= product.stock}
+                  className="h-11 w-11 hover:bg-muted disabled:cursor-not-allowed disabled:opacity-40"
+                >
                   +
                 </button>
               </div>
@@ -209,7 +217,8 @@ function ProductDetail() {
             <div className="grid grid-cols-2 gap-3 mt-6">
               <button
                 onClick={() => addToCart(product.id, qty)}
-                className="h-12 rounded-full border border-foreground/20 hover:border-primary hover:text-primary inline-flex items-center justify-center gap-2 font-medium"
+                disabled={product.stock === 0}
+                className="inline-flex h-12 items-center justify-center gap-2 rounded-md border border-primary/20 bg-white font-semibold transition hover:bg-secondary disabled:cursor-not-allowed disabled:opacity-40"
               >
                 <ShoppingBag className="h-4 w-4" /> Add to cart
               </button>
@@ -218,7 +227,8 @@ function ProductDetail() {
                   addToCart(product.id, qty);
                   nav({ to: "/checkout" });
                 }}
-                className="h-12 rounded-full bg-primary text-primary-foreground hover:opacity-90 font-medium"
+                disabled={product.stock === 0}
+                className="h-12 rounded-md bg-primary font-semibold text-primary-foreground transition hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-40"
               >
                 Buy Now
               </button>
@@ -232,14 +242,9 @@ function ProductDetail() {
             </button>
 
             <div className="mt-8 grid grid-cols-3 gap-3 border-t pt-6">
-              {[
-                { Icon: Truck, t: "Free shipping" },
-                { Icon: ShieldCheck, t: "100% Authentic" },
-                { Icon: RefreshCw, t: "7-day returns" },
-              ].map(({ Icon, t }) => (
-                <div key={t} className="text-center">
-                  <Icon className="h-5 w-5 mx-auto text-primary" />
-                  <p className="text-xs mt-1.5">{t}</p>
+              {["Free shipping", "100% Authentic", "7-day returns"].map((t) => (
+                <div key={t} className="rounded-lg border border-border bg-white p-3 text-center">
+                  <p className="text-xs font-medium">{t}</p>
                 </div>
               ))}
             </div>

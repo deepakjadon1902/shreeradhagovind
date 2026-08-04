@@ -8,7 +8,7 @@ export const Route = createFileRoute("/wishlist")({
   component: WishlistPage,
   head: () => ({
     meta: [
-      { title: "My Wishlist — Shri Radha Govind Store" },
+      { title: "My Wishlist - Shri Radha Govind Store" },
       { name: "description", content: "Sacred essentials you've saved for later. Move items to cart or buy now in one tap." },
       { name: "robots", content: "noindex" },
     ],
@@ -31,7 +31,7 @@ function WishlistPage() {
         </div>
 
         {items.length === 0 ? (
-          <div className="text-center py-20 bg-card border border-border/60 rounded-xl">
+          <div className="text-center py-20 bg-card border border-border/60 rounded-lg">
             <div className="inline-grid place-items-center h-24 w-24 rounded-full bg-muted">
               <Heart className="h-10 w-10 text-muted-foreground" />
             </div>
@@ -47,7 +47,7 @@ function WishlistPage() {
             </Link>
           </div>
         ) : (
-          <div className="bg-card border border-border/60 rounded-xl divide-y">
+          <div className="bg-card border border-border/60 rounded-lg divide-y">
             {items.map((p) => {
               const off = p.mrp > p.price ? Math.round(((p.mrp - p.price) / p.mrp) * 100) : 0;
               return (
@@ -78,7 +78,7 @@ function WishlistPage() {
                         </>
                       )}
                     </div>
-                    <p className="text-xs text-green-700 mt-0.5">In stock · Free delivery</p>
+                    <p className="text-xs text-green-700 mt-0.5">In stock  -  Free delivery</p>
 
                     <div className="mt-auto pt-3 flex items-center gap-2 flex-wrap">
                       <button
@@ -112,3 +112,4 @@ function WishlistPage() {
     </Layout>
   );
 }
+

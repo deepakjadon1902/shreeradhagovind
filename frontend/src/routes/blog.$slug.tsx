@@ -33,7 +33,7 @@ function BlogPost() {
       <article className="container-app max-w-3xl py-10">
         <Link to="/blog" className="text-sm text-primary">Back to blog</Link>
         <h1 className="mt-4 font-display text-4xl md:text-5xl">{post.title}</h1>
-        <p className="mt-3 text-sm text-muted-foreground">{post.author} · {post.publishedAt ? new Date(post.publishedAt).toLocaleDateString() : ""}</p>
+        <p className="mt-3 text-sm text-muted-foreground">{post.author}  -  {post.publishedAt ? new Date(post.publishedAt).toLocaleDateString() : ""}</p>
         {post.image && <img src={post.image} alt={post.title} className="mt-8 max-h-[440px] w-full rounded-lg object-cover" />}
         <div className="prose prose-neutral mt-8 max-w-none whitespace-pre-line text-foreground">
           {post.content || post.excerpt}
@@ -42,3 +42,4 @@ function BlogPost() {
     </Layout>
   );
 }
+

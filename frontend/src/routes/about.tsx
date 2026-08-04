@@ -1,16 +1,6 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { Layout } from "@/components/Layout";
-import {
-  ArrowRight,
-  Globe,
-  Heart,
-  Mail,
-  MapPin,
-  Phone,
-  ShieldCheck,
-  Sparkles,
-  Truck,
-} from "lucide-react";
+import { Globe, Mail, MapPin, Phone } from "lucide-react";
 import heroKrishna from "@/assets/hero-krishna.jpg";
 
 export const Route = createFileRoute("/about")({
@@ -38,13 +28,13 @@ export const Route = createFileRoute("/about")({
 function AboutPage() {
   return (
     <Layout>
-      <section className="bg-[#212020] text-white">
+      <section className="bg-[var(--primary)] text-white">
         <div className="container-app grid gap-8 py-10 md:grid-cols-[1fr_420px] md:py-14">
           <div className="flex flex-col justify-center">
-            <p className="mb-3 inline-flex items-center gap-2 text-xs font-bold uppercase tracking-[0.25em] text-[#ffd814]">
-              <Sparkles className="h-4 w-4" /> Radhe Radhe from Vrindavan
+            <p className="mb-3 text-xs font-bold uppercase tracking-[0.25em] text-[var(--secondary)]">
+              Radhe Radhe from Vrindavan
             </p>
-            <h1 className="font-display text-5xl leading-tight md:text-6xl">
+            <h1 className="text-4xl font-semibold leading-tight md:text-5xl">
               Shri Radha Govind Store
             </h1>
             <p className="mt-4 max-w-2xl text-base leading-relaxed text-white/78 md:text-lg">
@@ -69,9 +59,9 @@ function AboutPage() {
             </div>
             <Link
               to="/shop"
-              className="mt-7 inline-flex h-11 w-fit items-center gap-2 rounded-md bg-[#ffd814] px-5 text-sm font-bold text-black"
+              className="mt-7 inline-flex h-11 w-fit items-center gap-2 rounded-md bg-[var(--secondary)] px-5 text-sm font-bold text-[var(--foreground)]"
             >
-              Shop our collection <ArrowRight className="h-4 w-4" />
+              Shop our collection
             </Link>
           </div>
           <div className="overflow-hidden rounded-lg border border-white/10">
@@ -90,7 +80,7 @@ function AboutPage() {
             <p className="text-xs font-bold uppercase tracking-[0.22em] text-muted-foreground">
               Our story
             </p>
-            <h2 className="mt-2 font-display text-3xl text-black">
+            <h2 className="mt-2 text-3xl font-semibold text-[var(--foreground)]">
               A store built like seva, run like a trusted marketplace.
             </h2>
             <p className="mt-4 leading-relaxed text-muted-foreground">
@@ -104,7 +94,7 @@ function AboutPage() {
             <p className="text-xs font-bold uppercase tracking-[0.22em] text-muted-foreground">
               What we sell
             </p>
-            <div className="mt-4 grid grid-cols-2 gap-2 text-sm font-semibold text-black">
+            <div className="mt-4 grid grid-cols-2 gap-2 text-sm font-semibold text-[var(--foreground)]">
               {[
                 "Tulsi mala",
                 "Puja essentials",
@@ -125,37 +115,22 @@ function AboutPage() {
 
         <div className="mt-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
           {[
-            {
-              icon: Heart,
-              t: "Packed with care",
-              d: "Products are handled as devotional offerings.",
-            },
-            {
-              icon: Sparkles,
-              t: "Authentic selection",
-              d: "Curated from Vrindavan and trusted suppliers.",
-            },
-            {
-              icon: ShieldCheck,
-              t: "Secure payments",
-              d: "Razorpay support with COD where enabled.",
-            },
-            {
-              icon: Truck,
-              t: "Order tracking",
-              d: "Courier, tracking ID, and status updates from admin.",
-            },
-          ].map(({ icon: Icon, t, d }) => (
+            { t: "Packed with care", d: "Products are handled as devotional offerings." },
+            { t: "Authentic selection", d: "Curated from Vrindavan and trusted suppliers." },
+            { t: "Secure payments", d: "Razorpay support with COD where enabled." },
+            { t: "Order tracking", d: "Courier, tracking ID, and status updates from admin." },
+          ].map(({ t, d }) => (
             <div key={t} className="rounded-lg border border-border bg-card p-5 premium-shadow">
-              <Icon className="h-5 w-5 text-primary" />
-              <p className="mt-3 font-display text-lg">{t}</p>
+              <p className="text-base font-semibold">{t}</p>
               <p className="mt-1 text-sm text-muted-foreground">{d}</p>
             </div>
           ))}
         </div>
 
         <section className="mt-10 rounded-lg border border-border bg-white p-7 premium-shadow">
-          <h2 className="mb-4 font-display text-3xl text-black">Visit Us in Vrindavan</h2>
+          <h2 className="mb-4 text-3xl font-semibold text-[var(--foreground)]">
+            Visit Us in Vrindavan
+          </h2>
           <div className="grid gap-6 text-sm md:grid-cols-2">
             <p className="flex items-start gap-3">
               <MapPin className="mt-1 h-4 w-4 shrink-0 text-primary" />
