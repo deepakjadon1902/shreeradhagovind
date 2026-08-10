@@ -1,7 +1,7 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { Layout } from "@/components/Layout";
 import { displayOrderNumber, useStore, formatINR, type Order } from "@/lib/store";
-import { Check, Package, Truck, Home, CreditCard } from "lucide-react";
+import { Check, Package, Truck, Home, CreditCard, Phone } from "lucide-react";
 
 export const Route = createFileRoute("/orders/$id")({
   component: OrderDetail,
@@ -136,7 +136,9 @@ function OrderDetail() {
                 {order.address.line1}, {order.address.city}, {order.address.state}{" "}
                 {order.address.pincode}
               </p>
-              <p className="text-xs text-muted-foreground mt-1">📞 {order.address.phone}</p>
+              <p className="mt-1 flex items-center gap-1 text-xs text-muted-foreground">
+                <Phone className="h-3 w-3" /> {order.address.phone}
+              </p>
             </div>
             <div className="premium-card p-5">
               <h3 className="font-display text-lg mb-2 flex items-center gap-2">

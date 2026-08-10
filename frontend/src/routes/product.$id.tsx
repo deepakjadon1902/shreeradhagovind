@@ -73,7 +73,7 @@ export const Route = createFileRoute("/product/$id")({
 function ProductDetail() {
   const { id } = Route.useParams();
   const loadedProduct = Route.useLoaderData();
-  const { adminProducts, addToCart, wishlist, toggleWishlist } = useStore();
+  const { adminProducts, addToCart, buyNow, wishlist, toggleWishlist } = useStore();
   const nav = useNavigate();
   const product = adminProducts.find((p) => matchesProduct(p, id)) ?? loadedProduct;
   const [qty, setQty] = useState(1);
@@ -224,7 +224,7 @@ function ProductDetail() {
               </button>
               <button
                 onClick={() => {
-                  addToCart(product.id, qty);
+                  buyNow(product.id, qty);
                   nav({ to: "/checkout" });
                 }}
                 disabled={product.stock === 0}

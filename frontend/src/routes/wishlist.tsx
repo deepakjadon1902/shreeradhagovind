@@ -9,7 +9,11 @@ export const Route = createFileRoute("/wishlist")({
   head: () => ({
     meta: [
       { title: "My Wishlist - Shri Radha Govind Store" },
-      { name: "description", content: "Sacred essentials you've saved for later. Move items to cart or buy now in one tap." },
+      {
+        name: "description",
+        content:
+          "Sacred essentials you've saved for later. Move items to cart or buy now in one tap.",
+      },
       { name: "robots", content: "noindex" },
     ],
   }),
@@ -61,7 +65,9 @@ function WishlistPage() {
                   </Link>
 
                   <div className="flex-1 min-w-0 flex flex-col">
-                    <p className="text-[10px] uppercase tracking-wider text-muted-foreground">{p.category}</p>
+                    <p className="text-[10px] uppercase tracking-wider text-muted-foreground">
+                      {p.category}
+                    </p>
                     <Link
                       to="/product/$id"
                       params={{ id: p.slug ?? slugify(p.name) }}
@@ -73,22 +79,34 @@ function WishlistPage() {
                       <span className="font-bold text-base">{formatINR(p.price)}</span>
                       {off > 0 && (
                         <>
-                          <span className="text-xs text-muted-foreground line-through">{formatINR(p.mrp)}</span>
+                          <span className="text-xs text-muted-foreground line-through">
+                            {formatINR(p.mrp)}
+                          </span>
                           <span className="text-xs font-semibold text-green-700">{off}% off</span>
                         </>
                       )}
                     </div>
-                    <p className="text-xs text-green-700 mt-0.5">In stock  -  Free delivery</p>
+                    <p
+                      className={`mt-0.5 text-xs ${p.stock > 0 ? "text-green-700" : "text-destructive"}`}
+                    >
+                      {p.stock > 0 ? "In stock - Free delivery" : "Out of stock"}
+                    </p>
 
                     <div className="mt-auto pt-3 flex items-center gap-2 flex-wrap">
                       <button
                         onClick={() => addToCart(p.id)}
+                        disabled={p.stock <= 0}
                         className="inline-flex items-center gap-1.5 h-9 px-4 rounded-full border border-foreground/15 bg-secondary/60 text-xs font-semibold hover:bg-secondary"
                       >
                         <ShoppingBag className="h-3.5 w-3.5" /> Move to cart
                       </button>
                       <button
-                        onClick={() => { buyNow(p.id); nav({ to: "/checkout" }); }}
+                        onClick={() => {
+                          if (p.stock <= 0) return;
+                          buyNow(p.id);
+                          nav({ to: "/checkout" });
+                        }}
+                        disabled={p.stock <= 0}
                         className="inline-flex items-center gap-1.5 h-9 px-4 rounded-full bg-primary text-primary-foreground text-xs font-semibold hover:opacity-90"
                       >
                         <Zap className="h-3.5 w-3.5" /> Buy now
@@ -112,4 +130,3 @@ function WishlistPage() {
     </Layout>
   );
 }
-

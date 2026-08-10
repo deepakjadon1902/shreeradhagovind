@@ -93,6 +93,18 @@ function Checkout() {
     if (!codAvailable && method === "cod") setMethod("razorpay");
   }, [codAvailable, method]);
 
+  useEffect(() => {
+    if (!user) return;
+    setForm((current) => ({
+      name: current.name || user.name || "",
+      phone: current.phone || user.phone || "",
+      line1: current.line1 || user.address?.line1 || "",
+      city: current.city || user.address?.city || "",
+      state: current.state || user.address?.state || "",
+      pincode: current.pincode || user.address?.pincode || "",
+    }));
+  }, [user]);
+
   if (items.length === 0) {
     return (
       <Layout>
@@ -222,6 +234,11 @@ function Checkout() {
     e.preventDefault();
     if (!form.name || !form.phone || !form.line1 || !form.city || !form.pincode) {
       toast.error("Please complete shipping details");
+      return;
+    }
+    if (isApiEnabled() && !getToken()) {
+      toast.error("Please sign in before checkout");
+      nav({ to: "/login" });
       return;
     }
     setProcessing(true);

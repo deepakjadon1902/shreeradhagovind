@@ -6,7 +6,7 @@ import { Category } from "../models/Category";
 import { Counter } from "../models/Counter";
 import { Order } from "../models/Order";
 
-const FIRST_ORDER_NO = 51121;
+const FIRST_ORDER_NO = 5000;
 
 export async function ensureBootstrapAdmin() {
   await cleanupStaleCategoryIndexes();
@@ -72,9 +72,9 @@ export async function ensureBootstrapAdmin() {
     }
   }
 
-  const latestOrder = await Order.findOne({ orderNo: { $exists: true } }).sort({ orderNo: -1 }).select("orderNo");
+  const latestOrder = await Order.findOne({ orderNo: { $gte: FIRST_ORDER_NO, $lte: 9999 } }).sort({ orderNo: -1 }).select("orderNo");
   await Counter.updateOne(
-    { name: "orderNo" },
+    { name: "orderNo4Digit" },
     { $setOnInsert: { value: Math.max(FIRST_ORDER_NO - 1, latestOrder?.orderNo ?? 0) } },
     { upsert: true },
   );

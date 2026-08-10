@@ -422,8 +422,7 @@ function AdminRoot() {
                 categories={categories}
                 onClose={() => setEditing(null)}
                 onSave={(p) => {
-                  saveProduct(p);
-                  setEditing(null);
+                  void Promise.resolve(saveProduct(p)).then(() => setEditing(null));
                 }}
               />
             )}
@@ -852,9 +851,33 @@ function ProductEditor({
   product: Product;
   categories: string[];
   onClose: () => void;
-  onSave: (p: Product) => void;
+  onSave: (p: Product) => Promise<void> | void;
 }) {
   const [p, setP] = useState<Product>(product);
+  const [saving, setSaving] = useState(false);
+
+  const submit = async () => {
+    const name = p.name.trim();
+    const category = p.category.trim();
+    if (!name) return toast.error("Product name is required");
+    if (!category) return toast.error("Please choose a category");
+    if (p.price < 0 || p.mrp < 0 || p.stock < 0) {
+      return toast.error("Price, MRP and stock cannot be negative");
+    }
+    setSaving(true);
+    try {
+      await onSave({
+        ...p,
+        name,
+        category,
+        price: Number(p.price) || 0,
+        mrp: Number(p.mrp) || 0,
+        stock: Number(p.stock) || 0,
+      });
+    } finally {
+      setSaving(false);
+    }
+  };
 
   return (
     <div className="fixed inset-0 bg-black/50 z-50 grid place-items-center p-4" onClick={onClose}>
@@ -955,10 +978,11 @@ function ProductEditor({
             Cancel
           </button>
           <button
-            onClick={() => onSave(p)}
+            onClick={submit}
+            disabled={saving}
             className="h-10 px-5 rounded-full bg-primary text-primary-foreground text-sm font-medium"
           >
-            Save
+            {saving ? "Saving..." : "Save"}
           </button>
         </div>
       </div>
@@ -1893,8 +1917,7 @@ function CategoryManager({
           parents={categories.filter((item) => !item.parentId && item.id !== editing.id)}
           onClose={() => setEditing(null)}
           onSave={(value) => {
-            onSave(value);
-            setEditing(null);
+            void Promise.resolve(onSave(value)).then(() => setEditing(null));
           }}
         />
       )}
@@ -1987,15 +2010,19 @@ function CategoryEditor({
   category: Partial<Category> & { name: string };
   parents: Category[];
   onClose: () => void;
-  onSave: (category: Partial<Category> & { name: string }) => void;
+  onSave: (category: Partial<Category> & { name: string }) => Promise<void> | void;
 }) {
   const [value, setValue] = useState(category);
+  const [saving, setSaving] = useState(false);
   return (
     <div className="fixed inset-0 z-50 grid place-items-center bg-black/50 p-4" onClick={onClose}>
       <form
         onSubmit={(event) => {
           event.preventDefault();
-          if (value.name.trim()) onSave({ ...value, name: value.name.trim() });
+          const name = value.name.trim();
+          if (!name) return toast.error("Category name is required");
+          setSaving(true);
+          void Promise.resolve(onSave({ ...value, name })).finally(() => setSaving(false));
         }}
         className="max-h-[90vh] w-full max-w-lg space-y-4 overflow-y-auto rounded-lg bg-card p-6"
         onClick={(event) => event.stopPropagation()}
@@ -2076,9 +2103,10 @@ function CategoryEditor({
           </button>
           <button
             type="submit"
+            disabled={saving}
             className="h-10 rounded-full bg-primary px-5 text-sm font-medium text-primary-foreground"
           >
-            Save Category
+            {saving ? "Saving..." : "Save Category"}
           </button>
         </div>
       </form>

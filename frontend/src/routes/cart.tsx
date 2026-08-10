@@ -19,14 +19,16 @@ export const Route = createFileRoute("/cart")({
 });
 
 function CartPage() {
-  const { cart, adminProducts, updateQty, removeFromCart, toggleWishlist, wishlist } = useStore();
+  const { cart, adminProducts, updateQty, removeFromCart, toggleWishlist, wishlist, settings } =
+    useStore();
   const items = cart
     .map((c) => ({ ...c, product: adminProducts.find((p) => p.id === c.productId)! }))
     .filter((i) => i.product);
   const subtotal = items.reduce((s, i) => s + i.product.price * i.qty, 0);
   const mrpTotal = items.reduce((s, i) => s + i.product.mrp * i.qty, 0);
   const savings = mrpTotal - subtotal;
-  const shipping = subtotal > 999 || subtotal === 0 ? 0 : 49;
+  const shipping =
+    subtotal >= settings.freeShipThreshold || subtotal === 0 ? 0 : settings.shippingFee;
   const total = subtotal + shipping;
   const totalQty = items.reduce((s, i) => s + i.qty, 0);
 
@@ -71,8 +73,8 @@ function CartPage() {
               </div>
             ) : (
               <div className="flex items-center gap-2 rounded-lg bg-amber-500/10 px-4 py-3 text-sm text-amber-700">
-                <Truck className="h-4 w-4" /> Add {formatINR(1000 - subtotal)} more for{" "}
-                <strong>FREE delivery</strong>.
+                <Truck className="h-4 w-4" /> Add {formatINR(settings.freeShipThreshold - subtotal)}{" "}
+                more for <strong>FREE delivery</strong>.
               </div>
             )}
 
@@ -138,6 +140,7 @@ function CartPage() {
                         <button
                           onClick={() => updateQty(i.productId, i.qty + 1)}
                           className="h-8 w-8 grid place-items-center hover:bg-muted"
+                          disabled={i.qty >= i.product.stock}
                           aria-label="Increase"
                         >
                           <Plus className="h-3 w-3" />
@@ -145,7 +148,7 @@ function CartPage() {
                       </div>
                       <button
                         onClick={() => {
-                          toggleWishlist(i.productId);
+                          if (!wished) toggleWishlist(i.productId);
                           removeFromCart(i.productId);
                         }}
                         className="inline-flex items-center gap-1 text-xs font-semibold uppercase tracking-wide text-muted-foreground hover:text-primary px-2 h-8"

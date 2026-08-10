@@ -181,7 +181,7 @@ type Store = {
   categories: string[];
   addCategory: (name: string, parentId?: string | null) => Promise<void> | void;
   renameCategory: (oldName: string, newName: string) => Promise<void> | void;
-  deleteCategory: (name: string) => Promise<void> | void;
+  deleteCategory: (nameOrId: string) => Promise<void> | void;
   settings: Settings;
   updateSettings: (patch: Partial<Settings>) => Promise<void> | void;
   customers: { name: string; email: string; phone: string; orders: number; spent: number }[];
@@ -354,8 +354,11 @@ const mapOrder = (o: any, productLookup: Map<string, Product>): Order => ({
   createdAt: o.createdAt ? new Date(o.createdAt).getTime() : Date.now(),
 });
 
-export const displayOrderNumber = (order: Pick<Order, "id" | "orderNo">) =>
-  order.orderNo ? String(order.orderNo) : order.id;
+export const displayOrderNumber = (order: Pick<Order, "id" | "orderNo">) => {
+  if (order.orderNo) return String(order.orderNo).padStart(4, "0");
+  const hash = order.id.split("").reduce((sum, char) => sum + char.charCodeAt(0), 0);
+  return String(5000 + (hash % 5000)).padStart(4, "0");
+};
 
 export function StoreProvider({ children }: { children: ReactNode }) {
   const apiEnabled = isApiEnabled();
@@ -613,6 +616,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   const saveProduct: Store["saveProduct"] = async (p) => {
     if (apiEnabled) {
       try {
+        const previousProduct = adminProducts.find((x) => x.id === p.id);
         const payload: any = {
           name: p.name,
           description: p.description,
@@ -628,7 +632,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
           details: p.details ?? [],
           slug: p.slug || slugify(p.name),
         };
-        const isExisting = p.id && adminProducts.some((x) => x.id === p.id);
+        const isExisting = !!previousProduct;
         const r = isExisting
           ? await api<{ product: any }>(`/products/${p.id}`, { method: "PATCH", body: payload })
           : await api<{ product: any }>(`/products`, { method: "POST", body: payload });
@@ -642,9 +646,31 @@ export function StoreProvider({ children }: { children: ReactNode }) {
           }
           return [saved, ...arr];
         });
+        setCategoryDetails((arr) =>
+          arr.map((category) => ({
+            ...category,
+            productCount: Math.max(
+              0,
+              category.productCount +
+                (category.name === saved.category && !isExisting ? 1 : 0) +
+                (isExisting &&
+                category.name === previousProduct?.category &&
+                category.name !== saved.category
+                  ? -1
+                  : 0) +
+                (isExisting &&
+                category.name === saved.category &&
+                previousProduct?.category !== saved.category
+                  ? 1
+                  : 0),
+            ),
+          })),
+        );
         toast.success("Product saved");
+        return;
       } catch (e: any) {
         toast.error(e?.message ?? "Save failed");
+        throw e;
       }
     } else {
       setAdminProducts((arr) => {
@@ -656,6 +682,16 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         }
         return [{ ...p, id: p.id || `p${Date.now()}` }, ...arr];
       });
+      setCategoryDetails((arr) =>
+        arr.map((category) => ({
+          ...category,
+          productCount:
+            category.name === p.category
+              ? category.productCount + (p.id ? 0 : 1)
+              : category.productCount,
+        })),
+      );
+      toast.success("Product saved");
     }
   };
 
@@ -669,11 +705,27 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       }
     }
     setAdminProducts((arr) => arr.filter((p) => p.id !== id));
+    setCategoryDetails((arr) =>
+      arr.map((category) => ({
+        ...category,
+        productCount: Math.max(
+          0,
+          category.productCount -
+            (adminProducts.find((product) => product.id === id)?.category === category.name
+              ? 1
+              : 0),
+        ),
+      })),
+    );
     toast("Product deleted");
   };
 
   // ---- orders ----
   const placeOrder: Store["placeOrder"] = async (o) => {
+    if (apiEnabled && !getToken()) {
+      toast.error("Please sign in before checkout");
+      throw new Error("Authentication required");
+    }
     if (apiEnabled && getToken()) {
       try {
         const r = await api<{ order: any }>("/orders", {
@@ -705,10 +757,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       id: `OD${Date.now().toString().slice(-8)}`,
       orderNo:
         Math.max(
-          51120,
-          ...orders.map(
-            (existing) => (existing.orderNo ?? Number(String(existing.id).replace(/\D/g, ""))) || 0,
-          ),
+          4999,
+          ...orders.map((existing) => existing.orderNo ?? 0).filter((value) => value < 9999),
         ) + 1,
       createdAt: Date.now(),
       status: "Placed",
@@ -850,7 +900,13 @@ export function StoreProvider({ children }: { children: ReactNode }) {
             })
           : await api<{ category: any }>("/categories", { method: "POST", body: payload });
         const saved = mapCategory(r.category);
-        setCategoryIds((m) => ({ ...m, [saved.name]: saved.id }));
+        setCategoryIds((m) => {
+          const next = { ...m, [saved.name]: saved.id };
+          for (const [name, id] of Object.entries(next)) {
+            if (id === saved.id && name !== saved.name) delete next[name];
+          }
+          return next;
+        });
         setCategoryDetails((arr) => {
           const i = arr.findIndex((x) => x.id === saved.id);
           const next =
@@ -861,6 +917,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         toast.success("Category saved");
       } catch (e: any) {
         toast.error(e?.message);
+        throw e;
       }
     } else {
       const saved: Category = {
@@ -919,9 +976,13 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     }
   };
 
-  const deleteCategory: Store["deleteCategory"] = async (name) => {
+  const deleteCategory: Store["deleteCategory"] = async (nameOrId) => {
+    const target = categoryDetails.find(
+      (category) => category.id === nameOrId || category.name === nameOrId,
+    );
+    const id = target?.id ?? categoryIds[nameOrId];
+    const name = target?.name ?? nameOrId;
     if (apiEnabled) {
-      const id = categoryIds[name];
       if (!id) {
         toast.error("Unknown category");
         return;
@@ -939,9 +1000,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       }
     }
     setCategories((c) => c.filter((x) => x !== name));
-    setCategoryDetails((arr) =>
-      arr.filter((x) => x.name !== name && x.parentId !== categoryIds[name]),
-    );
+    setCategoryDetails((arr) => arr.filter((x) => x.name !== name && x.parentId !== id));
     setAdminProducts((arr) => arr.filter((p) => p.category !== name));
     toast("Category & its products removed");
   };
@@ -1120,20 +1179,44 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     updateProfile,
     cart,
     addToCart: (productId, qty = 1) => {
+      const product = adminProducts.find((item) => item.id === productId);
+      if (!product) {
+        toast.error("Product is no longer available");
+        return;
+      }
+      if (product.stock <= 0) {
+        toast.error(`${product.name} is out of stock`);
+        return;
+      }
+      const requestedQty = Math.max(1, Math.min(20, qty));
       setCart((c) => {
         const e = c.find((i) => i.productId === productId);
-        if (e) return c.map((i) => (i.productId === productId ? { ...i, qty: i.qty + qty } : i));
-        return [...c, { productId, qty }];
+        const currentQty = e?.qty ?? 0;
+        const nextQty = Math.min(product.stock, currentQty + requestedQty);
+        if (nextQty <= currentQty) {
+          toast.error(`Only ${product.stock} available`);
+          return c;
+        }
+        if (e) return c.map((i) => (i.productId === productId ? { ...i, qty: nextQty } : i));
+        return [...c, { productId, qty: nextQty }];
       });
       toast.success("Added to cart");
     },
-    buyNow: (productId, qty = 1) => setCart([{ productId, qty }]),
+    buyNow: (productId, qty = 1) => {
+      const product = adminProducts.find((item) => item.id === productId);
+      if (!product || product.stock <= 0) {
+        toast.error("Product is out of stock");
+        return;
+      }
+      setCart([{ productId, qty: Math.max(1, Math.min(product.stock, 20, qty)) }]);
+    },
     updateQty: (productId, qty) =>
-      setCart((c) =>
-        qty <= 0
-          ? c.filter((i) => i.productId !== productId)
-          : c.map((i) => (i.productId === productId ? { ...i, qty } : i)),
-      ),
+      setCart((c) => {
+        if (qty <= 0) return c.filter((i) => i.productId !== productId);
+        const product = adminProducts.find((item) => item.id === productId);
+        const nextQty = Math.min(Math.max(1, qty), product?.stock ?? qty, 20);
+        return c.map((i) => (i.productId === productId ? { ...i, qty: nextQty } : i));
+      }),
     removeFromCart: (productId) => {
       setCart((c) => c.filter((i) => i.productId !== productId));
       toast("Removed from cart");

@@ -23,8 +23,8 @@ r.patch("/", requireAuth, requireAdmin, async (req, res, next) => {
         email: z.string().optional(),
         announcement: z.string().optional(),
         currency: z.string().optional(),
-        freeShipThreshold: z.number().optional(),
-        shippingFee: z.number().optional(),
+        freeShipThreshold: z.number().min(0).optional(),
+        shippingFee: z.number().min(0).optional(),
         codEnabled: z.boolean().optional(),
         razorpayKeyId: z.string().optional(),
       })

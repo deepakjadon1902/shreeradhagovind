@@ -82,6 +82,7 @@ r.patch("/orders/:id/payment", async (req, res, next) => {
 
     o.payment!.status = status;
     if (status === "failed") o.status = "Cancelled";
+    if (status === "paid" && o.status === "Cancelled") o.status = "Placed";
     await o.save();
 
     const u: any = o.user;

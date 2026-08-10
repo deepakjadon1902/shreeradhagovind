@@ -368,12 +368,12 @@ function AllDrawer({
 }) {
   if (!open) return null;
   return (
-    <div className="fixed inset-0 z-[70] bg-black/65" onMouseDown={onClose}>
+    <div className="fixed inset-0 z-[100] h-dvh overflow-hidden bg-black/65" onMouseDown={onClose}>
       <aside
         role="dialog"
         aria-modal="true"
         aria-label="All store categories"
-        className="h-full w-[min(92vw,390px)] overflow-y-auto bg-white text-foreground shadow-2xl"
+        className="h-dvh max-h-dvh w-[min(92vw,390px)] overflow-y-auto overscroll-contain bg-white text-foreground shadow-2xl"
         onMouseDown={(event) => event.stopPropagation()}
       >
         <div className="sticky top-0 z-10 flex h-16 items-center justify-between bg-primary px-5 text-primary-foreground">

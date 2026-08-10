@@ -185,7 +185,7 @@ const addrBlock = (a: Addr) => `
   <div style="margin-top:14px;font-size:13px;line-height:1.5;color:#444">
     <b>${a.name ?? ""}</b><br/>
     ${a.line1 ?? ""}, ${a.city ?? ""} ${a.state ?? ""} ${a.pincode ?? ""}<br/>
-    📞 ${a.phone ?? "-"}
+    Phone: ${a.phone ?? "-"}
   </div>`;
 
 export const tpl = {
