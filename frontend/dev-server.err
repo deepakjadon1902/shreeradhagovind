@@ -1,0 +1,1 @@
+[90m[env-runner][39m [33mVERCEL_OIDC_TOKEN[39m is not set. Run [36mvercel env pull[39m to pull the latest environment variables.

@@ -1034,7 +1034,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   };
 
   const saveBlog: Store["saveBlog"] = async (blog) => {
-    const payload = { ...blog, slug: blog.slug || slugify(blog.title) };
+    const payload = { ...blog, slug: slugify(blog.slug || blog.title) };
     if (apiEnabled) {
       try {
         const isExisting = blog.id && blogs.some((x) => x.id === blog.id);

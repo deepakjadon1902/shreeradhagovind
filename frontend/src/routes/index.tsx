@@ -1,5 +1,7 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
+import { useMemo } from "react";
 import { Layout } from "@/components/Layout";
+import { ProductCard } from "@/components/ProductCard";
 import { useStore } from "@/lib/store";
 import heroKrishna from "@/assets/hero-krishna.jpg";
 import { DEFAULT_DESCRIPTION, DEFAULT_TITLE, pageSeo } from "@/lib/seo";
@@ -30,15 +32,36 @@ export const Route = createFileRoute("/")({
 
 function Home() {
   const { adminProducts, categoryTree } = useStore();
-  const categoryTiles = categoryTree.slice(0, 8).map((category) => {
-    const product =
-      adminProducts.find((item) => item.category === category.name) ??
-      adminProducts.find((item) =>
-        category.children.some((child) => child.name === item.category),
-      ) ??
-      adminProducts[0];
-    return { category, image: category.image || product?.image || heroKrishna };
-  });
+  const categoryTiles = useMemo(
+    () =>
+      categoryTree.slice(0, 8).map((category) => {
+        const product =
+          adminProducts.find((item) => item.category === category.name) ??
+          adminProducts.find((item) =>
+            category.children.some((child) => child.name === item.category),
+          ) ??
+          adminProducts[0];
+        return { category, image: category.image || product?.image || heroKrishna };
+      }),
+    [adminProducts, categoryTree],
+  );
+  const categoryShelves = useMemo(
+    () =>
+      categoryTree
+        .slice(0, 6)
+        .map((category) => {
+          const names = [category.name, ...category.children.map((child) => child.name)];
+          const products = adminProducts
+            .filter((product) => names.includes(product.category))
+            .sort(
+              (a, b) => Number(!!b.featuredDeal) - Number(!!a.featuredDeal) || b.rating - a.rating,
+            )
+            .slice(0, 5);
+          return { category, products };
+        })
+        .filter((shelf) => shelf.products.length > 0),
+    [adminProducts, categoryTree],
+  );
 
   return (
     <Layout>
@@ -129,6 +152,42 @@ function Home() {
               </Link>
             ))}
           </div>
+
+          {categoryShelves.length > 0 && (
+            <div className="mt-8 space-y-4">
+              {categoryShelves.map(({ category, products }) => (
+                <div
+                  key={category.id}
+                  className="overflow-hidden rounded-lg border border-[#e5ded2] bg-white"
+                >
+                  <div className="flex items-center justify-between gap-3 border-b border-[#eee4d6] bg-[#fffaf2] px-4 py-3">
+                    <div>
+                      <p className="text-[11px] font-bold uppercase tracking-[0.16em] text-[#647174]">
+                        Top picks
+                      </p>
+                      <h3 className="text-lg font-semibold leading-tight text-[#102f33]">
+                        Best of {category.name}
+                      </h3>
+                    </div>
+                    <Link
+                      to="/shop"
+                      search={{ cat: category.name } as never}
+                      className="inline-flex h-9 items-center rounded-md bg-[#2874f0] px-4 text-sm font-semibold text-white transition hover:bg-[#1f5fc7]"
+                    >
+                      View all
+                    </Link>
+                  </div>
+                  <div className="grid grid-cols-2 gap-px bg-[#eee4d6] p-px sm:grid-cols-3 lg:grid-cols-5">
+                    {products.map((product) => (
+                      <div key={product.id} className="bg-white">
+                        <ProductCard product={product} />
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       </section>
 
