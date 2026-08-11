@@ -1,4 +1,4 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { createFileRoute, Link, Outlet, useLocation } from "@tanstack/react-router";
 import { Layout } from "@/components/Layout";
 import { useStore } from "@/lib/store";
 import { CalendarDays } from "lucide-react";
@@ -19,8 +19,14 @@ export const Route = createFileRoute("/blog")({
 });
 
 function BlogIndex() {
+  const location = useLocation();
   const { blogs } = useStore();
   const published = blogs.filter((b) => b.isPublished).sort((a, b) => a.sortOrder - b.sortOrder);
+
+  if (location.pathname !== "/blog") {
+    return <Outlet />;
+  }
+
   return (
     <Layout>
       <div className="container-app py-10">
