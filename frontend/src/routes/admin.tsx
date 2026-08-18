@@ -193,7 +193,7 @@ function AdminRoot() {
       category,
       price: 0,
       mrp: 0,
-      rating: 4.5,
+      rating: 0,
       reviews: 0,
       image: "",
       images: [],
@@ -873,6 +873,8 @@ function ProductEditor({
         price: Number(p.price) || 0,
         mrp: Number(p.mrp) || 0,
         stock: Number(p.stock) || 0,
+        rating: Math.max(0, Math.min(5, Number(p.rating) || 0)),
+        reviews: Math.max(0, Number(p.reviews) || 0),
       });
     } finally {
       setSaving(false);
@@ -924,6 +926,18 @@ function ProductEditor({
                 ))}
               </select>
             </label>
+            <In
+              label="Rating (0-5)"
+              type="number"
+              value={String(p.rating)}
+              onChange={(v) => setP({ ...p, rating: +v })}
+            />
+            <In
+              label="Reviews"
+              type="number"
+              value={String(p.reviews)}
+              onChange={(v) => setP({ ...p, reviews: +v })}
+            />
           </div>
           <AdminImageUpload
             label="Product image"
@@ -956,10 +970,10 @@ function ProductEditor({
             />
             <span>
               <span className="block font-semibold text-[var(--foreground)]">
-                Show in Today&apos;s Sacred Deals
+                Mark as Best Seller
               </span>
               <span className="text-xs text-muted-foreground">
-                Only products with this option enabled will appear in that home page section.
+                Shows the Best Seller badge and gives this item priority inside category sliders.
               </span>
             </span>
           </label>

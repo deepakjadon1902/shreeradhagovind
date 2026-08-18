@@ -233,7 +233,7 @@ const mapProduct = (p: any): Product => ({
   featuredDeal: !!p.featuredDeal,
   category: p.category,
   stock: p.stock ?? 100,
-  rating: p.rating ?? 4.7,
+  rating: p.rating ?? 0,
   reviews: p.reviews ?? 0,
   details: p.details ?? [],
 });
@@ -325,7 +325,7 @@ const fallbackProduct = (i: any): Product => ({
   featuredDeal: false,
   category: "",
   stock: 0,
-  rating: 5,
+  rating: 0,
   reviews: 0,
   details: [],
 });
@@ -627,7 +627,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
           featuredDeal: !!p.featuredDeal,
           category: p.category,
           stock: Number(p.stock ?? 100),
-          rating: Number(p.rating ?? 4.7),
+          rating: Number(p.rating ?? 0),
           reviews: Number(p.reviews ?? 0),
           details: p.details ?? [],
           slug: p.slug || slugify(p.name),

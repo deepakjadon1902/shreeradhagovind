@@ -168,15 +168,17 @@ function ProductDetail() {
             <h1 className="mt-2 text-3xl font-semibold leading-tight md:text-4xl">
               {product.name}
             </h1>
-            <div className="flex items-center gap-3 mt-3">
-              <span className="inline-flex items-center gap-1 rounded bg-emerald-600/10 px-2 py-1 text-xs text-emerald-700">
-                <Star className="h-3 w-3 fill-current" />
-                {product.rating}
-              </span>
-              <span className="text-sm text-muted-foreground">
-                {product.reviews.toLocaleString()} reviews
-              </span>
-            </div>
+            {product.rating > 0 && product.reviews > 0 && (
+              <div className="flex items-center gap-3 mt-3">
+                <span className="inline-flex items-center gap-1 rounded bg-emerald-600/10 px-2 py-1 text-xs text-emerald-700">
+                  <Star className="h-3 w-3 fill-current" />
+                  {product.rating}
+                </span>
+                <span className="text-sm text-muted-foreground">
+                  {product.reviews.toLocaleString()} reviews
+                </span>
+              </div>
+            )}
             <div className="flex items-baseline gap-3 mt-5">
               <span className="text-3xl font-semibold">{formatINR(product.price)}</span>
               <span className="text-base text-muted-foreground line-through">

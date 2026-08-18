@@ -205,7 +205,7 @@ r.post("/", requireAuth, async (req, res, next) => {
     if (body.payment.method === "cod" && !settings.codEnabled) {
       throw new HttpError(
         400,
-        "Cash on Delivery is currently disabled by the store admin",
+        "Cash on Delivery is currently unavailable",
       );
     }
     const shipping =

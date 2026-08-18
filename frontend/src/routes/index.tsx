@@ -6,6 +6,8 @@ import { useStore } from "@/lib/store";
 import heroKrishna from "@/assets/hero-krishna.jpg";
 import { DEFAULT_DESCRIPTION, DEFAULT_TITLE, pageSeo } from "@/lib/seo";
 
+const homeHero = "/home-devotional-hero.png";
+
 export const Route = createFileRoute("/")({
   component: Home,
   head: () => ({
@@ -48,7 +50,6 @@ function Home() {
   const categoryShelves = useMemo(
     () =>
       categoryTree
-        .slice(0, 6)
         .map((category) => {
           const names = [category.name, ...category.children.map((child) => child.name)];
           const products = adminProducts
@@ -56,7 +57,7 @@ function Home() {
             .sort(
               (a, b) => Number(!!b.featuredDeal) - Number(!!a.featuredDeal) || b.rating - a.rating,
             )
-            .slice(0, 5);
+            .slice(0, 12);
           return { category, products };
         })
         .filter((shelf) => shelf.products.length > 0),
@@ -66,7 +67,7 @@ function Home() {
   return (
     <Layout>
       <section className="relative overflow-hidden bg-[var(--primary)] text-white">
-        <div className="container-app grid items-center gap-8 py-9 md:grid-cols-[minmax(0,1fr)_minmax(300px,410px)] md:py-11 lg:grid-cols-[minmax(0,1fr)_420px]">
+        <div className="container-app grid items-center gap-8 py-9 md:grid-cols-[minmax(0,1fr)_minmax(360px,560px)] md:py-11 lg:grid-cols-[minmax(0,1fr)_560px]">
           <div className="reveal-up flex flex-col justify-center">
             <p className="mb-5 text-xs font-semibold uppercase tracking-[0.18em] text-[#f1eadf]">
               Blessed in Vrindavan
@@ -106,10 +107,10 @@ function Home() {
             </div>
           </div>
           <div className="relative reveal-up reveal-delay-1">
-            <div className="card-3d mx-auto aspect-[4/3] w-full max-w-[420px] overflow-hidden rounded-lg border border-white/10 premium-shadow md:aspect-[4/4.2] md:max-h-[480px]">
+            <div className="card-3d mx-auto aspect-[16/10] w-full max-w-[560px] overflow-hidden rounded-lg border border-white/10 premium-shadow md:max-h-[420px]">
               <img
-                src={heroKrishna}
-                alt="Krishna"
+                src={homeHero}
+                alt="Shri Radha Govind Store devotional collection"
                 className="h-full w-full object-cover object-center"
               />
             </div>
@@ -177,9 +178,12 @@ function Home() {
                       View all
                     </Link>
                   </div>
-                  <div className="grid grid-cols-2 gap-px bg-[#eee4d6] p-px sm:grid-cols-3 lg:grid-cols-5">
+                  <div className="flex snap-x gap-px overflow-x-auto bg-[#eee4d6] p-px [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
                     {products.map((product) => (
-                      <div key={product.id} className="bg-white">
+                      <div
+                        key={product.id}
+                        className="w-[165px] shrink-0 snap-start bg-white sm:w-[190px] lg:w-[210px]"
+                      >
                         <ProductCard product={product} />
                       </div>
                     ))}

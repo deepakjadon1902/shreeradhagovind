@@ -14,6 +14,7 @@ export function ProductCard({ product }: { product: Product }) {
       : 0;
   const outOfStock = product.stock === 0;
   const productSlug = product.slug ?? slugify(product.name);
+  const hasRating = product.rating > 0 && product.reviews > 0;
 
   return (
     <div className="group relative flex h-full flex-col overflow-hidden rounded-lg border border-[#eadfce] bg-[#fffaf2] transition duration-200 hover:border-[#e4c895] hover:shadow-[0_10px_28px_-22px_rgba(85,34,34,.38)]">
@@ -25,17 +26,21 @@ export function ProductCard({ product }: { product: Product }) {
             loading="lazy"
             className="h-full w-full object-contain p-4 transition-transform duration-300 group-hover:scale-[1.025]"
           />
-          <span className="absolute left-2 top-2 rounded-md bg-[#5a1f2a] px-2 py-1 text-[10px] font-bold leading-none text-white shadow-sm">
-            Best Seller
-          </span>
+          {product.featuredDeal && (
+            <span className="absolute left-2 top-2 rounded-md bg-[#5a1f2a] px-2 py-1 text-[10px] font-bold leading-none text-white shadow-sm">
+              Best Seller
+            </span>
+          )}
           {off > 0 && (
             <span className="absolute bottom-3 right-3 rounded bg-[#c62828] px-2 py-1 text-xs font-bold leading-none text-white shadow-sm">
               -{off}%
             </span>
           )}
-          <span className="absolute bottom-3 left-3 rounded bg-[#2f8d3c] px-2 py-1 text-[11px] font-bold leading-none text-white shadow-sm">
-            {product.rating.toFixed(1)} *
-          </span>
+          {hasRating && (
+            <span className="absolute bottom-3 left-3 rounded bg-[#2f8d3c] px-2 py-1 text-[11px] font-bold leading-none text-white shadow-sm">
+              {product.rating.toFixed(1)} *
+            </span>
+          )}
           {outOfStock && (
             <span className="absolute inset-0 grid place-items-center bg-background/70 text-xs font-semibold uppercase tracking-widest text-foreground backdrop-blur-[1px]">
               Sold out

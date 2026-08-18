@@ -325,18 +325,18 @@ function Checkout() {
                     checked={method === "cod"}
                     onClick={() => setMethod("cod")}
                     title="Cash on Delivery - DTDC only"
-                    desc="COD is available only when enabled by admin and ships through DTDC."
+                    desc="COD is available for eligible orders and ships through DTDC."
                   />
                 )}
                 {!codAvailable && (
                   <p className="rounded-lg border border-amber-500/20 bg-amber-500/10 px-3 py-2 text-xs text-amber-700">
-                    Cash on Delivery is currently disabled by the store admin.
+                    Cash on Delivery is currently unavailable.
                   </p>
                 )}
               </div>
               {!API_URL && (
                 <p className="text-[11px] text-amber-700 mt-3">
-                  Demo mode - payments are simulated. Set VITE_API_URL to enable live Razorpay.
+                  Payments are currently running in secure preview mode.
                 </p>
               )}
             </section>
