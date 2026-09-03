@@ -86,6 +86,7 @@ function AdminRoot() {
     adminLogin,
     adminLogout,
     adminProducts,
+    refreshProducts,
     saveProduct,
     deleteProduct,
     orders,
@@ -119,9 +120,13 @@ function AdminRoot() {
 
   useEffect(() => {
     if (adminAuthed && tab === "users") fetchRegisteredUsers();
-    // The store action is recreated with provider state; depending on it causes a request loop.
+    if (adminAuthed && tab === "products" && adminProducts.length === 0) fetchProductsSafely();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [adminAuthed, tab]);
+
+  const fetchProductsSafely = () => {
+    refreshProducts().catch(() => {});
+  };
 
   if (!adminAuthed) {
     return (

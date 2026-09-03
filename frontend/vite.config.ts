@@ -6,13 +6,24 @@ import { nitro } from "nitro/vite";
 import { defineConfig, loadEnv } from "vite";
 import tsConfigPaths from "vite-tsconfig-paths";
 
+const frontendDir = fileURLToPath(new URL(".", import.meta.url));
+
 export default defineConfig(({ mode }) => {
-  const loadedEnv = loadEnv(mode, process.cwd(), "VITE_");
+  const loadedEnv = loadEnv(mode, frontendDir, "VITE_");
   const define = Object.fromEntries(
     Object.entries(loadedEnv).map(([key, value]) => [`import.meta.env.${key}`, JSON.stringify(value)]),
   );
   return {
-    server: { host: "::", port: 8081 },
+    server: {
+      host: "::",
+      port: 8081,
+      proxy: {
+        "/api": {
+          target: "http://localhost:5000",
+          changeOrigin: true,
+        },
+      },
+    },
     define,
     css: { transformer: "lightningcss" },
     resolve: {

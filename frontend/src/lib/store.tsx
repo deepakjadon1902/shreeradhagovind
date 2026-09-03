@@ -179,6 +179,7 @@ type Store = {
   adminLogin: (u: string, p: string) => Promise<boolean> | boolean;
   adminLogout: () => void;
   adminProducts: Product[];
+  refreshProducts: () => Promise<Product[]>;
   saveProduct: (p: Product) => Promise<void> | void;
   deleteProduct: (id: string) => Promise<void> | void;
   updateOrderStatus: (id: string, status: Order["status"]) => Promise<void> | void;
@@ -394,6 +395,19 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   const [registeredUsers, setRegisteredUsers] = useState<RegisteredUser[]>([]);
   const [blogs, setBlogs] = useState<Blog[]>([]);
 
+  const refreshProducts = useCallback(async () => {
+    if (!apiEnabled) return [];
+    try {
+      const prodRes = await api<{ products: any[] }>("/products");
+      const prods = (prodRes?.products || []).map(mapProduct);
+      setAdminProducts(prods);
+      return prods;
+    } catch (e: any) {
+      console.warn("[api] fetch products failed:", e?.message);
+      return [];
+    }
+  }, [apiEnabled]);
+
   // ---- initial load (local + remote) ----
   useEffect(() => {
     setUser(load("user", null));
@@ -414,46 +428,76 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     if (!apiEnabled) return;
 
     (async () => {
-      try {
-        const [prodRes, catRes, setRes, blogRes] = await Promise.all([
-          api<{ products: any[] }>("/products"),
-          api<{ categories: any[] }>("/categories"),
-          api<{ settings: any }>("/settings"),
-          api<{ blogs: any[] }>("/blogs?all=true"),
-        ]);
-        const products = prodRes.products.map(mapProduct);
-        const mappedCategories = catRes.categories.map(mapCategory);
-        setAdminProducts(products);
-        setCategoryDetails(mappedCategories);
-        setCategories(mappedCategories.filter((c) => c.isActive).map((c) => c.name));
-        setCategoryIds(Object.fromEntries(mappedCategories.map((c) => [c.name, c.id])));
-        setSettings((s) => ({ ...s, ...mapSettings(setRes.settings) }));
-        setBlogs(blogRes.blogs.map(mapBlog));
+      // 1. Independent products fetch
+      const prodPromise = api<{ products: any[] }>("/products")
+        .then((prodRes) => {
+          const products = (prodRes?.products || []).map(mapProduct);
+          setAdminProducts(products);
+          return products;
+        })
+        .catch((e: any) => {
+          console.warn("[api] initial products load failed:", e?.message);
+          return [] as Product[];
+        });
 
-        if (getToken()) {
-          try {
-            const me = await api<{ user: any }>("/auth/me");
-            setUser({
-              id: me.user.id,
-              name: me.user.name,
-              email: me.user.email,
-              role: me.user.role,
-              avatar: me.user.avatar,
-              phone: me.user.phone ?? "",
-              address: me.user.address ?? {},
-            });
-            const ord = await api<{ orders: any[] }>(
-              me.user.role === "admin" ? "/admin/orders" : "/orders",
-            );
-            const lookup = new Map(products.map((p) => [p.id, p]));
-            setOrders(ord.orders.map((o) => mapOrder(o, lookup)));
-          } catch {
-            setToken(null);
-            setUser(null);
+      // 2. Independent categories fetch
+      const catPromise = api<{ categories: any[] }>("/categories")
+        .then((catRes) => {
+          const mappedCategories = (catRes?.categories || []).map(mapCategory);
+          setCategoryDetails(mappedCategories);
+          setCategories(mappedCategories.filter((c) => c.isActive).map((c) => c.name));
+          setCategoryIds(Object.fromEntries(mappedCategories.map((c) => [c.name, c.id])));
+        })
+        .catch((e: any) => {
+          console.warn("[api] initial categories load failed:", e?.message);
+        });
+
+      // 3. Independent settings fetch
+      const setPromise = api<{ settings: any }>("/settings")
+        .then((setRes) => {
+          if (setRes?.settings) {
+            setSettings((s) => ({ ...s, ...mapSettings(setRes.settings) }));
           }
+        })
+        .catch((e: any) => {
+          console.warn("[api] initial settings load failed:", e?.message);
+        });
+
+      // 4. Independent blogs fetch
+      const blogPromise = api<{ blogs: any[] }>("/blogs?all=true")
+        .then((blogRes) => {
+          if (blogRes?.blogs) {
+            setBlogs(blogRes.blogs.map(mapBlog));
+          }
+        })
+        .catch((e: any) => {
+          console.warn("[api] initial blogs load failed:", e?.message);
+        });
+
+      await Promise.allSettled([prodPromise, catPromise, setPromise, blogPromise]);
+
+      if (getToken()) {
+        try {
+          const me = await api<{ user: any }>("/auth/me");
+          setUser({
+            id: me.user.id,
+            name: me.user.name,
+            email: me.user.email,
+            role: me.user.role,
+            avatar: me.user.avatar,
+            phone: me.user.phone ?? "",
+            address: me.user.address ?? {},
+          });
+          const ord = await api<{ orders: any[] }>(
+            me.user.role === "admin" ? "/admin/orders" : "/orders",
+          );
+          const currentProducts = await prodPromise;
+          const lookup = new Map(currentProducts.map((p) => [p.id, p]));
+          setOrders(ord.orders.map((o) => mapOrder(o, lookup)));
+        } catch {
+          setToken(null);
+          setUser(null);
         }
-      } catch (e: any) {
-        console.warn("[api] initial load failed:", e?.message);
       }
     })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -678,7 +722,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
           return false;
         }
         finishAuth(r.token, r.user);
-        await refreshOrders(true);
+        await Promise.allSettled([refreshOrders(true), refreshProducts()]);
         return true;
       } catch (e: any) {
         toast.error(e?.message ?? "Invalid admin credentials");
@@ -1330,6 +1374,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     adminLogin,
     adminLogout,
     adminProducts,
+    refreshProducts,
     saveProduct,
     deleteProduct,
     updateOrderStatus,

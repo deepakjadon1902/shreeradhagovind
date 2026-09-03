@@ -1,9 +1,13 @@
-// Lightweight fetch wrapper for the backend API.
-// Set VITE_API_URL in your frontend .env (e.g. http://localhost:5000/api).
-// When unset, isApiEnabled() is false and the store falls back to local data.
+function resolveApiUrl(): string {
+  const configured = (import.meta.env.VITE_API_URL as string | undefined)?.trim();
+  if (configured) return configured.replace(/\/$/, "");
+  // In development, fallback to default local backend API endpoint
+  if (import.meta.env.DEV) return "http://localhost:5000/api";
+  // In production, fallback to relative API route (same origin)
+  return "/api";
+}
 
-const RAW = (import.meta.env.VITE_API_URL as string | undefined)?.trim() ?? "";
-export const API_URL = RAW.replace(/\/$/, "");
+export const API_URL = resolveApiUrl();
 
 const TOKEN_KEY = "srg_token";
 
@@ -16,7 +20,7 @@ export const setToken = (t: string | null) => {
   else localStorage.removeItem(TOKEN_KEY);
 };
 
-export const isApiEnabled = () => !!API_URL;
+export const isApiEnabled = () => Boolean(API_URL);
 
 type Options = {
   method?: "GET" | "POST" | "PATCH" | "DELETE";
