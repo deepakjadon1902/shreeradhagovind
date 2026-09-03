@@ -2,7 +2,7 @@ import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { Layout } from "@/components/Layout";
 import { useStore, formatINR } from "@/lib/store";
 import { API_URL } from "@/lib/api";
-import { PRODUCTS, type Product } from "@/lib/products";
+import { type Product } from "@/lib/products";
 import { Heart, ShoppingBag, Star, Check } from "lucide-react";
 import { useEffect, useState } from "react";
 import { ProductCard } from "@/components/ProductCard";
@@ -32,19 +32,15 @@ function matchesProduct(product: Product, idOrSlug: string) {
 }
 
 async function loadProductForMeta(idOrSlug: string) {
-  const localProduct = PRODUCTS.find((product) => matchesProduct(product, idOrSlug));
-  if (!API_URL)
-    return localProduct
-      ? { ...localProduct, slug: localProduct.slug ?? slugify(localProduct.name) }
-      : null;
+  if (!API_URL) return null;
 
   try {
     const response = await fetch(`${API_URL}/products/${encodeURIComponent(idOrSlug)}`);
-    if (!response.ok) return localProduct ?? null;
+    if (!response.ok) return null;
     const data = (await response.json()) as { product?: Record<string, unknown> };
-    return data.product ? normalizeProduct(data.product) : (localProduct ?? null);
+    return data.product ? normalizeProduct(data.product) : null;
   } catch {
-    return localProduct ?? null;
+    return null;
   }
 }
 

@@ -1,7 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import type {} from "@tanstack/react-start";
 import { API_URL } from "@/lib/api";
-import { PRODUCTS, DEFAULT_CATEGORIES } from "@/lib/products";
+import { DEFAULT_CATEGORIES } from "@/lib/products";
 import { SITE_URL, slugify } from "@/lib/seo";
 
 type ChangeFreq = "always" | "hourly" | "daily" | "weekly" | "monthly" | "yearly" | "never";
@@ -53,7 +53,7 @@ async function fetchApi<T>(path: string): Promise<T | null> {
 
 async function productEntries(today: string): Promise<SitemapEntry[]> {
   const data = await fetchApi<{ products?: Record<string, unknown>[] }>("/products");
-  const products = data?.products?.length ? data.products : PRODUCTS;
+  const products = data?.products ?? [];
 
   return products
     .filter((product) => product && product.name)

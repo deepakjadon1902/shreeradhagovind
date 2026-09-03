@@ -7,7 +7,7 @@ import {
   useCallback,
   type ReactNode,
 } from "react";
-import { PRODUCTS, DEFAULT_CATEGORIES, DEFAULT_CATEGORY_TREE, type Product } from "./products";
+import { DEFAULT_CATEGORIES, DEFAULT_CATEGORY_TREE, type Product } from "./products";
 import { toast } from "sonner";
 import { api, isApiEnabled, setToken, getToken } from "./api";
 import { slugify } from "./seo";
@@ -385,7 +385,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   const [cart, setCart] = useState<CartItem[]>([]);
   const [wishlist, setWishlist] = useState<string[]>([]);
   const [orders, setOrders] = useState<Order[]>([]);
-  const [adminProducts, setAdminProducts] = useState<Product[]>(PRODUCTS);
+  const [adminProducts, setAdminProducts] = useState<Product[]>([]);
   const [categories, setCategories] = useState<string[]>(DEFAULT_CATEGORIES);
   const [categoryDetails, setCategoryDetails] = useState<Category[]>(DEFAULT_CATEGORY_DETAILS);
   // backend category name → id
@@ -399,7 +399,13 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     setUser(load("user", null));
     setCart(load("cart", []));
     setWishlist(load("wishlist", []));
-    setAdminProducts(load("products", PRODUCTS));
+    if (typeof window !== "undefined") {
+      try {
+        localStorage.removeItem(`${KEY}_products`);
+      } catch {
+        /* ignore */
+      }
+    }
     setCategories(load("categories", DEFAULT_CATEGORIES));
     setCategoryDetails(load("categoryDetails", DEFAULT_CATEGORY_DETAILS));
     setBlogs(load("blogs", []));
@@ -458,7 +464,6 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   useEffect(() => save("cart", cart), [cart]);
   useEffect(() => save("wishlist", wishlist), [wishlist]);
   useEffect(() => save("orders", orders), [orders]);
-  useEffect(() => save("products", adminProducts), [adminProducts]);
   useEffect(() => save("categories", categories), [categories]);
   useEffect(() => save("categoryDetails", categoryDetails), [categoryDetails]);
   useEffect(() => save("blogs", blogs), [blogs]);
