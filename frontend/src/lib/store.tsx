@@ -26,15 +26,23 @@ export type PaymentStatus = "paid" | "pending" | "failed" | "refunded";
 export type Order = {
   id: string;
   orderNo?: number;
+  customerEmail?: string;
   trackingId?: string;
   courier?: Courier | null;
   courierTrackingUrl?: string;
   items: { product: Product; qty: number }[];
   total: number;
+  alternatePhone?: string;
+  needsGstInvoice?: boolean;
+  businessName?: string;
+  gstin?: string;
   address: {
     name: string;
     phone: string;
+    alternatePhone?: string;
     line1: string;
+    line2?: string;
+    postOffice?: string;
     city: string;
     state: string;
     pincode: string;
@@ -58,7 +66,7 @@ export type Order = {
     | "Cancelled";
   createdAt: number;
 };
-export type Address = { line1: string; city: string; state: string; pincode: string };
+export type Address = { line1: string; line2?: string; postOffice?: string; city: string; state: string; pincode: string };
 export type User = {
   id?: string;
   name: string;
@@ -146,6 +154,12 @@ type Store = {
   apiEnabled: boolean;
   user: User;
   login: (email: string, passwordOrName?: string) => Promise<void> | void;
+  sendLoginOtp: (email: string) => Promise<{ ok: boolean; message: string }>;
+  verifyLoginOtp: (
+    email: string,
+    otp: string
+  ) => Promise<{ requiresPasswordSet: boolean; setPasswordToken?: string; user?: any }>;
+  createPassword: (token: string, password: string) => Promise<void>;
   signup: (name: string, email: string, password: string) => Promise<void>;
   loginGoogle: (credential?: string) => Promise<void> | void;
   logout: () => void;
@@ -333,6 +347,7 @@ const fallbackProduct = (i: any): Product => ({
 const mapOrder = (o: any, productLookup: Map<string, Product>): Order => ({
   id: String(o._id ?? o.id),
   orderNo: typeof o.orderNo === "number" ? o.orderNo : undefined,
+  customerEmail: o.customerEmail ?? undefined,
   trackingId: o.trackingId ?? undefined,
   courier: o.courier ?? null,
   courierTrackingUrl: o.courierTrackingUrl ?? "",
@@ -341,7 +356,11 @@ const mapOrder = (o: any, productLookup: Map<string, Product>): Order => ({
     qty: i.qty,
   })),
   total: o.total,
-  address: o.address ?? { name: "", phone: "", line1: "", city: "", state: "", pincode: "" },
+  alternatePhone: o.alternatePhone ?? o.address?.alternatePhone ?? "",
+  needsGstInvoice: o.needsGstInvoice ?? false,
+  businessName: o.businessName ?? "",
+  gstin: o.gstin ?? "",
+  address: o.address ?? { name: "", phone: "", alternatePhone: "", line1: "", line2: "", postOffice: "", city: "", state: "", pincode: "" },
   payment: {
     method: o.payment?.method ?? "cod",
     status: (o.payment?.status as PaymentStatus) ?? "pending",
@@ -524,6 +543,70 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     } else {
       setUser({ name: passwordOrName ?? email.split("@")[0], email });
       toast.success("Welcome back!");
+    }
+  };
+
+  const sendLoginOtp: Store["sendLoginOtp"] = async (email) => {
+    if (apiEnabled) {
+      try {
+        const r = await api<{ ok: boolean; message: string }>("/auth/send-login-otp", {
+          method: "POST",
+          body: { email: email.trim().toLowerCase() },
+        });
+        toast.success(r.message || "OTP sent to your email.");
+        return r;
+      } catch (e: any) {
+        toast.error(e?.message ?? "Failed to send OTP");
+        throw e;
+      }
+    }
+    toast.success("Demo OTP sent: 123456");
+    return { ok: true, message: "Demo OTP sent." };
+  };
+
+  const verifyLoginOtp: Store["verifyLoginOtp"] = async (email, otp) => {
+    if (apiEnabled) {
+      try {
+        const r = await api<{
+          requiresPasswordSet: boolean;
+          setPasswordToken?: string;
+          token?: string;
+          user: any;
+        }>("/auth/verify-login-otp", {
+          method: "POST",
+          body: { email: email.trim().toLowerCase(), otp: otp.trim() },
+        });
+        if (!r.requiresPasswordSet && r.token) {
+          finishAuth(r.token, r.user);
+          await refreshOrders(false);
+        }
+        return r;
+      } catch (e: any) {
+        toast.error(e?.message ?? "OTP verification failed");
+        throw e;
+      }
+    }
+    const demoUser = { id: "demo-user", name: email.split("@")[0], email };
+    finishAuth("demo-token", demoUser);
+    return { requiresPasswordSet: false, user: demoUser };
+  };
+
+  const createPassword: Store["createPassword"] = async (token, password) => {
+    if (apiEnabled) {
+      try {
+        const r = await api<{ token: string; user: any }>("/auth/create-password", {
+          method: "POST",
+          body: { token, password },
+        });
+        finishAuth(r.token, r.user);
+        await refreshOrders(false);
+        toast.success("Password created successfully. Your account is ready.");
+      } catch (e: any) {
+        toast.error(e?.message ?? "Failed to create password");
+        throw e;
+      }
+    } else {
+      toast.success("Password created successfully.");
     }
   };
 
@@ -722,15 +805,16 @@ export function StoreProvider({ children }: { children: ReactNode }) {
 
   // ---- orders ----
   const placeOrder: Store["placeOrder"] = async (o) => {
-    if (apiEnabled && !getToken()) {
-      toast.error("Please sign in before checkout");
-      throw new Error("Authentication required");
-    }
-    if (apiEnabled && getToken()) {
+    if (apiEnabled) {
       try {
-        const r = await api<{ order: any }>("/orders", {
+        const orderEmail = o.customerEmail || (o.address as any)?.email;
+        const r = await api<{ order: any; token?: string; user?: any; isNewAccount?: boolean }>("/orders", {
           method: "POST",
           body: {
+            email: orderEmail,
+            needsGstInvoice: o.needsGstInvoice,
+            businessName: o.businessName,
+            gstin: o.gstin,
             items: o.items.map((i) => ({ productId: i.product.id, qty: i.qty })),
             address: o.address,
             payment: {
@@ -742,6 +826,9 @@ export function StoreProvider({ children }: { children: ReactNode }) {
             },
           },
         });
+        if (r.token && r.user && !getToken()) {
+          setAuth(r.token, r.user);
+        }
         const lookup = new Map(adminProducts.map((p) => [p.id, p]));
         const placed = mapOrder(r.order, lookup);
         setOrders((arr) => [placed, ...arr]);
@@ -1173,6 +1260,9 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     apiEnabled,
     user,
     login,
+    sendLoginOtp,
+    verifyLoginOtp,
+    createPassword,
     signup,
     loginGoogle,
     logout,

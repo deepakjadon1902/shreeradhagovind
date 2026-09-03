@@ -3,7 +3,8 @@ import bcrypt from "bcryptjs";
 import { z } from "zod";
 import { OAuth2Client } from "google-auth-library";
 import { User } from "../models/User";
-import { signToken } from "../utils/jwt";
+import { Order } from "../models/Order";
+import { signToken, signPurposeToken, verifyToken } from "../utils/jwt";
 import { sendEmail, tpl } from "../utils/email";
 import { requireAuth } from "../middleware/auth";
 import { HttpError } from "../middleware/error";
@@ -21,6 +22,22 @@ const safe = (u: any) => ({
   phone: u.phone,
   address: u.address ?? {},
 });
+
+async function claimUserGuestOrders(user: any) {
+  if (!user?.email) return;
+  try {
+    await Order.updateMany(
+      {
+        customerEmail: user.email.toLowerCase().trim(),
+        $or: [{ user: { $exists: false } }, { user: null }],
+      },
+      { $set: { user: user._id } }
+    );
+  } catch (e) {
+    // eslint-disable-next-line no-console
+    console.error("[claimUserGuestOrders:error]", e);
+  }
+}
 
 r.post("/signup", async (req, res, next) => {
   try {
@@ -43,7 +60,15 @@ r.post("/signup", async (req, res, next) => {
     const lower = email.toLowerCase();
     if (await User.findOne({ email: lower })) throw new HttpError(409, "Email already registered");
     const passwordHash = await bcrypt.hash(password, 10);
-    const user = await User.create({ name, email: lower, passwordHash, phone: phone ?? "", address: address ?? {} });
+    const user = await User.create({
+      name,
+      email: lower,
+      passwordHash,
+      passwordSet: true,
+      phone: phone ?? "",
+      address: address ?? {},
+    });
+    await claimUserGuestOrders(user);
     sendEmail({ to: lower, ...tpl.welcome(name) }).catch(() => {});
     res.json({ token: signToken({ sub: String(user._id), role: user.role, email: user.email }), user: safe(user) });
   } catch (e) {
@@ -57,13 +82,139 @@ r.post("/login", async (req, res, next) => {
       .object({ email: z.string().email(), password: z.string().min(1) })
       .parse(req.body);
     const user = await User.findOne({ email: email.toLowerCase() });
-    if (!user || !user.passwordHash) throw new HttpError(401, "Invalid credentials");
+    if (!user || !user.passwordHash || user.passwordSet === false)
+      throw new HttpError(401, "Invalid credentials or password not yet created. Please sign in with Email OTP.");
     if (user.isBlocked) throw new HttpError(403, "Your account has been blocked. Please contact support.");
     const ok = await bcrypt.compare(password, user.passwordHash);
     if (!ok) throw new HttpError(401, "Invalid credentials");
     user.lastLoginAt = new Date();
     await user.save();
+    await claimUserGuestOrders(user);
     res.json({ token: signToken({ sub: String(user._id), role: user.role, email: user.email }), user: safe(user) });
+  } catch (e) {
+    next(e);
+  }
+});
+
+r.post("/send-login-otp", async (req, res, next) => {
+  try {
+    const { email } = z.object({ email: z.string().email() }).parse(req.body);
+    const lower = email.trim().toLowerCase();
+    let user = await User.findOne({ email: lower });
+    if (!user) {
+      // Auto create account with passwordSet=false for brand-new customer
+      user = await User.create({
+        name: lower.split("@")[0] || "Customer",
+        email: lower,
+        passwordHash: "",
+        passwordSet: false,
+        role: "user",
+      });
+    }
+    if (user.isBlocked) throw new HttpError(403, "Your account has been blocked. Please contact support.");
+    if (user.loginOtpLastSentAt && Date.now() - user.loginOtpLastSentAt.getTime() < 60000) {
+      const remaining = Math.ceil((60000 - (Date.now() - user.loginOtpLastSentAt.getTime())) / 1000);
+      throw new HttpError(429, `Please wait ${remaining}s before requesting another OTP.`);
+    }
+    const otp = String(Math.floor(100000 + Math.random() * 900000));
+    user.loginOtpHash = await bcrypt.hash(otp, 10);
+    user.loginOtpExpiresAt = new Date(Date.now() + 10 * 60 * 1000);
+    user.loginOtpAttempts = 0;
+    user.loginOtpLastSentAt = new Date();
+    await user.save();
+    sendEmail({ to: lower, ...tpl.loginOtp(user.name, otp) }).catch(() => {});
+    res.json({ ok: true, message: "A 6-digit OTP has been sent to your email." });
+  } catch (e) {
+    next(e);
+  }
+});
+
+r.post("/verify-login-otp", async (req, res, next) => {
+  try {
+    const { email, otp } = z
+      .object({ email: z.string().email(), otp: z.string().min(4).max(8) })
+      .parse(req.body);
+    const lower = email.trim().toLowerCase();
+    const user = await User.findOne({ email: lower });
+    if (!user?.loginOtpHash || !user.loginOtpExpiresAt || user.loginOtpExpiresAt.getTime() < Date.now()) {
+      throw new HttpError(400, "OTP expired or invalid. Please request a new OTP.");
+    }
+    if ((user.loginOtpAttempts ?? 0) >= 5) {
+      user.loginOtpHash = "";
+      user.loginOtpExpiresAt = null;
+      await user.save();
+      throw new HttpError(429, "Too many invalid attempts. Please request a new OTP.");
+    }
+    const ok = await bcrypt.compare(otp, user.loginOtpHash);
+    if (!ok) {
+      user.loginOtpAttempts = (user.loginOtpAttempts ?? 0) + 1;
+      await user.save();
+      throw new HttpError(400, "Invalid OTP. Please check the code sent to your email.");
+    }
+    // Invalidate OTP immediately
+    user.loginOtpHash = "";
+    user.loginOtpExpiresAt = null;
+    user.loginOtpAttempts = 0;
+    await user.save();
+    await claimUserGuestOrders(user);
+
+    const needsPassword = user.passwordSet === false || !user.passwordHash;
+    if (needsPassword) {
+      const setPasswordToken = signPurposeToken(
+        { sub: String(user._id), email: user.email, purpose: "set_password" },
+        "15m"
+      );
+      res.json({
+        requiresPasswordSet: true,
+        setPasswordToken,
+        user: safe(user),
+      });
+    } else {
+      user.lastLoginAt = new Date();
+      await user.save();
+      res.json({
+        requiresPasswordSet: false,
+        token: signToken({ sub: String(user._id), role: user.role, email: user.email }),
+        user: safe(user),
+      });
+    }
+  } catch (e) {
+    next(e);
+  }
+});
+
+r.post("/create-password", async (req, res, next) => {
+  try {
+    const { token, password } = z
+      .object({
+        token: z.string().min(10),
+        password: z.string().min(6, "Password must be at least 6 characters"),
+      })
+      .parse(req.body);
+
+    let payload: any;
+    try {
+      payload = verifyToken(token);
+    } catch {
+      throw new HttpError(401, "Session expired or invalid. Please verify OTP again.");
+    }
+    if (payload.purpose !== "set_password" || !payload.sub) {
+      throw new HttpError(403, "Unauthorized password creation request.");
+    }
+    const user = await User.findById(payload.sub);
+    if (!user) throw new HttpError(404, "User not found.");
+
+    user.passwordHash = await bcrypt.hash(password, 10);
+    user.passwordSet = true;
+    user.provider = "password";
+    user.lastLoginAt = new Date();
+    await user.save();
+    await claimUserGuestOrders(user);
+
+    res.json({
+      token: signToken({ sub: String(user._id), role: user.role, email: user.email }),
+      user: safe(user),
+    });
   } catch (e) {
     next(e);
   }
@@ -113,12 +264,14 @@ r.post("/reset-password", async (req, res, next) => {
       throw new HttpError(400, "Please verify the OTP again");
     }
     user.passwordHash = await bcrypt.hash(password, 10);
+    user.passwordSet = true;
     user.provider = "password";
     user.resetOtpHash = "";
     user.resetOtpExpiresAt = null;
     user.resetOtpVerifiedAt = null;
     user.lastLoginAt = new Date();
     await user.save();
+    await claimUserGuestOrders(user);
     res.json({ token: signToken({ sub: String(user._id), role: user.role, email: user.email }), user: safe(user) });
   } catch (e) {
     next(e);
@@ -151,6 +304,7 @@ r.post("/google", async (req, res, next) => {
     if (user.isBlocked) throw new HttpError(403, "Your account has been blocked. Please contact support.");
     user.lastLoginAt = new Date();
     await user.save();
+    await claimUserGuestOrders(user);
     res.json({ token: signToken({ sub: String(user._id), role: user.role, email: user.email }), user: safe(user) });
   } catch (e) {
     next(e);

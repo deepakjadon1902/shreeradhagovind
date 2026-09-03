@@ -2,7 +2,8 @@ import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useEffect, useRef, useState } from "react";
 import { useStore } from "@/lib/store";
 import { Mail, Lock, Eye, EyeOff } from "lucide-react";
-const logo = "/shriradhagovind store logo.jpeg";
+import heroKrishna from "@/assets/hero-krishna.jpg";
+const logo = "/brand-logo-large.png";
 
 export const Route = createFileRoute("/login")({
   component: Login,
@@ -18,32 +19,343 @@ export const Route = createFileRoute("/login")({
 });
 
 function Login() {
-  const { login, loginGoogle } = useStore();
+  const { login, sendLoginOtp, verifyLoginOtp, createPassword, loginGoogle } = useStore();
   const nav = useNavigate();
-  const [email, setEmail] = useState(""); const [pw, setPw] = useState(""); const [show, setShow] = useState(false);
-  const submit = async (e: React.FormEvent) => { e.preventDefault(); if (!email || !pw) return; try { await login(email, pw); nav({ to: "/" }); } catch { /* toast shown in store */ } };
-  return <AuthShell title="Welcome back" subtitle="Sign in to continue your sacred journey">
-    <GoogleSignInButton onCredential={async (credential) => { try { await loginGoogle(credential); nav({ to: "/" }); } catch { /* toast shown in store */ } }} />
-    <Divider />
-    <form onSubmit={submit} className="space-y-3">
-      <Field icon={Mail} type="email" placeholder="Email address" value={email} onChange={setEmail} />
-      <Field icon={Lock} type={show ? "text" : "password"} placeholder="Password" value={pw} onChange={setPw} right={<button type="button" onClick={() => setShow(!show)} className="text-muted-foreground">{show ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}</button>} />
-      <div className="text-right"><Link to="/forgot-password" className="text-sm font-medium text-primary">Forgot password?</Link></div>
-      <button type="submit" className="w-full h-12 rounded-full bg-primary text-primary-foreground font-medium hover:opacity-90">Sign in</button>
-    </form>
-    <p className="text-center text-sm text-muted-foreground mt-6">New here? <Link to="/signup" className="text-primary font-medium">Create account</Link></p>
-  </AuthShell>;
+
+  // Mode: "otp" | "password"
+  const [mode, setMode] = useState<"otp" | "password">("otp");
+
+  // OTP Step: "email" | "otp" | "create_password"
+  const [step, setStep] = useState<"email" | "otp" | "create_password">("email");
+
+  const [email, setEmail] = useState("");
+  const [otp, setOtp] = useState("");
+  const [pw, setPw] = useState("");
+  const [newPw, setNewPw] = useState("");
+  const [confirmPw, setConfirmPw] = useState("");
+  const [show, setShow] = useState(false);
+  const [showConfirm, setShowConfirm] = useState(false);
+
+  const [setPasswordToken, setSetPasswordToken] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [resendCooldown, setResendCooldown] = useState(0);
+
+  useEffect(() => {
+    if (resendCooldown <= 0) return;
+    const timer = setInterval(() => setResendCooldown((c) => c - 1), 1000);
+    return () => clearInterval(timer);
+  }, [resendCooldown]);
+
+  const handlePasswordSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!email || !pw) return;
+    setLoading(true);
+    try {
+      await login(email, pw);
+      nav({ to: "/orders" });
+    } catch {
+      /* toast shown in store */
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleSendOtp = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!email || !/^\S+@\S+\.\S+$/.test(email.trim())) {
+      toast.error("Please enter a valid email address");
+      return;
+    }
+    setLoading(true);
+    try {
+      await sendLoginOtp(email.trim());
+      setStep("otp");
+      setResendCooldown(60);
+    } catch {
+      /* toast shown in store */
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleResendOtp = async () => {
+    if (resendCooldown > 0 || loading) return;
+    setLoading(true);
+    try {
+      await sendLoginOtp(email.trim());
+      setResendCooldown(60);
+    } catch {
+      /* toast shown in store */
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleVerifyOtp = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const cleanOtp = otp.trim();
+    if (!cleanOtp || cleanOtp.length < 4) {
+      toast.error("Please enter the OTP sent to your email");
+      return;
+    }
+    setLoading(true);
+    try {
+      const res = await verifyLoginOtp(email.trim(), cleanOtp);
+      if (res.requiresPasswordSet && res.setPasswordToken) {
+        setSetPasswordToken(res.setPasswordToken);
+        setStep("create_password");
+      } else {
+        nav({ to: "/orders" });
+      }
+    } catch {
+      /* toast shown in store */
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleCreatePassword = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newPw || newPw.length < 6) {
+      toast.error("Password must be at least 6 characters");
+      return;
+    }
+    if (newPw !== confirmPw) {
+      toast.error("Passwords do not match");
+      return;
+    }
+    setLoading(true);
+    try {
+      await createPassword(setPasswordToken, newPw);
+      nav({ to: "/orders" });
+    } catch {
+      /* toast shown in store */
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // If setting password for auto-created account:
+  if (step === "create_password") {
+    return (
+      <AuthShell
+        title="Create Your Password"
+        subtitle="Set a password so you can easily sign in to your account and access your orders."
+      >
+        <form onSubmit={handleCreatePassword} className="space-y-4">
+          <Field
+            icon={Lock}
+            type={show ? "text" : "password"}
+            placeholder="New Password (min 6 characters)"
+            value={newPw}
+            onChange={setNewPw}
+            right={
+              <button
+                type="button"
+                onClick={() => setShow(!show)}
+                className="text-muted-foreground hover:text-foreground"
+              >
+                {show ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+              </button>
+            }
+          />
+          <Field
+            icon={Lock}
+            type={showConfirm ? "text" : "password"}
+            placeholder="Confirm Password"
+            value={confirmPw}
+            onChange={setConfirmPw}
+            right={
+              <button
+                type="button"
+                onClick={() => setShowConfirm(!showConfirm)}
+                className="text-muted-foreground hover:text-foreground"
+              >
+                {showConfirm ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+              </button>
+            }
+          />
+          <button
+            type="submit"
+            disabled={loading}
+            className="w-full h-12 rounded-full bg-primary text-primary-foreground font-medium hover:opacity-90 disabled:opacity-50"
+          >
+            {loading ? "Creating Password..." : "Create Password & Access Orders"}
+          </button>
+        </form>
+      </AuthShell>
+    );
+  }
+
+  return (
+    <AuthShell
+      title="Welcome back"
+      subtitle={
+        mode === "otp"
+          ? step === "otp"
+            ? `Enter the 6-digit code sent to ${email}`
+            : "Sign in with Email OTP or password"
+          : "Sign in with your password"
+      }
+    >
+      <GoogleSignInButton
+        onCredential={async (credential) => {
+          try {
+            await loginGoogle(credential);
+            nav({ to: "/orders" });
+          } catch {
+            /* toast shown in store */
+          }
+        }}
+      />
+      <Divider />
+
+      {/* Mode Switch Tabs */}
+      <div className="flex rounded-full bg-muted p-1 mb-6 text-sm font-medium">
+        <button
+          type="button"
+          onClick={() => {
+            setMode("otp");
+            setStep("email");
+          }}
+          className={`flex-1 py-2 rounded-full transition ${
+            mode === "otp"
+              ? "bg-white text-foreground shadow-sm"
+              : "text-muted-foreground hover:text-foreground"
+          }`}
+        >
+          Email OTP Sign-in
+        </button>
+        <button
+          type="button"
+          onClick={() => setMode("password")}
+          className={`flex-1 py-2 rounded-full transition ${
+            mode === "password"
+              ? "bg-white text-foreground shadow-sm"
+              : "text-muted-foreground hover:text-foreground"
+          }`}
+        >
+          Password Sign-in
+        </button>
+      </div>
+
+      {mode === "otp" ? (
+        step === "email" ? (
+          <form onSubmit={handleSendOtp} className="space-y-4">
+            <Field
+              icon={Mail}
+              type="email"
+              placeholder="Enter your email address"
+              value={email}
+              onChange={setEmail}
+            />
+            <button
+              type="submit"
+              disabled={loading}
+              className="w-full h-12 rounded-full bg-primary text-primary-foreground font-medium hover:opacity-90 disabled:opacity-50"
+            >
+              {loading ? "Sending OTP..." : "Send OTP"}
+            </button>
+          </form>
+        ) : (
+          <form onSubmit={handleVerifyOtp} className="space-y-4">
+            <Field
+              icon={Lock}
+              type="text"
+              placeholder="Enter 6-digit OTP"
+              value={otp}
+              onChange={setOtp}
+              maxLength={6}
+            />
+            <div className="flex items-center justify-between text-xs text-muted-foreground px-1">
+              <button
+                type="button"
+                onClick={() => setStep("email")}
+                className="text-primary hover:underline font-medium"
+              >
+                Change email ({email})
+              </button>
+              <button
+                type="button"
+                disabled={resendCooldown > 0 || loading}
+                onClick={handleResendOtp}
+                className="text-primary hover:underline font-medium disabled:text-muted-foreground disabled:no-underline"
+              >
+                {resendCooldown > 0 ? `Resend in ${resendCooldown}s` : "Resend OTP"}
+              </button>
+            </div>
+            <button
+              type="submit"
+              disabled={loading}
+              className="w-full h-12 rounded-full bg-primary text-primary-foreground font-medium hover:opacity-90 disabled:opacity-50"
+            >
+              {loading ? "Verifying..." : "Verify OTP & Continue"}
+            </button>
+          </form>
+        )
+      ) : (
+        <form onSubmit={handlePasswordSubmit} className="space-y-3">
+          <Field
+            icon={Mail}
+            type="email"
+            placeholder="Email address"
+            value={email}
+            onChange={setEmail}
+          />
+          <Field
+            icon={Lock}
+            type={show ? "text" : "password"}
+            placeholder="Password"
+            value={pw}
+            onChange={setPw}
+            right={
+              <button
+                type="button"
+                onClick={() => setShow(!show)}
+                className="text-muted-foreground hover:text-foreground"
+              >
+                {show ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+              </button>
+            }
+          />
+          <div className="text-right">
+            <Link to="/forgot-password" className="text-sm font-medium text-primary">
+              Forgot password?
+            </Link>
+          </div>
+          <button
+            type="submit"
+            disabled={loading}
+            className="w-full h-12 rounded-full bg-primary text-primary-foreground font-medium hover:opacity-90 disabled:opacity-50"
+          >
+            {loading ? "Signing in..." : "Sign in"}
+          </button>
+        </form>
+      )}
+
+      <p className="text-center text-sm text-muted-foreground mt-6">
+        New here?{" "}
+        <Link to="/signup" className="text-primary font-medium">
+          Create account
+        </Link>
+      </p>
+    </AuthShell>
+  );
 }
 
 export function AuthShell({ title, subtitle, children }: { title: string; subtitle: string; children: React.ReactNode }) {
   return (
     <div className="min-h-screen grid lg:grid-cols-2">
-      <div className="hidden lg:block relative">
-        <img src="https://images.unsplash.com/photo-1609858351150-2f865c1a8b6e?auto=format&fit=crop&w=900&q=80" className="absolute inset-0 h-full w-full object-cover" alt="" />
-        <div className="absolute inset-0 bg-gradient-to-tr from-primary/40 via-transparent to-transparent" />
-        <div className="absolute bottom-10 left-10 text-white">
+      <div className="hidden lg:block relative overflow-hidden bg-slate-900">
+        <img
+          src={heroKrishna}
+          className="absolute inset-0 h-full w-full object-cover object-center opacity-90"
+          alt="Shri Radha Govind Devotional"
+        />
+        <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/35 to-transparent" />
+        <div className="absolute bottom-10 left-10 text-white z-10">
           <p className="font-display text-5xl">॥ Hare Krishna ॥</p>
-          <p className="mt-2 text-white/80 max-w-sm">Authentic sacred products delivered from the holy land of Vrindavan.</p>
+          <p className="mt-2 text-white/90 max-w-sm text-sm">Authentic sacred products delivered from the holy land of Vrindavan.</p>
         </div>
       </div>
       <div className="flex items-center justify-center p-6 sm:p-10">

@@ -65,6 +65,10 @@ const productSchema = z.object({
   rating: z.number().min(0).max(5).optional(),
   reviews: z.number().min(0).optional(),
   details: z.array(z.string()).optional().default([]),
+  hsnCode: z.string().optional().default(""),
+  gstRate: z.number().min(0).max(28).optional().default(0),
+  gstInclusive: z.boolean().optional().default(true),
+  isTaxable: z.boolean().optional().default(true),
   isActive: z.boolean().optional().default(true),
 });
 

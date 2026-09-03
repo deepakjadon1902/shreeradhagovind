@@ -23,6 +23,10 @@ const productSchema = new Schema(
     rating: { type: Number, default: 0, min: 0, max: 5 },
     reviews: { type: Number, default: 0, min: 0 },
     details: { type: [String], default: [] },
+    hsnCode: { type: String, default: "", trim: true },
+    gstRate: { type: Number, default: 0, min: 0, max: 28 },
+    gstInclusive: { type: Boolean, default: true },
+    isTaxable: { type: Boolean, default: true },
     isActive: { type: Boolean, default: true },
   },
   { timestamps: true }

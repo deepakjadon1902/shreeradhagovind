@@ -12,6 +12,10 @@ export type Product = {
   featuredDeal?: boolean;
   description: string;
   details: string[];
+  hsnCode?: string;
+  gstRate?: number;
+  gstInclusive?: boolean;
+  isTaxable?: boolean;
   stock: number;
 };
 

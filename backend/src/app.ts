@@ -15,6 +15,7 @@ import uploadRoutes from "./routes/upload.routes";
 import settingsRoutes from "./routes/settings.routes";
 import paymentRoutes from "./routes/payment.routes";
 import blogRoutes from "./routes/blog.routes";
+import postalRoutes from "./routes/postal.routes";
 
 export const app = express();
 
@@ -45,6 +46,7 @@ app.use("/api/uploads", uploadRoutes);
 app.use("/api/settings", settingsRoutes);
 app.use("/api/payments", paymentRoutes);
 app.use("/api/blogs", blogRoutes);
+app.use("/api/postal", postalRoutes);
 
 app.use(notFound);
 app.use(errorHandler);

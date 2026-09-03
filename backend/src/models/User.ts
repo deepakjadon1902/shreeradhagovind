@@ -16,10 +16,15 @@ const userSchema = new Schema(
       pincode: { type: String, default: "" },
     },
     isBlocked: { type: Boolean, default: false, index: true },
+    passwordSet: { type: Boolean, default: true, index: true },
     lastLoginAt: { type: Date, default: null },
     resetOtpHash: { type: String, default: "" },
     resetOtpExpiresAt: { type: Date, default: null },
     resetOtpVerifiedAt: { type: Date, default: null },
+    loginOtpHash: { type: String, default: "" },
+    loginOtpExpiresAt: { type: Date, default: null },
+    loginOtpAttempts: { type: Number, default: 0 },
+    loginOtpLastSentAt: { type: Date, default: null },
   },
   { timestamps: true }
 );

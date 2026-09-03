@@ -1,23 +1,36 @@
 import { Router } from "express";
 import crypto from "crypto";
+import bcrypt from "bcryptjs";
 import { z } from "zod";
 import { Order } from "../models/Order";
 import { Product } from "../models/Product";
 import { Settings } from "../models/Settings";
 import { User } from "../models/User";
 import { Counter } from "../models/Counter";
-import { requireAuth } from "../middleware/auth";
+import { requireAuth, optionalAuth } from "../middleware/auth";
 import { HttpError } from "../middleware/error";
+import { signToken } from "../utils/jwt";
 import {
   sendEmail,
   sendOrderConfirmationWithInvoice,
   tpl,
+  formatOrderNumber,
 } from "../utils/email";
-import { generateTrackingId } from "../utils/trackingId";
+import { getCourierTrackingUrl } from "../utils/courier";
 import { env } from "../config/env";
 
 const r = Router();
 const FIRST_ORDER_NO = 5000;
+
+const safeUser = (u: any) => ({
+  id: String(u._id),
+  name: u.name,
+  email: u.email,
+  role: u.role,
+  avatar: u.avatar,
+  phone: u.phone,
+  address: u.address ?? {},
+});
 
 async function nextOrderNo() {
   const counter = await Counter.findOneAndUpdate(
@@ -51,16 +64,25 @@ async function nextOrderNo() {
 // ---- public tracking (no auth) ----
 r.get("/track/:trackingId", async (req, res, next) => {
   try {
-    const o = await Order.findOne({
-      trackingId: req.params.trackingId.toUpperCase(),
-    });
-    if (!o) throw new HttpError(404, "No order found for this tracking ID");
+    const rawTerm = (req.params.trackingId || "").trim();
+    const term = rawTerm.toUpperCase().replace(/^#/, "");
+    const asNumber = Number(term);
+    const query: any = {
+      $or: [
+        { trackingId: term },
+        ...(Number.isInteger(asNumber) && asNumber > 0 ? [{ orderNo: asNumber }] : []),
+      ],
+    };
+    const o = await Order.findOne(query);
+    if (!o) throw new HttpError(404, "No order found for this tracking ID or Order Number");
+    const trackingUrl = o.courierTrackingUrl || getCourierTrackingUrl(o.courier, o.trackingId);
     res.json({
       order: {
+        orderNo: o.orderNo,
         trackingId: o.trackingId,
         status: o.status,
         courier: o.courier,
-        courierTrackingUrl: o.courierTrackingUrl,
+        courierTrackingUrl: trackingUrl,
         createdAt: o.createdAt,
         items: o.items.map((i: any) => ({
           name: i.name,
@@ -85,7 +107,8 @@ r.get("/track/:trackingId", async (req, res, next) => {
 
 r.get("/", requireAuth, async (req, res, next) => {
   try {
-    const orders = await Order.find({ user: req.user!.sub }).sort({
+    const userId = req.user!.sub;
+    const orders = await Order.find({ user: userId }).sort({
       createdAt: -1,
     });
     res.json({ orders });
@@ -98,7 +121,10 @@ r.get("/:id", requireAuth, async (req, res, next) => {
   try {
     const o = await Order.findById(req.params.id);
     if (!o) throw new HttpError(404, "Order not found");
-    if (String(o.user) !== req.user!.sub && req.user!.role !== "admin")
+    const userId = req.user!.sub;
+    const isOwner = String(o.user) === userId;
+    const isAdmin = req.user!.role === "admin";
+    if (!isOwner && !isAdmin)
       throw new HttpError(403, "Forbidden");
     res.json({ order: o });
   } catch (e) {
@@ -106,7 +132,13 @@ r.get("/:id", requireAuth, async (req, res, next) => {
   }
 });
 
+const GSTIN_REGEX = /^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z]{1}[1-9A-Z]{1}Z[0-9A-Z]{1}$/;
+
 const createSchema = z.object({
+  email: z.string().email().optional(),
+  needsGstInvoice: z.boolean().optional().default(false),
+  businessName: z.string().optional().default(""),
+  gstin: z.string().optional().default(""),
   items: z
     .array(
       z.object({ productId: z.string(), qty: z.number().int().min(1).max(20) }),
@@ -115,7 +147,10 @@ const createSchema = z.object({
   address: z.object({
     name: z.string().min(1),
     phone: z.string().min(5),
+    alternatePhone: z.string().optional().default(""),
     line1: z.string().min(1),
+    line2: z.string().optional().default(""),
+    postOffice: z.string().optional().default(""),
     city: z.string().min(1),
     state: z.string().optional().default(""),
     pincode: z.string().min(1),
@@ -129,9 +164,85 @@ const createSchema = z.object({
   }),
 });
 
-r.post("/", requireAuth, async (req, res, next) => {
+r.post("/", optionalAuth, async (req, res, next) => {
   try {
     const body = createSchema.parse(req.body);
+
+    // Validate GST details if requested
+    let cleanBusinessName = "";
+    let cleanGstin = "";
+    if (body.needsGstInvoice) {
+      cleanBusinessName = (body.businessName || "").trim();
+      if (!cleanBusinessName) {
+        throw new HttpError(400, "Business Name is required when requesting a GST invoice");
+      }
+      const rawGstin = (body.gstin || "").trim().toUpperCase();
+      if (rawGstin) {
+        if (!GSTIN_REGEX.test(rawGstin)) {
+          throw new HttpError(
+            400,
+            "Invalid GSTIN format. Please enter a valid 15-character GSTIN (e.g. 09AABCU9603R1ZM)",
+          );
+        }
+        cleanGstin = rawGstin;
+      }
+    }
+
+    // Resolve user & account linkage
+    let user: any = null;
+    let orderUserId: any = null;
+    let isNewAccount = false;
+    let sessionToken: string | undefined;
+
+    if (req.user?.sub) {
+      user = await User.findById(req.user.sub);
+      if (user) {
+        orderUserId = user._id;
+      }
+    }
+
+    const rawEmail = body.email || user?.email || "";
+    const normalizedEmail = rawEmail.trim().toLowerCase();
+    if (!normalizedEmail) {
+      throw new HttpError(400, "Customer email is required for order confirmation and invoicing");
+    }
+
+    if (!orderUserId) {
+      // Guest checkout: Check if user exists with this email
+      const existingUser = await User.findOne({ email: normalizedEmail });
+      if (!existingUser) {
+        // Automatically create customer account with passwordSet=false
+        user = await User.create({
+          name: body.address.name.trim() || "Customer",
+          email: normalizedEmail,
+          phone: body.address.phone.trim(),
+          passwordHash: "",
+          passwordSet: false,
+          role: "user",
+          address: {
+            line1: body.address.line1,
+            city: body.address.city,
+            state: body.address.state,
+            pincode: body.address.pincode,
+          },
+        });
+        isNewAccount = true;
+        orderUserId = user._id;
+        // Issue session token for the newly created customer
+        sessionToken = signToken({
+          sub: String(user._id),
+          role: user.role,
+          email: user.email,
+        });
+        sendEmail({ to: normalizedEmail, ...tpl.welcome(user.name) }).catch(() => {});
+      } else {
+        // Existing email entered as guest does NOT prove ownership.
+        // Create unlinked guest order until email owner verifies via OTP login.
+        orderUserId = undefined;
+        user = null;
+        sessionToken = undefined;
+      }
+    }
 
     // Razorpay signature verification (server-side) when method = razorpay
     if (body.payment.method === "razorpay") {
@@ -157,12 +268,11 @@ r.post("/", requireAuth, async (req, res, next) => {
             Buffer.from(razorpaySignature),
           );
         if (!ok) {
-          const user = await User.findById(req.user!.sub);
-          if (user?.email)
+          if (normalizedEmail)
             sendEmail({
-              to: user.email,
+              to: normalizedEmail,
               ...tpl.paymentFailed(
-                user.name,
+                body.address.name || user?.name || "Customer",
                 razorpayOrderId.slice(-6).toUpperCase(),
                 0,
                 "Signature mismatch",
@@ -190,12 +300,34 @@ r.post("/", requireAuth, async (req, res, next) => {
           400,
           `${p.name} has only ${p.stock ?? 0} left in stock`,
         );
+      const price = p.price;
+      const gstRate = Number(p.gstRate ?? 0);
+      const gstInclusive = p.gstInclusive !== false;
+      const hsnCode = p.hsnCode || "";
+
+      let taxableUnit = price;
+      let gstUnit = 0;
+      if (gstRate > 0) {
+        if (gstInclusive) {
+          taxableUnit = Math.round((price / (1 + gstRate / 100)) * 100) / 100;
+          gstUnit = Math.round((price - taxableUnit) * 100) / 100;
+        } else {
+          taxableUnit = price;
+          gstUnit = Math.round((price * (gstRate / 100)) * 100) / 100;
+        }
+      }
+
       return {
         productId: p._id,
         name: p.name,
         image: p.image,
         price: p.price,
         qty: i.qty,
+        hsnCode,
+        gstRate,
+        gstInclusive,
+        taxableAmount: Math.round(taxableUnit * i.qty * 100) / 100,
+        gstAmount: Math.round(gstUnit * i.qty * 100) / 100,
       };
     });
     const subtotal = items.reduce((s, i) => s + i.price * i.qty, 0);
@@ -211,11 +343,6 @@ r.post("/", requireAuth, async (req, res, next) => {
     const shipping =
       subtotal >= settings.freeShipThreshold ? 0 : settings.shippingFee;
     const total = subtotal + shipping;
-
-    // unique tracking id
-    let trackingId = generateTrackingId();
-    for (let i = 0; i < 5 && (await Order.exists({ trackingId })); i++)
-      trackingId = generateTrackingId();
 
     const stockUpdate = await Product.bulkWrite(
       items.map((item) => ({
@@ -237,15 +364,29 @@ r.post("/", requireAuth, async (req, res, next) => {
     }
 
     const order = await Order.create({
-      user: req.user!.sub,
+      user: orderUserId,
+      customerEmail: normalizedEmail,
       orderNo: await nextOrderNo(),
-      trackingId,
+      needsGstInvoice: Boolean(body.needsGstInvoice),
+      businessName: cleanBusinessName,
+      gstin: cleanGstin,
       items,
       subtotal,
       shipping,
       total,
       courier: body.payment.method === "cod" ? "DTDC" : null,
-      address: body.address,
+      alternatePhone: body.address.alternatePhone || "",
+      address: {
+        name: body.address.name,
+        phone: body.address.phone,
+        alternatePhone: body.address.alternatePhone || "",
+        line1: body.address.line1,
+        line2: body.address.line2 || "",
+        postOffice: body.address.postOffice?.trim() || "",
+        city: body.address.city,
+        state: body.address.state,
+        pincode: body.address.pincode,
+      },
       payment: {
         method: body.payment.method,
         status: body.payment.method === "razorpay" ? "paid" : "pending",
@@ -256,14 +397,15 @@ r.post("/", requireAuth, async (req, res, next) => {
       status: "Placed",
     });
 
-    const user = await User.findById(req.user!.sub);
     const payment = order.payment;
+    const customerRecipientName = body.address.name || user?.name || "Customer";
     if (
-      user?.email &&
+      normalizedEmail &&
       (payment?.status === "paid" || payment?.method === "cod")
     ) {
-      sendOrderConfirmationWithInvoice(user.email, user.name, {
+      sendOrderConfirmationWithInvoice(normalizedEmail, customerRecipientName, {
         _id: order._id,
+        orderNo: order.orderNo,
         trackingId: order.trackingId ?? undefined,
         courier: order.courier ?? undefined,
         courierTrackingUrl: order.courierTrackingUrl ?? undefined,
@@ -272,7 +414,20 @@ r.post("/", requireAuth, async (req, res, next) => {
         subtotal,
         shipping,
         total,
-        address: body.address,
+        businessName: order.businessName || undefined,
+        gstin: order.gstin || undefined,
+        needsGstInvoice: order.needsGstInvoice,
+        address: {
+          name: body.address.name,
+          phone: body.address.phone,
+          alternatePhone: body.address.alternatePhone || undefined,
+          line1: body.address.line1,
+          line2: body.address.line2 || undefined,
+          postOffice: body.address.postOffice?.trim() || undefined,
+          city: body.address.city,
+          state: body.address.state,
+          pincode: body.address.pincode,
+        },
         payment: {
           method: payment.method!,
           status: payment.status!,
@@ -280,23 +435,29 @@ r.post("/", requireAuth, async (req, res, next) => {
         },
         createdAt: order.createdAt,
       }).catch(() => {});
-    } else if (user?.email) {
+    } else if (normalizedEmail) {
       sendEmail({
-        to: user.email,
-        ...tpl.orderPlaced(user.name, String(order._id), total),
+        to: normalizedEmail,
+        ...tpl.orderPlaced(customerRecipientName, formatOrderNumber(order), total),
       }).catch(() => {});
     }
 
-    res.status(201).json({ order });
+    res.status(201).json({
+      order,
+      token: sessionToken,
+      user: user ? safeUser(user) : undefined,
+      isNewAccount,
+    });
   } catch (e) {
     next(e);
   }
 });
 
 // Frontend reports a payment failure (Razorpay modal closed / failed)
-r.post("/payment-failed", requireAuth, async (req, res, next) => {
+r.post("/payment-failed", optionalAuth, async (req, res, next) => {
   try {
     const {
+      email,
       razorpayOrderId,
       amount,
       reason,
@@ -304,6 +465,7 @@ r.post("/payment-failed", requireAuth, async (req, res, next) => {
       address,
     } = z
       .object({
+        email: z.string().email().optional(),
         razorpayOrderId: z.string().optional().default("N/A"),
         amount: z.number().optional().default(0),
         reason: z.string().optional().default("Payment was not completed"),
@@ -320,6 +482,7 @@ r.post("/payment-failed", requireAuth, async (req, res, next) => {
           .object({
             name: z.string().optional().default(""),
             phone: z.string().optional().default(""),
+            alternatePhone: z.string().optional().default(""),
             line1: z.string().optional().default(""),
             city: z.string().optional().default(""),
             state: z.string().optional().default(""),
@@ -367,19 +530,19 @@ r.post("/payment-failed", requireAuth, async (req, res, next) => {
         subtotal >= settings.freeShipThreshold ? 0 : settings.shippingFee;
       const total = amount || subtotal + shipping;
 
-      let trackingId = generateTrackingId();
-      for (let i = 0; i < 5 && (await Order.exists({ trackingId })); i++)
-        trackingId = generateTrackingId();
-
       order = await Order.create({
-        user: req.user!.sub,
+        user: req.user?.sub || undefined,
+        customerEmail: email || undefined,
         orderNo: await nextOrderNo(),
-        trackingId,
         items,
         subtotal,
         shipping,
         total,
-        address,
+        alternatePhone: address.alternatePhone || "",
+        address: {
+          ...address,
+          alternatePhone: address.alternatePhone || "",
+        },
         payment: {
           method: "razorpay",
           status: "failed",
@@ -395,13 +558,18 @@ r.post("/payment-failed", requireAuth, async (req, res, next) => {
       await order.save();
     }
 
-    const user = await User.findById(req.user!.sub);
-    if (user?.email) {
+    const user = req.user?.sub ? await User.findById(req.user.sub) : null;
+    const recipientEmail = email || user?.email;
+    const recipientName = address?.name || user?.name || "Customer";
+    if (recipientEmail) {
+      const orderRef = order
+        ? formatOrderNumber(order)
+        : razorpayOrderId.slice(-6).toUpperCase();
       await sendEmail({
-        to: user.email,
+        to: recipientEmail,
         ...tpl.paymentFailed(
-          user.name,
-          razorpayOrderId.slice(-6).toUpperCase(),
+          recipientName,
+          orderRef,
           amount,
           reason,
         ),

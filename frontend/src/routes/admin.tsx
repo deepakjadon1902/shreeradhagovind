@@ -15,6 +15,7 @@ import {
 } from "@/lib/store";
 import { type Product } from "@/lib/products";
 import { api, isApiEnabled } from "@/lib/api";
+import { getCourierTrackingUrl } from "@/lib/courier";
 import { toast } from "sonner";
 import {
   Lock,
@@ -42,6 +43,10 @@ import {
   UploadCloud,
   FileText,
   GripVertical,
+  Search,
+  ExternalLink,
+  MapPin,
+  Calendar,
 } from "lucide-react";
 
 export const Route = createFileRoute("/admin")({
@@ -109,6 +114,8 @@ function AdminRoot() {
   const [pickCat, setPickCat] = useState<string | null>(null);
   const [editingOrder, setEditingOrder] = useState<Order | null>(null);
   const [viewUser, setViewUser] = useState<RegisteredUser | null>(null);
+  const [orderSearch, setOrderSearch] = useState("");
+  const [orderStatusFilter, setOrderStatusFilter] = useState<string>("all");
 
   useEffect(() => {
     if (adminAuthed && tab === "users") fetchRegisteredUsers();
@@ -122,7 +129,7 @@ function AdminRoot() {
         <div className="w-full max-w-sm">
           <div className="flex items-center gap-3 mb-8 justify-center">
             <img
-              src="/shriradhagovind store logo.jpeg"
+              src="/brand-logo-large.png"
               alt="Shri Radha Govind Store"
               className="h-14 w-14 rounded-full object-cover ring-2 ring-accent/70"
             />
@@ -209,7 +216,7 @@ function AdminRoot() {
       <aside className="w-full bg-[var(--primary)] text-white p-4 flex flex-col md:sticky md:top-0 md:h-screen md:w-64 md:p-5">
         <div className="flex items-center gap-3 mb-4 md:mb-10">
           <img
-            src="/shriradhagovind store logo.jpeg"
+            src="/brand-logo-large.png"
             alt="Shri Radha Govind Store"
             className="h-11 w-11 rounded-full object-cover ring-2 ring-accent"
           />
@@ -372,6 +379,7 @@ function AdminRoot() {
                     <th className="p-4">Product</th>
                     <th>Category</th>
                     <th>Price</th>
+                    <th>HSN / GST</th>
                     <th>Stock</th>
                     <th></th>
                   </tr>
@@ -385,6 +393,12 @@ function AdminRoot() {
                       </td>
                       <td>{pr.category}</td>
                       <td className="font-medium">{formatINR(pr.price)}</td>
+                      <td className="text-xs">
+                        <span className="font-mono text-muted-foreground">{pr.hsnCode || "-"}</span>
+                        <span className="ml-1.5 px-1.5 py-0.5 rounded bg-teal-50 border border-teal-200 text-teal-800 text-[10px] font-semibold">
+                          {pr.gstRate ? `${pr.gstRate}%` : "0%"}
+                        </span>
+                      </td>
                       <td>{pr.stock}</td>
                       <td className="p-4">
                         <div className="flex gap-2 justify-end">
@@ -431,60 +445,210 @@ function AdminRoot() {
 
         {tab === "orders" && (
           <div>
-            <h1 className="font-display text-3xl">Orders</h1>
-            <p className="text-sm text-muted-foreground">
-              Set tracking ID, courier and status. Customer gets an email on every update.
-            </p>
-            <div className="mt-6 space-y-3">
-              {orders.length === 0 ? (
-                <p className="text-sm text-muted-foreground">No orders yet.</p>
-              ) : (
-                orders.map((o) => (
-                  <div
-                    key={o.id}
-                    className="bg-white rounded-lg border border-border p-5 premium-shadow flex flex-wrap items-center gap-4"
-                  >
-                    <div className="flex-1 min-w-0">
-                      <p className="font-medium">
-                        #{displayOrderNumber(o)} - {o.address.name}
-                      </p>
-                      <p className="text-xs text-muted-foreground">
-                        {new Date(o.createdAt).toLocaleString()} - {o.items.length} items
-                      </p>
-                      <address className="mt-2 max-w-2xl text-xs not-italic leading-5 text-foreground/80">
-                        <span className="font-semibold text-foreground">Delivery address:</span>{" "}
-                        {o.address.line1}, {o.address.city}, {o.address.state} - {o.address.pincode}
-                        <span className="ml-2 whitespace-nowrap">Phone: {o.address.phone}</span>
-                      </address>
-                      {o.trackingId && (
-                        <p className="text-xs mt-1">
-                          <span className="text-muted-foreground">Tracking:</span>{" "}
-                          <span className="font-mono text-primary">{o.trackingId}</span>
-                          {o.courier ? `  -  ${o.courier}` : ""}
-                        </p>
-                      )}
-                    </div>
-                    <div className="text-right">
-                      <p className="font-semibold">{formatINR(o.total)}</p>
-                      <p
-                        className={`text-xs ${o.payment.status === "paid" ? "text-green-700" : o.payment.status === "failed" ? "text-destructive" : "text-amber-700"}`}
-                      >
-                        {o.payment.method.toUpperCase()} - {o.payment.status}
-                      </p>
-                    </div>
-                    <span className="px-2 py-1 rounded-full bg-primary/10 text-primary text-xs">
-                      {o.status}
-                    </span>
-                    <button
-                      onClick={() => setEditingOrder(o)}
-                      className="h-10 px-4 rounded-lg bg-primary text-primary-foreground text-sm inline-flex items-center gap-2"
-                    >
-                      <Truck className="h-4 w-4" /> Manage
-                    </button>
-                  </div>
-                ))
-              )}
+            <div className="flex flex-wrap items-center justify-between gap-4">
+              <div>
+                <h1 className="font-display text-3xl">Orders</h1>
+                <p className="text-sm text-muted-foreground mt-0.5">
+                  Manage customer orders, assign real courier tracking IDs, update fulfillment statuses, and auto-notify customers.
+                </p>
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="px-3 py-1 rounded-full bg-primary/10 text-primary text-xs font-semibold">
+                  {orders.length} Total Orders
+                </span>
+              </div>
             </div>
+
+            {/* ---- Search & Filter Toolbar ---- */}
+            <div className="mt-6 flex flex-col md:flex-row gap-3">
+              <div className="relative flex-1">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                <input
+                  value={orderSearch}
+                  onChange={(e) => setOrderSearch(e.target.value)}
+                  placeholder="Search by Order #5001, Customer name, Phone, or Tracking ID / AWB..."
+                  className="w-full h-11 pl-9 pr-4 rounded-lg border bg-background text-sm focus:outline-none focus:border-primary"
+                />
+                {orderSearch && (
+                  <button
+                    onClick={() => setOrderSearch("")}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-muted-foreground hover:text-foreground"
+                  >
+                    Clear
+                  </button>
+                )}
+              </div>
+              <div className="flex items-center gap-1.5 overflow-x-auto pb-1 max-w-full">
+                {["all", "Placed", "Confirmed", "Processing", "Packed", "Shipped", "Out for delivery", "Delivered", "Cancelled"].map(
+                  (st) => {
+                    const active = orderStatusFilter === st;
+                    const count = st === "all" ? orders.length : orders.filter((o) => o.status === st).length;
+                    return (
+                      <button
+                        key={st}
+                        onClick={() => setOrderStatusFilter(st)}
+                        className={`h-9 px-3 rounded-lg text-xs font-semibold whitespace-nowrap transition border ${
+                          active
+                            ? "bg-primary text-primary-foreground border-primary shadow-sm"
+                            : "bg-card text-muted-foreground border-border hover:border-primary/50 hover:text-foreground"
+                        }`}
+                      >
+                        {st === "all" ? "All Orders" : st} ({count})
+                      </button>
+                    );
+                  },
+                )}
+              </div>
+            </div>
+
+            {/* ---- Orders List ---- */}
+            <div className="mt-6 space-y-4">
+              {(() => {
+                const q = orderSearch.trim().toLowerCase().replace(/^#/, "");
+                const filtered = orders.filter((o) => {
+                  if (orderStatusFilter !== "all" && o.status !== orderStatusFilter) return false;
+                  if (!q) return true;
+                  const numStr = displayOrderNumber(o).toLowerCase();
+                  const nameStr = (o.address.name || "").toLowerCase();
+                  const phoneStr = (o.address.phone || "").toLowerCase();
+                  const trackingStr = (o.trackingId || "").toLowerCase();
+                  const courierStr = (o.courier || "").toLowerCase();
+                  return (
+                    numStr.includes(q) ||
+                    nameStr.includes(q) ||
+                    phoneStr.includes(q) ||
+                    trackingStr.includes(q) ||
+                    courierStr.includes(q)
+                  );
+                });
+
+                if (filtered.length === 0) {
+                  return (
+                    <div className="bg-white rounded-lg border border-border p-12 text-center text-muted-foreground">
+                      <ShoppingCart className="h-10 w-10 mx-auto text-muted-foreground/50 mb-3" />
+                      <p className="font-medium text-base text-foreground">No orders matching your search</p>
+                      <p className="text-xs mt-1">Try searching with a different order number, tracking ID, or filter.</p>
+                    </div>
+                  );
+                }
+
+                return filtered.map((o) => {
+                  const trackingUrl = o.courierTrackingUrl || getCourierTrackingUrl(o.courier, o.trackingId);
+                  const isPaid = o.payment.status === "paid";
+                  const isFailed = o.payment.status === "failed";
+                  return (
+                    <div
+                      key={o.id}
+                      className="bg-white rounded-xl border border-border p-5 premium-shadow hover:border-primary/40 transition flex flex-col md:flex-row items-start md:items-center justify-between gap-5"
+                    >
+                      {/* Left Block: Order ID, Date, Items, Customer & Address */}
+                      <div className="flex-1 min-w-0 space-y-2">
+                        <div className="flex flex-wrap items-center gap-2.5">
+                          <span className="font-display text-lg font-bold text-primary tracking-tight">
+                            Order #{displayOrderNumber(o)}
+                          </span>
+                          <span
+                            className={`px-2.5 py-0.5 rounded-full text-xs font-semibold ${
+                              o.status === "Delivered"
+                                ? "bg-green-600/10 text-green-700"
+                                : o.status === "Cancelled"
+                                  ? "bg-destructive/10 text-destructive"
+                                  : o.status === "Shipped" || o.status === "Out for delivery"
+                                    ? "bg-amber-500/10 text-amber-700"
+                                    : "bg-primary/10 text-primary"
+                            }`}
+                          >
+                            {o.status}
+                          </span>
+                          <span className="text-xs text-muted-foreground flex items-center gap-1">
+                            <Calendar className="h-3 w-3" />
+                            {new Date(o.createdAt).toLocaleString("en-IN", {
+                              dateStyle: "medium",
+                              timeStyle: "short",
+                            })}
+                          </span>
+                        </div>
+
+                        {/* Customer & Address Details */}
+                        <div className="text-xs text-foreground/85 leading-relaxed">
+                          <p className="font-semibold text-foreground">
+                            {o.address.name}{" "}
+                            {o.address.phone && (
+                              <a
+                                href={`tel:${o.address.phone}`}
+                                className="font-normal text-muted-foreground hover:text-primary ml-1"
+                              >
+                                (📞 {o.address.phone})
+                              </a>
+                            )}
+                          </p>
+                          <p className="text-muted-foreground truncate">
+                            📍 {o.address.line1 ? `${o.address.line1}, ` : ""}
+                            {[o.address.city, o.address.state, o.address.pincode].filter(Boolean).join(", ")}
+                          </p>
+                        </div>
+
+                        {/* Tracking Details Badge */}
+                        <div className="flex flex-wrap items-center gap-2 pt-1">
+                          {o.trackingId ? (
+                            <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-teal-50 border border-teal-200 text-teal-900 text-xs font-mono">
+                              <span className="text-[10px] font-sans font-bold uppercase text-teal-700">AWB:</span>
+                              <span className="font-bold">{o.trackingId}</span>
+                              {o.courier && <span className="font-sans text-teal-700 font-semibold">• {o.courier}</span>}
+                              {trackingUrl && (
+                                <a
+                                  href={trackingUrl}
+                                  target="_blank"
+                                  rel="noreferrer"
+                                  title="Open courier tracking page"
+                                  className="text-primary hover:underline ml-1"
+                                >
+                                  <ExternalLink className="h-3 w-3 inline" />
+                                </a>
+                              )}
+                            </div>
+                          ) : (
+                            <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-md bg-muted text-muted-foreground text-xs">
+                              <Truck className="h-3 w-3" /> Tracking ID not assigned
+                            </span>
+                          )}
+                          <span className="text-xs text-muted-foreground">
+                            • {o.items.length} {o.items.length === 1 ? "item" : "items"}
+                          </span>
+                        </div>
+                      </div>
+
+                      {/* Right Block: Total, Payment, Actions */}
+                      <div className="flex items-center md:flex-col md:items-end justify-between w-full md:w-auto gap-3 pt-3 md:pt-0 border-t md:border-t-0">
+                        <div className="text-left md:text-right">
+                          <p className="font-display text-lg font-bold text-foreground">{formatINR(o.total)}</p>
+                          <span
+                            className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-semibold uppercase tracking-wider ${
+                              isPaid
+                                ? "bg-green-600/10 text-green-700"
+                                : isFailed
+                                  ? "bg-destructive/10 text-destructive"
+                                  : "bg-amber-500/10 text-amber-700"
+                            }`}
+                          >
+                            <CreditCard className="h-3 w-3" />
+                            {o.payment.method} • {o.payment.status}
+                          </span>
+                        </div>
+
+                        <button
+                          onClick={() => setEditingOrder(o)}
+                          className="h-10 px-5 rounded-lg bg-primary text-primary-foreground text-sm font-semibold inline-flex items-center gap-2 hover:bg-primary/90 transition shadow-sm shrink-0"
+                        >
+                          <Truck className="h-4 w-4" /> Manage Order
+                        </button>
+                      </div>
+                    </div>
+                  );
+                });
+              })()}
+            </div>
+
             {editingOrder && (
               <OrderManager
                 order={editingOrder}
@@ -873,6 +1037,10 @@ function ProductEditor({
         price: Number(p.price) || 0,
         mrp: Number(p.mrp) || 0,
         stock: Number(p.stock) || 0,
+        hsnCode: (p.hsnCode || "").trim(),
+        gstRate: Number(p.gstRate) || 0,
+        gstInclusive: p.gstInclusive !== false,
+        isTaxable: p.isTaxable !== false,
         rating: Math.max(0, Math.min(5, Number(p.rating) || 0)),
         reviews: Math.max(0, Number(p.reviews) || 0),
       });
@@ -880,6 +1048,21 @@ function ProductEditor({
       setSaving(false);
     }
   };
+
+  const editPrice = Number(p.price) || 0;
+  const editGstRate = Number(p.gstRate) || 0;
+  const editGstInclusive = p.gstInclusive !== false;
+  let taxablePreview = editPrice;
+  let gstPreview = 0;
+  if (editPrice > 0 && editGstRate > 0) {
+    if (editGstInclusive) {
+      taxablePreview = Math.round((editPrice / (1 + editGstRate / 100)) * 100) / 100;
+      gstPreview = Math.round((editPrice - taxablePreview) * 100) / 100;
+    } else {
+      taxablePreview = editPrice;
+      gstPreview = Math.round((editPrice * (editGstRate / 100)) * 100) / 100;
+    }
+  }
 
   return (
     <div className="fixed inset-0 bg-black/50 z-50 grid place-items-center p-4" onClick={onClose}>
@@ -897,7 +1080,7 @@ function ProductEditor({
           <In label="Name" value={p.name} onChange={(v) => setP({ ...p, name: v })} />
           <div className="grid grid-cols-2 gap-3">
             <In
-              label="Price (Rs. )"
+              label="Selling Price (Rs. )"
               type="number"
               value={String(p.price)}
               onChange={(v) => setP({ ...p, price: +v })}
@@ -939,6 +1122,58 @@ function ProductEditor({
               onChange={(v) => setP({ ...p, reviews: +v })}
             />
           </div>
+
+          {/* GST & HSN Configuration Section */}
+          <div className="rounded-xl border border-teal-200 bg-teal-50/60 p-4 space-y-3">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-bold uppercase tracking-wider text-teal-900 flex items-center gap-1.5">
+                GST & Tax Configuration
+              </span>
+              <span className="text-[11px] text-teal-700 font-medium">Reused on Invoices</span>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <In
+                label="HSN Code"
+                placeholder="e.g. 7117"
+                value={p.hsnCode ?? ""}
+                onChange={(v) => setP({ ...p, hsnCode: v })}
+              />
+              <label className="text-sm block">
+                <span className="text-muted-foreground text-xs">GST Rate (%)</span>
+                <select
+                  value={String(p.gstRate ?? 0)}
+                  onChange={(e) => setP({ ...p, gstRate: Number(e.target.value) || 0 })}
+                  className="mt-1 w-full h-11 rounded-lg border bg-background px-3 text-sm focus:outline-none focus:border-primary"
+                >
+                  <option value="0">0% (Nil / Exempt)</option>
+                  <option value="3">3% (Precious beads / metals)</option>
+                  <option value="5">5% (Essentials / Puja)</option>
+                  <option value="12">12% (Standard rate)</option>
+                  <option value="18">18% (Standard rate - 18%)</option>
+                  <option value="28">28% (Luxury items)</option>
+                </select>
+              </label>
+            </div>
+
+            <label className="flex items-center gap-2 text-xs font-medium text-foreground cursor-pointer pt-1">
+              <input
+                type="checkbox"
+                checked={p.gstInclusive !== false}
+                onChange={(e) => setP({ ...p, gstInclusive: e.target.checked })}
+                className="rounded border-border h-4 w-4 text-primary"
+              />
+              <span>GST Included in Selling Price (Customer pays exact selling price)</span>
+            </label>
+
+            {editPrice > 0 && editGstRate > 0 && (
+              <div className="pt-2 border-t border-teal-200/80 text-[11px] text-teal-950 flex flex-wrap justify-between font-mono bg-white/60 p-2 rounded">
+                <span>Taxable: ₹{taxablePreview.toFixed(2)}</span>
+                <span>GST ({editGstRate}%): ₹{gstPreview.toFixed(2)}</span>
+                <span className="font-bold">Final: ₹{(editGstInclusive ? editPrice : editPrice + gstPreview).toFixed(2)}</span>
+              </div>
+            )}
+          </div>
+
           <AdminImageUpload
             label="Product image"
             value={p.image}
@@ -1409,11 +1644,13 @@ function OrderManager({
     setSyncing(false);
   };
 
+  const derivedUrl = courierTrackingUrl.trim() || getCourierTrackingUrl(courier, trackingId);
+
   const submit = () => {
     const patch: Parameters<typeof onSave>[0] = { status };
     if (trackingId.trim()) patch.trackingId = trackingId.trim().toUpperCase();
     patch.courier = (courier || null) as Courier | null;
-    patch.courierTrackingUrl = courierTrackingUrl.trim();
+    patch.courierTrackingUrl = courierTrackingUrl.trim() || derivedUrl;
     onSave(patch);
   };
 
@@ -1440,27 +1677,44 @@ function OrderManager({
         : "bg-amber-500/10 text-amber-700 border-amber-500/20";
 
   return (
-    <div className="fixed inset-0 bg-black/50 z-50 grid place-items-center p-4" onClick={onClose}>
+    <div className="fixed inset-0 bg-black/60 z-50 grid place-items-center p-3 sm:p-5 overflow-y-auto" onClick={onClose}>
       <div
-        className="bg-white rounded-lg border border-border p-6 w-full max-w-2xl max-h-[90vh] overflow-y-auto"
+        className="bg-white text-foreground rounded-2xl border border-border p-6 sm:p-7 w-full max-w-3xl max-h-[92vh] overflow-y-auto shadow-2xl space-y-6 my-auto"
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="flex items-start justify-between gap-3 mb-2">
+        {/* ---- Header ---- */}
+        <div className="flex items-start justify-between gap-3 border-b pb-4">
           <div>
-            <h2 className="font-display text-2xl">Manage Order</h2>
-            <p className="text-xs text-muted-foreground mt-0.5">
-              #{displayOrderNumber(order)} - {order.address.name} - {formatINR(order.total)}
+            <div className="flex items-center gap-2.5">
+              <h2 className="font-display text-2xl font-bold text-primary">
+                Order #{displayOrderNumber(order)}
+              </h2>
+              <span
+                className={`px-3 py-0.5 rounded-full text-xs font-semibold ${
+                  order.status === "Delivered"
+                    ? "bg-green-600/10 text-green-700"
+                    : order.status === "Cancelled"
+                      ? "bg-destructive/10 text-destructive"
+                      : "bg-primary/10 text-primary"
+                }`}
+              >
+                {order.status}
+              </span>
+            </div>
+            <p className="text-xs text-muted-foreground mt-1 flex items-center gap-2">
+              <span>📅 Placed on {fmt(order.createdAt)}</span>
+              <span>•</span>
+              <span>💰 Total: {formatINR(order.total)}</span>
             </p>
           </div>
+
           <div className="flex items-center gap-2">
             {fetchEvents && (
               <div
-                className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-green-600/10 text-green-700 text-[11px]"
+                className="hidden sm:flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-green-600/10 text-green-700 text-[11px] font-medium"
                 title="Auto-syncs every 15s"
               >
-                <span
-                  className={`h-1.5 w-1.5 rounded-full bg-green-600 ${syncing ? "animate-pulse" : ""}`}
-                />
+                <span className={`h-1.5 w-1.5 rounded-full bg-green-600 ${syncing ? "animate-pulse" : ""}`} />
                 Live -{" "}
                 {lastSync
                   ? new Date(lastSync).toLocaleTimeString("en-IN", {
@@ -1475,179 +1729,155 @@ function OrderManager({
               <button
                 onClick={manualRefresh}
                 disabled={syncing}
-                className="p-2 rounded-lg hover:bg-muted disabled:opacity-50"
-                aria-label="Refresh"
+                className="p-2 rounded-lg hover:bg-muted disabled:opacity-50 border"
+                aria-label="Refresh events"
+                title="Refresh order events"
               >
                 <RefreshCw className={`h-4 w-4 ${syncing ? "animate-spin" : ""}`} />
               </button>
             )}
-            <button onClick={onClose} className="p-2 rounded-lg hover:bg-muted" aria-label="Close">
+            <button
+              onClick={onClose}
+              className="p-2 rounded-lg hover:bg-muted border"
+              aria-label="Close"
+            >
               <XIcon className="h-4 w-4" />
             </button>
           </div>
         </div>
 
-        {/* ---- Quick facts: payment + courier snapshot ---- */}
-        <div className="grid sm:grid-cols-3 gap-3 mt-4">
-          <div className={`rounded-lg border p-3 ${payBadge}`}>
-            <p className="text-[10px] uppercase tracking-wider opacity-80">Payment</p>
-            <p className="font-semibold text-sm mt-0.5">
-              {order.payment.method.toUpperCase()} - {order.payment.status}
+        {/* ---- 2-Column Info Grid: Customer & Delivery | Payment ---- */}
+        <div className="grid md:grid-cols-2 gap-4">
+          {/* Customer & Delivery Card */}
+          <div className="rounded-xl border bg-muted/20 p-4 space-y-2 text-sm">
+            <p className="text-xs font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
+              <MapPin className="h-3.5 w-3.5 text-primary" /> Delivery & Customer
             </p>
-            <p className="text-[11px] opacity-70 mt-0.5">{formatINR(order.total)}</p>
+            <p className="font-semibold text-foreground text-base">{order.address.name}</p>
+            {order.address.phone && (
+              <p className="text-xs text-muted-foreground flex items-center gap-1.5">
+                <Phone className="h-3.5 w-3.5 text-primary" />
+                <span>Phone:</span>
+                <a href={`tel:${order.address.phone}`} className="hover:text-primary font-medium">
+                  {order.address.phone}
+                </a>
+              </p>
+            )}
+            {(order.address.alternatePhone || order.alternatePhone) && (
+              <p className="text-xs text-muted-foreground flex items-center gap-1.5">
+                <Phone className="h-3.5 w-3.5 text-emerald-600" />
+                <span>Alt Phone:</span>
+                <a
+                  href={`tel:${order.address.alternatePhone || order.alternatePhone}`}
+                  className="hover:text-primary font-medium"
+                >
+                  {order.address.alternatePhone || order.alternatePhone}
+                </a>
+              </p>
+            )}
+            {order.customerEmail && (
+              <p className="text-xs text-muted-foreground flex items-center gap-1.5">
+                <Mail className="h-3.5 w-3.5 text-primary" />
+                <span>Email:</span>
+                <a href={`mailto:${order.customerEmail}`} className="hover:text-primary font-medium">
+                  {order.customerEmail}
+                </a>
+              </p>
+            )}
+            {order.businessName && (
+              <p className="text-xs font-semibold text-foreground pt-1 border-t">
+                Business: {order.businessName}
+              </p>
+            )}
+            {order.gstin && (
+              <p className="text-xs font-mono text-muted-foreground">
+                GSTIN: {order.gstin}
+              </p>
+            )}
+            <div className="text-xs text-muted-foreground leading-relaxed pt-1 border-t">
+              <p>{order.address.line1}</p>
+              {order.address.line2 && <p>{order.address.line2}</p>}
+              {order.address.postOffice && <p>PO: {order.address.postOffice}</p>}
+              <p className="font-medium text-foreground">
+                {[order.address.city, order.address.state, order.address.pincode].filter(Boolean).join(", ")}
+              </p>
+            </div>
           </div>
-          <div className="rounded-lg border bg-muted/30 p-3">
-            <p className="text-[10px] uppercase tracking-wider text-muted-foreground">Courier</p>
-            <p className="font-semibold text-sm mt-0.5">{order.courier ?? "Not assigned"}</p>
-            <p className="text-[11px] text-muted-foreground mt-0.5 truncate">
-              {order.trackingId ?? "No tracking ID"}
-            </p>
-          </div>
-          <div className="rounded-lg border bg-muted/30 p-3">
-            <p className="text-[10px] uppercase tracking-wider text-muted-foreground">
-              Latest Status
-            </p>
-            <p
-              className={`font-semibold text-sm mt-0.5 ${isCancelled ? "text-destructive" : "text-primary"}`}
-            >
-              {order.status}
-            </p>
-            <p className="text-[11px] text-muted-foreground mt-0.5">
-              Placed {fmt(order.createdAt)}
-            </p>
-          </div>
-        </div>
 
-        {/* ---- Timeline ---- */}
-        <div className="mt-5 rounded-lg border bg-card p-4">
-          <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground mb-3">
-            Order Timeline
-          </p>
-          {isCancelled ? (
-            <div className="flex items-center gap-3 text-destructive">
-              <span className="h-7 w-7 rounded-full bg-destructive/10 grid place-items-center">
-                <XIcon className="h-3.5 w-3.5" />
+          {/* Payment & Financials Card */}
+          <div className="rounded-xl border bg-muted/20 p-4 space-y-2 text-sm">
+            <p className="text-xs font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
+              <CreditCard className="h-3.5 w-3.5 text-primary" /> Payment Summary
+            </p>
+            <div className="flex items-baseline justify-between">
+              <span className="font-display text-2xl font-bold text-foreground">{formatINR(order.total)}</span>
+              <span className={`px-2.5 py-0.5 rounded-full text-xs font-semibold uppercase ${payBadge}`}>
+                {order.payment.status}
               </span>
-              <div>
-                <p className="text-sm font-medium">Order cancelled</p>
-                <p className="text-[11px] text-muted-foreground">Customer was notified by email.</p>
-              </div>
             </div>
-          ) : (
-            <ol className="space-y-3">
-              {TIMELINE.map((step, i) => {
-                const done = i <= currentIdx;
-                const active = i === currentIdx;
-                return (
-                  <li key={step} className="flex items-start gap-3">
-                    <span
-                      className={`mt-0.5 h-5 w-5 rounded-full grid place-items-center text-[10px] font-semibold shrink-0 ${done ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground"}`}
-                    >
-                      {done ? <Check className="h-3 w-3" /> : i + 1}
-                    </span>
-                    <div className="flex-1 min-w-0 -mt-0.5">
-                      <p
-                        className={`text-sm ${active ? "font-semibold text-primary" : done ? "font-medium" : "text-muted-foreground"}`}
-                      >
-                        {step}
-                      </p>
-                      {i === 0 && (
-                        <p className="text-[11px] text-muted-foreground">{fmt(order.createdAt)}</p>
-                      )}
-                      {active && i !== 0 && (
-                        <p className="text-[11px] text-muted-foreground">
-                          Updated just now - email sent
-                        </p>
-                      )}
-                    </div>
-                  </li>
-                );
-              })}
-            </ol>
-          )}
-
-          {/* Courier latest event */}
-          {order.courier && (
-            <div className="mt-4 pt-3 border-t">
-              <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground mb-2">
-                Latest courier event
+            <p className="text-xs text-muted-foreground">
+              Method: <span className="font-semibold text-foreground capitalize">{order.payment.method === "cod" ? "Cash on Delivery (COD)" : "Online / Razorpay"}</span>
+            </p>
+            {order.payment.razorpayPaymentId && (
+              <p className="text-[11px] font-mono text-muted-foreground truncate">
+                Txn ID: {order.payment.razorpayPaymentId}
               </p>
-              <div className="flex items-start gap-3">
-                <Truck className="h-4 w-4 text-primary mt-0.5 shrink-0" />
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm">
-                    {order.status === "Delivered"
-                      ? `Delivered by ${order.courier} to ${order.address.city}.`
-                      : order.status === "Out for delivery"
-                        ? `${order.courier} agent is out for delivery in ${order.address.city}.`
-                        : order.status === "Shipped"
-                          ? `Shipped via ${order.courier}. In transit to ${order.address.city}.`
-                          : order.status === "Packed"
-                            ? `Handed over to ${order.courier} for pickup.`
-                            : order.status === "Processing"
-                              ? `Processing for ${order.courier} shipment.`
-                              : order.status === "Confirmed"
-                                ? `Confirmed. ${order.courier} shipment will be prepared soon.`
-                                : `Assigned to ${order.courier}. Awaiting pickup.`}
-                  </p>
-                  {order.courierTrackingUrl && (
-                    <a
-                      href={order.courierTrackingUrl}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="text-xs text-primary hover:underline"
-                    >
-                      View live tracking on {order.courier} →
-                    </a>
-                  )}
-                </div>
-              </div>
+            )}
+            <div className="text-xs text-muted-foreground pt-1 border-t flex justify-between">
+              <span>Subtotal: {formatINR(order.subtotal)}</span>
+              <span>Shipping: {order.shipping === 0 ? "FREE" : formatINR(order.shipping)}</span>
             </div>
-          )}
-
-          {/* Live synced event feed */}
-          {events.length > 0 && (
-            <div className="mt-4 pt-3 border-t">
-              <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground mb-2">
-                Courier event history (auto-synced)
-              </p>
-              <ol className="space-y-2.5">
-                {[...events].reverse().map((ev, i) => (
-                  <li key={`${ev.at}-${i}`} className="flex items-start gap-3">
-                    <span
-                      className={`mt-1 h-2 w-2 rounded-full shrink-0 ${i === 0 ? "bg-primary ring-2 ring-primary/30" : "bg-muted-foreground/40"}`}
-                    />
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium">{ev.label}</p>
-                      <p className="text-xs text-muted-foreground">{ev.description}</p>
-                      <p className="text-[10px] text-muted-foreground/70 mt-0.5">{fmt(ev.at)}</p>
-                    </div>
-                  </li>
-                ))}
-              </ol>
-            </div>
-          )}
+          </div>
         </div>
 
-        {/* ---- Editable fields ---- */}
-        <div className="mt-5 space-y-3">
-          <label className="text-sm block">
-            <span className="text-muted-foreground text-xs">Tracking ID</span>
-            <input
-              value={trackingId}
-              onChange={(e) => setTrackingId(e.target.value)}
-              placeholder="SRG-XXXXXXXX"
-              className="mt-1 w-full h-11 rounded-lg border px-3 bg-background font-mono uppercase focus:outline-none focus:border-primary"
-            />
-          </label>
+        {/* ---- Ordered Items Card ---- */}
+        <div className="rounded-xl border bg-card p-4 space-y-3">
+          <p className="text-xs font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
+            <Package className="h-3.5 w-3.5 text-primary" /> Ordered Items ({order.items.length})
+          </p>
+          <div className="space-y-2.5 max-h-48 overflow-y-auto pr-1">
+            {order.items.map((i, idx) => (
+              <div key={idx} className="flex items-center justify-between gap-3 text-xs border-b last:border-0 pb-2 last:pb-0">
+                <div className="flex items-center gap-2.5 min-w-0">
+                  {i.product.image && (
+                    <img src={i.product.image} alt="" className="h-9 w-9 rounded-md object-cover bg-muted shrink-0" />
+                  )}
+                  <div className="min-w-0">
+                    <p className="font-medium text-foreground truncate">{i.product.name}</p>
+                    <p className="text-muted-foreground">Qty: {i.qty} × {formatINR(i.product.price)}</p>
+                  </div>
+                </div>
+                <span className="font-semibold text-foreground shrink-0">{formatINR(i.product.price * i.qty)}</span>
+              </div>
+            ))}
+          </div>
+        </div>
 
-          <div className="grid grid-cols-2 gap-3">
-            <label className="text-sm block">
-              <span className="text-muted-foreground text-xs">Courier</span>
+        {/* ---- Shipment & Tracking Management (Interactive Editor) ---- */}
+        <div className="rounded-xl border border-teal-200 bg-teal-50/50 p-5 space-y-4">
+          <div className="flex items-center justify-between">
+            <p className="text-xs font-bold uppercase tracking-wider text-teal-800 flex items-center gap-1.5">
+              <Truck className="h-4 w-4 text-teal-700" /> Shipment & Tracking Setup
+            </p>
+            {derivedUrl && (
+              <a
+                href={derivedUrl}
+                target="_blank"
+                rel="noreferrer"
+                className="text-xs font-semibold text-teal-700 hover:text-teal-900 inline-flex items-center gap-1 hover:underline"
+              >
+                Open Courier Tracker <ExternalLink className="h-3 w-3" />
+              </a>
+            )}
+          </div>
+
+          <div className="grid sm:grid-cols-3 gap-3.5">
+            <label className="text-xs font-semibold text-foreground block">
+              <span>Courier Partner</span>
               <select
                 value={courier}
                 onChange={(e) => setCourier(e.target.value as Courier | "")}
-                className="mt-1 w-full h-11 rounded-lg border px-3 bg-background focus:outline-none focus:border-primary"
+                className="mt-1 w-full h-11 rounded-lg border bg-background px-3 text-sm focus:outline-none focus:border-primary"
               >
                 <option value="">- Not assigned -</option>
                 {COURIERS.map((c) => (
@@ -1657,12 +1887,23 @@ function OrderManager({
                 ))}
               </select>
             </label>
-            <label className="text-sm block">
-              <span className="text-muted-foreground text-xs">Delivery Status</span>
+
+            <label className="text-xs font-semibold text-foreground block">
+              <span>Tracking ID / AWB Number</span>
+              <input
+                value={trackingId}
+                onChange={(e) => setTrackingId(e.target.value)}
+                placeholder="e.g. U2000337996"
+                className="mt-1 w-full h-11 rounded-lg border bg-background px-3 text-sm font-mono uppercase focus:outline-none focus:border-primary"
+              />
+            </label>
+
+            <label className="text-xs font-semibold text-foreground block">
+              <span>Fulfillment Status</span>
               <select
                 value={status}
                 onChange={(e) => setStatus(e.target.value as Order["status"])}
-                className="mt-1 w-full h-11 rounded-lg border px-3 bg-background focus:outline-none focus:border-primary"
+                className="mt-1 w-full h-11 rounded-lg border bg-background px-3 text-sm font-semibold focus:outline-none focus:border-primary"
               >
                 {STATUSES.map((s) => (
                   <option key={s} value={s}>
@@ -1673,32 +1914,108 @@ function OrderManager({
             </label>
           </div>
 
-          <label className="text-sm block">
-            <span className="text-muted-foreground text-xs">Courier Tracking URL (optional)</span>
+          <label className="text-xs font-semibold text-muted-foreground block">
+            <span>Custom Courier Tracking URL (Optional - auto-derived if left empty)</span>
             <input
               value={courierTrackingUrl}
               onChange={(e) => setCourierTrackingUrl(e.target.value)}
-              placeholder="https://courier.com/track/..."
-              className="mt-1 w-full h-11 rounded-lg border px-3 bg-background focus:outline-none focus:border-primary"
+              placeholder={derivedUrl ? `Auto-derived: ${derivedUrl}` : "https://courier.com/track/..."}
+              className="mt-1 w-full h-10 rounded-lg border bg-background px-3 text-xs focus:outline-none focus:border-primary font-mono"
             />
           </label>
-
-          <div className="rounded-lg bg-muted/40 p-3 text-xs text-muted-foreground">
-            Saving sends an automatic status-update email to the customer with the tracking ID,
-            courier name and link.
-          </div>
         </div>
 
-        <div className="flex gap-3 mt-6 justify-end">
-          <button onClick={onClose} className="h-10 px-5 rounded-full border text-sm">
-            Cancel
-          </button>
-          <button
-            onClick={submit}
-            className="h-10 px-5 rounded-full bg-primary text-primary-foreground text-sm font-medium inline-flex items-center gap-2"
-          >
-            <Truck className="h-4 w-4" /> Save & Notify
-          </button>
+        {/* ---- Timeline & Events Feed ---- */}
+        <div className="rounded-xl border bg-card p-5 space-y-4">
+          <p className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
+            Order Status Progress
+          </p>
+          {isCancelled ? (
+            <div className="flex items-center gap-3 text-destructive bg-destructive/10 p-3 rounded-lg">
+              <XIcon className="h-5 w-5 shrink-0" />
+              <div>
+                <p className="text-sm font-semibold">Order cancelled</p>
+                <p className="text-xs opacity-85">Customer was notified by email.</p>
+              </div>
+            </div>
+          ) : (
+            <ol className="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-7 gap-2">
+              {TIMELINE.map((step, i) => {
+                const done = i <= currentIdx;
+                const active = i === currentIdx;
+                return (
+                  <li
+                    key={step}
+                    className={`p-2.5 rounded-lg border text-center transition ${
+                      active
+                        ? "border-primary bg-primary/10 text-primary font-bold shadow-sm"
+                        : done
+                          ? "border-border bg-muted/30 text-foreground font-medium"
+                          : "border-border/50 text-muted-foreground/60 opacity-70"
+                    }`}
+                  >
+                    <div className="flex justify-center mb-1">
+                      <span
+                        className={`h-5 w-5 rounded-full grid place-items-center text-[10px] font-bold ${
+                          done ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground"
+                        }`}
+                      >
+                        {done ? <Check className="h-3 w-3" /> : i + 1}
+                      </span>
+                    </div>
+                    <p className="text-[11px] leading-tight truncate">{step}</p>
+                  </li>
+                );
+              })}
+            </ol>
+          )}
+
+          {/* Live synced event feed */}
+          {events.length > 0 && (
+            <div className="pt-3 border-t">
+              <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground mb-2.5">
+                Courier Event Log (Live Synced)
+              </p>
+              <ol className="space-y-2 max-h-36 overflow-y-auto pr-1">
+                {[...events].reverse().map((ev, i) => (
+                  <li key={`${ev.at}-${i}`} className="flex items-start gap-2.5 text-xs">
+                    <span
+                      className={`mt-1.5 h-2 w-2 rounded-full shrink-0 ${
+                        i === 0 ? "bg-primary ring-2 ring-primary/30" : "bg-muted-foreground/40"
+                      }`}
+                    />
+                    <div className="flex-1 min-w-0">
+                      <p className="font-medium text-foreground">{ev.label}</p>
+                      <p className="text-muted-foreground text-[11px]">{ev.description}</p>
+                      <p className="text-[10px] text-muted-foreground/70 mt-0.5">{fmt(ev.at)}</p>
+                    </div>
+                  </li>
+                ))}
+              </ol>
+            </div>
+          )}
+        </div>
+
+        {/* ---- Notice & Action Buttons ---- */}
+        <div className="border-t pt-4 space-y-3">
+          <p className="text-xs text-muted-foreground text-center sm:text-left">
+            ℹ️ Saving saves the Tracking ID and updates the order status. A transactional notification email with the updated PDF invoice will be automatically sent to the customer.
+          </p>
+
+          <div className="flex flex-wrap gap-3 justify-end">
+            <button
+              onClick={onClose}
+              className="h-11 px-6 rounded-xl border border-border text-sm font-semibold hover:bg-muted transition"
+            >
+              Cancel
+            </button>
+            <button
+              onClick={submit}
+              className="h-11 px-7 rounded-xl bg-primary text-primary-foreground text-sm font-semibold inline-flex items-center gap-2 hover:bg-primary/90 transition shadow-md"
+            >
+              <Truck className="h-4 w-4" /> Save & Notify Customer
+            </button>
+          </div>
         </div>
       </div>
     </div>

@@ -4,7 +4,14 @@ import { Order } from "../models/Order";
 import { User } from "../models/User";
 import { requireAuth, requireAdmin } from "../middleware/auth";
 import { HttpError } from "../middleware/error";
-import { sendEmail, sendOrderConfirmationWithInvoice, sendOrderStatusUpdateWithInvoice, tpl } from "../utils/email";
+import {
+  sendEmail,
+  sendOrderConfirmationWithInvoice,
+  sendOrderStatusUpdateWithInvoice,
+  tpl,
+  formatOrderNumber,
+} from "../utils/email";
+import { getCourierTrackingUrl } from "../utils/courier";
 
 const r = Router();
 r.use(requireAuth, requireAdmin);
@@ -59,12 +66,22 @@ r.patch("/orders/:id", async (req, res, next) => {
     }
     if (data.courier !== undefined) update.courier = requestedCourier;
     if (data.trackingId !== undefined) update.trackingId = data.trackingId.toUpperCase();
-    if (data.courierTrackingUrl !== undefined) update.courierTrackingUrl = data.courierTrackingUrl;
+
+    const effectiveCourier = data.courier !== undefined ? requestedCourier : existing.courier;
+    const effectiveTrackingId = data.trackingId !== undefined ? data.trackingId.toUpperCase() : existing.trackingId;
+
+    if (data.courierTrackingUrl !== undefined && data.courierTrackingUrl !== "") {
+      update.courierTrackingUrl = data.courierTrackingUrl;
+    } else if (effectiveCourier && effectiveTrackingId) {
+      update.courierTrackingUrl = getCourierTrackingUrl(effectiveCourier, effectiveTrackingId);
+    } else if (data.courierTrackingUrl === "") {
+      update.courierTrackingUrl = "";
+    }
 
     const o = await Order.findByIdAndUpdate(req.params.id, update, { new: true }).populate("user", "name email");
     if (!o) throw new HttpError(404, "Not found");
     const u: any = o.user;
-    if (u?.email && (data.status || data.courier || data.trackingId || data.courierTrackingUrl !== undefined)) {
+    if (u?.email && (data.status || data.courier !== undefined || data.trackingId !== undefined || data.courierTrackingUrl !== undefined)) {
       sendOrderStatusUpdateWithInvoice(u.email, u.name, buildEmailOrder(o)).catch(() => {});
     }
     res.json({ order: o });
@@ -88,24 +105,11 @@ r.patch("/orders/:id/payment", async (req, res, next) => {
     const u: any = o.user;
     if (u?.email) {
       if (status === "paid") {
-        sendOrderConfirmationWithInvoice(u.email, u.name, {
-          _id: o._id,
-          trackingId: o.trackingId ?? undefined,
-          courier: o.courier ?? undefined,
-          courierTrackingUrl: o.courierTrackingUrl ?? undefined,
-          status: o.status,
-          items: o.items as any,
-          subtotal: o.subtotal!,
-          shipping: o.shipping!,
-          total: o.total!,
-          address: o.address as any,
-          payment: { method: o.payment!.method!, status: "paid", razorpayPaymentId: o.payment!.razorpayPaymentId ?? undefined },
-          createdAt: o.createdAt,
-        }).catch(() => {});
+        sendOrderConfirmationWithInvoice(u.email, u.name, buildEmailOrder(o)).catch(() => {});
       } else if (status === "failed") {
         sendEmail({
           to: u.email,
-          ...tpl.paymentFailed(u.name, o.trackingId ?? String(o._id).slice(-6).toUpperCase(), o.total!, "Payment verification failed by admin"),
+          ...tpl.paymentFailed(u.name, formatOrderNumber(o), o.total!, "Payment verification failed by admin"),
         }).catch(() => {});
       }
     }
@@ -161,6 +165,7 @@ r.get("/orders/:id", async (req, res, next) => {
 function buildEmailOrder(o: any) {
   return {
     _id: o._id,
+    orderNo: o.orderNo ?? undefined,
     trackingId: o.trackingId ?? undefined,
     courier: o.courier ?? undefined,
     courierTrackingUrl: o.courierTrackingUrl ?? undefined,
@@ -190,7 +195,7 @@ function deriveEvents(o: any) {
   if (o.status === "Cancelled") {
     evts.push({ at: updatedAt, label: "Cancelled", description: "Order was cancelled. Customer was notified by email." });
   } else {
-    if (idx >= 0) evts.push({ at: placedAt, label: "Placed", description: `Order placed successfully (#${o.trackingId ?? String(o._id).slice(-6).toUpperCase()}).` });
+    if (idx >= 0) evts.push({ at: placedAt, label: "Placed", description: `Order placed successfully (#${formatOrderNumber(o)}).` });
     if (idx >= 1) evts.push({ at: updatedAt, label: "Confirmed", description: "Order confirmed by admin. Customer was notified by email." });
     if (idx >= 2) evts.push({ at: updatedAt, label: "Processing", description: "Order is being processed and prepared for packing." });
     if (idx >= 3) evts.push({ at: updatedAt, label: "Packed", description: `Items packed at warehouse. Handed over to ${courier}.` });

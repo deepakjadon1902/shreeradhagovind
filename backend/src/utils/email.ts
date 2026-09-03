@@ -1,17 +1,22 @@
 import { Resend } from "resend";
 import { env } from "../config/env";
 import { generateInvoicePDF, type InvoiceData } from "./invoice";
+import { getCourierTrackingUrl } from "./courier";
 
 const resend = env.RESEND_API_KEY ? new Resend(env.RESEND_API_KEY) : null;
 
 export type EmailAttachment = { filename: string; content: Buffer };
 
-type EmailOrderPayload = {
+export type EmailOrderPayload = {
   _id: any;
+  orderNo?: number | string | null;
   trackingId?: string;
   courier?: string | null;
   courierTrackingUrl?: string;
   status?: string;
+  businessName?: string;
+  gstin?: string;
+  needsGstInvoice?: boolean;
   items: Item[];
   subtotal: number;
   shipping: number;
@@ -22,21 +27,39 @@ type EmailOrderPayload = {
   createdAt?: Date | string | number;
 };
 
+export function formatOrderNumber(order: {
+  orderNo?: number | string | null;
+  _id?: any;
+  id?: string;
+}): string {
+  if (order.orderNo !== undefined && order.orderNo !== null && order.orderNo !== "") {
+    return String(order.orderNo).padStart(4, "0");
+  }
+  const idStr = String(order._id ?? order.id ?? "");
+  if (idStr) {
+    const hash = idStr.split("").reduce((sum, char) => sum + char.charCodeAt(0), 0);
+    return String(5000 + (hash % 5000)).padStart(4, "0");
+  }
+  return "5000";
+}
+
 export async function sendEmail(opts: {
   to: string;
   subject: string;
   html: string;
+  bcc?: string[];
   attachments?: EmailAttachment[];
 }) {
   if (!resend) {
     // eslint-disable-next-line no-console
-    console.log("[email:disabled]", opts.subject, "->", opts.to, opts.attachments?.length ? `(+${opts.attachments.length} attachment)` : "");
+    console.log("[email:disabled]", opts.subject, "->", opts.to, opts.bcc ? `(bcc: ${opts.bcc.join(",")})` : "", opts.attachments?.length ? `(+${opts.attachments.length} attachment)` : "");
     return { skipped: true };
   }
   try {
     return await resend.emails.send({
       from: env.RESEND_FROM,
       to: opts.to,
+      bcc: opts.bcc,
       subject: opts.subject,
       html: opts.html,
       attachments: opts.attachments?.map((a) => ({ filename: a.filename, content: a.content })),
@@ -48,6 +71,8 @@ export async function sendEmail(opts: {
   }
 }
 
+const SUPPORT_EMAIL_BCC = ["support@shriradhagovindstore.com"];
+
 /**
  * Sends an order-confirmation email with a PDF invoice attached.
  * Always use this helper for successful orders so the invoice is generated once.
@@ -57,17 +82,22 @@ export async function sendOrderConfirmationWithInvoice(
   name: string,
   order: EmailOrderPayload
 ) {
+  const orderNum = formatOrderNumber(order);
   const built = tpl.orderConfirmed(name, order);
   let attachments: EmailAttachment[] | undefined;
   try {
     const invoiceData: InvoiceData = {
       orderId: String(order._id),
+      orderNo: order.orderNo ?? orderNum,
+      invoiceNo: `INV-${orderNum}`,
       trackingId: order.trackingId,
       courier: order.courier ?? null,
-      courierTrackingUrl: order.courierTrackingUrl,
       status: order.status,
       customerName: name,
       customerEmail: to,
+      businessName: order.businessName,
+      gstin: order.gstin,
+      needsGstInvoice: order.needsGstInvoice,
       items: order.items,
       subtotal: order.subtotal,
       shipping: order.shipping,
@@ -77,13 +107,19 @@ export async function sendOrderConfirmationWithInvoice(
       createdAt: order.createdAt,
     };
     const pdf = await generateInvoicePDF(invoiceData);
-    const fname = `Invoice-${order.trackingId ?? String(order._id).slice(-8).toUpperCase()}.pdf`;
+    const fname = `Invoice-${orderNum}.pdf`;
     attachments = [{ filename: fname, content: pdf }];
   } catch (e) {
     // eslint-disable-next-line no-console
     console.error("[invoice:error]", e);
   }
-  return sendEmail({ to, subject: built.subject, html: built.html, attachments });
+  return sendEmail({
+    to,
+    bcc: SUPPORT_EMAIL_BCC,
+    subject: built.subject,
+    html: built.html,
+    attachments,
+  });
 }
 
 export async function sendOrderStatusUpdateWithInvoice(
@@ -91,10 +127,10 @@ export async function sendOrderStatusUpdateWithInvoice(
   name: string,
   order: EmailOrderPayload & { status: string }
 ) {
-  const ref = order.trackingId ?? String(order._id).slice(-6).toUpperCase();
+  const orderNum = formatOrderNumber(order);
   const built = tpl.statusUpdate(
     name,
-    ref,
+    orderNum,
     order.status,
     order.trackingId,
     order.courier,
@@ -105,12 +141,16 @@ export async function sendOrderStatusUpdateWithInvoice(
   try {
     const invoiceData: InvoiceData = {
       orderId: String(order._id),
+      orderNo: order.orderNo ?? orderNum,
+      invoiceNo: `INV-${orderNum}`,
       trackingId: order.trackingId,
       courier: order.courier ?? null,
-      courierTrackingUrl: order.courierTrackingUrl,
       status: order.status,
       customerName: name,
       customerEmail: to,
+      businessName: order.businessName,
+      gstin: order.gstin,
+      needsGstInvoice: order.needsGstInvoice,
       items: order.items,
       subtotal: order.subtotal,
       shipping: order.shipping,
@@ -120,15 +160,20 @@ export async function sendOrderStatusUpdateWithInvoice(
       createdAt: order.createdAt,
     };
     const pdf = await generateInvoicePDF(invoiceData);
-    const fname = `Invoice-${ref}.pdf`;
+    const fname = `Invoice-${orderNum}.pdf`;
     attachments = [{ filename: fname, content: pdf }];
   } catch (e) {
     // eslint-disable-next-line no-console
     console.error("[invoice:error]", e);
   }
-  return sendEmail({ to, subject: built.subject, html: built.html, attachments });
+  return sendEmail({
+    to,
+    bcc: SUPPORT_EMAIL_BCC,
+    subject: built.subject,
+    html: built.html,
+    attachments,
+  });
 }
-
 
 const BRAND = "Shri Radha Govind Store";
 const ACCENT = "#0f766e";
@@ -141,14 +186,38 @@ const shell = (inner: string) => `
       <div style="opacity:.85;font-size:12px">Made with love from Vrindavan</div>
     </div>
     <div style="padding:24px">${inner}</div>
-    <div style="padding:16px 24px;background:#fafaf8;color:#888;font-size:11px;text-align:center">
-      (c) ${new Date().getFullYear()} ${BRAND}. Radhe Radhe
+    <div style="border-top:1px solid #ececec;padding:18px 24px;background:#fafaf8;color:#666;font-size:12px;line-height:1.6;text-align:center">
+      <p style="margin:0 0 6px;color:#888;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px">
+        Please do not reply to this email.
+      </p>
+      <p style="margin:0 0 4px;color:#555">
+        For any queries, please contact us at
+        <a href="mailto:support@shriradhagovindstore.com" style="color:${ACCENT};font-weight:600;text-decoration:none">support@shriradhagovindstore.com</a>
+      </p>
+      <p style="margin:0 0 10px;color:#555">
+        For assistance, call or WhatsApp us at
+        <a href="tel:+917500533505" style="color:${ACCENT};font-weight:600;text-decoration:none">7500533505</a>
+        (<a href="https://wa.me/917500533505" style="color:${ACCENT};font-weight:600;text-decoration:none">WhatsApp</a>)
+      </p>
+      <div style="border-top:1px solid #f0f0ee;padding-top:10px;color:#999;font-size:11px">
+        © ${new Date().getFullYear()} ${BRAND} · Made with love from Vrindavan · Radhe Radhe
+      </div>
     </div>
   </div>
 </div>`;
 
 type Item = { name?: string; price?: number; qty: number };
-type Addr = { name?: string; phone?: string; line1?: string; city?: string; state?: string; pincode?: string };
+type Addr = {
+  name?: string;
+  phone?: string;
+  alternatePhone?: string;
+  line1?: string;
+  line2?: string;
+  postOffice?: string;
+  city?: string;
+  state?: string;
+  pincode?: string;
+};
 
 const rupee = (n: number) => `₹${Number(n || 0).toLocaleString("en-IN")}`;
 
@@ -181,11 +250,24 @@ const invoiceTable = (items: Item[], subtotal: number, shipping: number, total: 
     </tfoot>
   </table>`;
 
-const addrBlock = (a: Addr) => `
-  <div style="margin-top:14px;font-size:13px;line-height:1.5;color:#444">
-    <b>${a.name ?? ""}</b><br/>
-    ${a.line1 ?? ""}, ${a.city ?? ""} ${a.state ?? ""} ${a.pincode ?? ""}<br/>
-    Phone: ${a.phone ?? "-"}
+const customerBlock = (name: string, email?: string, a?: Addr, businessName?: string, gstin?: string) => `
+  <div style="margin-top:16px;padding:14px 16px;background:#f9fafb;border:1px solid #e5e7eb;border-radius:10px;font-size:13px;line-height:1.6;color:#374151">
+    <div style="font-weight:700;color:#111827;font-size:14px;margin-bottom:6px">Customer & Delivery Details</div>
+    <div><b>${a?.name || name}</b></div>
+    ${businessName ? `<div style="margin-top:2px"><b>Business:</b> ${businessName}</div>` : ""}
+    ${gstin ? `<div style="margin-top:2px"><b>Customer GSTIN:</b> ${gstin}</div>` : ""}
+    ${email ? `<div>Email: <a href="mailto:${email}" style="color:${ACCENT};text-decoration:none">${email}</a></div>` : ""}
+    ${a?.phone ? `<div>Phone: <a href="tel:${a.phone}" style="color:${ACCENT};text-decoration:none">${a.phone}</a></div>` : ""}
+    ${a?.alternatePhone ? `<div>Alt Phone: <a href="tel:${a.alternatePhone}" style="color:${ACCENT};text-decoration:none">${a.alternatePhone}</a></div>` : ""}
+    ${a?.line1 || a?.line2 || a?.postOffice || a?.city || a?.state || a?.pincode ? `
+      <div style="margin-top:8px;padding-top:8px;border-top:1px solid #e5e7eb;color:#4b5563">
+        <div style="font-weight:600;font-size:12px;color:#6b7280;text-transform:uppercase;margin-bottom:2px">Delivery Address</div>
+        ${a.line1 ? `<div>${a.line1}</div>` : ""}
+        ${a.line2 ? `<div>${a.line2}</div>` : ""}
+        ${a.postOffice ? `<div>PO: ${a.postOffice}</div>` : ""}
+        <div>${[a.city, a.state, a.pincode].filter(Boolean).join(", ")}</div>
+      </div>
+    ` : ""}
   </div>`;
 
 export const tpl = {
@@ -193,6 +275,14 @@ export const tpl = {
     subject: `Welcome to ${BRAND}`,
     html: shell(`<h2 style="margin:0 0 8px">Radhe Radhe, ${name}!</h2>
       <p>Your devotee account is ready. Explore sacred essentials curated from Vrindavan.</p>`),
+  }),
+
+  loginOtp: (name: string, otp: string) => ({
+    subject: `Your Login OTP - ${BRAND}`,
+    html: shell(`<h2 style="margin:0 0 8px">Radhe Radhe, ${name || "Devotee"}</h2>
+      <p>Use this secure 6-digit OTP to sign in to your Shri Radha Govind Store account. It is valid for 10 minutes.</p>
+      <div style="margin:18px 0;padding:14px 18px;background:#f0fdfa;border:1px solid #ccfbf1;border-radius:10px;font-size:28px;font-weight:700;letter-spacing:6px;color:${ACCENT};text-align:center">${otp}</div>
+      <p style="font-size:13px;color:#777">If you did not request this OTP, you can safely ignore this email.</p>`),
   }),
 
   passwordResetOtp: (name: string, otp: string) => ({
@@ -206,32 +296,51 @@ export const tpl = {
   orderConfirmed: (
     name: string,
     order: EmailOrderPayload
-  ) => ({
-    subject: `Order confirmed - #${order.trackingId ?? String(order._id).slice(-6).toUpperCase()}`,
-    html: shell(`
-      <h2 style="margin:0 0 6px">Thank you, ${name}! 🌸</h2>
-      <p style="margin:0 0 4px;color:#555">Your order has been received and confirmed.</p>
-      <div style="margin:16px 0;padding:14px 16px;background:#f0fdfa;border:1px solid #ccfbf1;border-radius:10px">
-        <div style="font-size:12px;color:#0f766e;letter-spacing:.1em;text-transform:uppercase">Tracking ID</div>
-        <div style="font-size:22px;font-weight:700;color:#0f766e">${order.trackingId ?? "-"}</div>
-        <div style="margin-top:6px;font-size:13px;color:#555">Status: <b>${order.status ?? "Placed"}</b></div>
-        <div style="margin-top:4px;font-size:13px;color:#555">Courier: <b>${order.courier ?? "To be assigned"}</b></div>
-        ${order.courierTrackingUrl ? `<div style="margin-top:4px;font-size:13px;color:#555">Courier tracking: <a href="${order.courierTrackingUrl}" style="color:${ACCENT}">${order.courierTrackingUrl}</a></div>` : ""}
-        <a href="https://www.shriradhagovindstore.com/track?id=${encodeURIComponent(order.trackingId ?? "")}"
-          style="display:inline-block;margin-top:10px;background:${ACCENT};color:#fff;padding:8px 14px;border-radius:999px;text-decoration:none;font-size:13px">
-          Track your order
-        </a>
-      </div>
-      <h3 style="margin:18px 0 4px">Invoice</h3>
-      <div style="font-size:12px;color:#888">Order ID: ${String(order._id)} | Payment: ${order.payment.method.toUpperCase()} | ${order.payment.status.toUpperCase()}${order.payment.razorpayPaymentId ? ` | Txn ${order.payment.razorpayPaymentId}` : ""}</div>
-      ${invoiceTable(order.items, order.subtotal, order.shipping, order.total)}
-      <h3 style="margin:20px 0 4px">Shipping to</h3>
-      ${addrBlock(order.address)}
-    `),
-  }),
+  ) => {
+    const orderNum = formatOrderNumber(order);
+    const trackingUrl = order.courierTrackingUrl || getCourierTrackingUrl(order.courier, order.trackingId);
+    const hasTracking = !!(order.trackingId && order.trackingId.trim());
+
+    return {
+      subject: `Order confirmed - #${orderNum}`,
+      html: shell(`
+        <h2 style="margin:0 0 6px">Thank you, ${name}! 🌸</h2>
+        <p style="margin:0 0 4px;color:#555">Your order <b>#${orderNum}</b> has been received and confirmed.</p>
+
+        <div style="margin:16px 0;padding:14px 16px;background:#f0fdfa;border:1px solid #ccfbf1;border-radius:10px">
+          ${hasTracking ? `
+            <div style="font-size:12px;color:#0f766e;letter-spacing:.1em;text-transform:uppercase">Tracking ID (AWB)</div>
+            <div style="font-size:22px;font-weight:700;color:#0f766e">${order.trackingId}</div>
+            <div style="margin-top:6px;font-size:13px;color:#555">Order Number: <b>#${orderNum}</b></div>
+            <div style="margin-top:4px;font-size:13px;color:#555">Status: <b style="color:${ACCENT}">${order.status ?? "Confirmed"}</b></div>
+            <div style="margin-top:4px;font-size:13px;color:#555">Courier: <b>${order.courier ?? "To be assigned"}</b></div>
+            ${trackingUrl ? `<div style="margin-top:8px"><a href="${trackingUrl}" style="display:inline-block;background:${ACCENT};color:#fff;padding:8px 16px;border-radius:999px;text-decoration:none;font-size:13px;font-weight:500">Track with ${order.courier || "Courier"}</a></div>` : ""}
+          ` : `
+            <div style="font-size:12px;color:#0f766e;letter-spacing:.1em;text-transform:uppercase">Order Details</div>
+            <div style="font-size:20px;font-weight:700;color:#0f766e">Order #${orderNum}</div>
+            <div style="margin-top:6px;font-size:13px;color:#555">Status: <b style="color:${ACCENT}">${order.status ?? "Confirmed"}</b></div>
+            ${order.courier ? `<div style="margin-top:4px;font-size:13px;color:#555">Courier: <b>${order.courier}</b></div>` : ""}
+            <div style="margin-top:4px;font-size:13px;color:#777">Tracking ID: <i>Will be assigned once shipped</i></div>
+            <div style="margin-top:10px">
+              <a href="https://www.shriradhagovindstore.com/track?id=${encodeURIComponent(orderNum)}"
+                style="display:inline-block;background:${ACCENT};color:#fff;padding:8px 16px;border-radius:999px;text-decoration:none;font-size:13px;font-weight:500">
+                View order status
+              </a>
+            </div>
+          `}
+        </div>
+
+        <h3 style="margin:18px 0 4px">Invoice & Order Details</h3>
+        <div style="font-size:12px;color:#888">Order ID: #${orderNum}${hasTracking ? ` | Tracking ID: ${order.trackingId}` : ""} | Payment: ${order.payment.method.toUpperCase()} | ${order.payment.status.toUpperCase()}${order.payment.razorpayPaymentId ? ` | Txn ${order.payment.razorpayPaymentId}` : ""}</div>
+        ${invoiceTable(order.items, order.subtotal, order.shipping, order.total)}
+
+        ${customerBlock(name, order.customerEmail, order.address, order.businessName, order.gstin)}
+      `),
+    };
+  },
 
   paymentFailed: (name: string, ref: string, amount: number, reason: string) => ({
-    subject: `Payment failed - order auto-cancelled`,
+    subject: `Payment failed for Order #${ref} - order auto-cancelled`,
     html: shell(`
       <h2 style="margin:0 0 8px">Sorry, ${name} 😔</h2>
       <p>Your payment of <b>${rupee(amount)}</b> for order <b>#${ref}</b> could not be verified, so we have automatically cancelled the order.</p>
@@ -254,31 +363,55 @@ export const tpl = {
     courier?: string | null,
     url?: string,
     order?: EmailOrderPayload
-  ) => ({
-    subject: `Order #${ref} - ${status}`,
-    html: shell(`
-      <h2 style="margin:0 0 6px">Update on your order</h2>
-      <p>Hi ${name}, your order <b>#${ref}</b> is now <b style="color:${ACCENT}">${status}</b>.</p>
-      ${trackingId ? `<div style="margin-top:14px;padding:12px 14px;background:#f0fdfa;border:1px solid #ccfbf1;border-radius:10px">
-        <div style="font-size:12px;color:${ACCENT};letter-spacing:.1em;text-transform:uppercase">Tracking</div>
-        <div style="font-size:18px;font-weight:700">${trackingId}</div>
-        <div style="margin-top:4px;font-size:13px">Courier: <b>${courier ?? "-"}</b></div>
-        ${url ? `<a href="${url}" style="font-size:13px;color:${ACCENT}">Track on courier site</a>` : ""}
-      </div>` : ""}
-      ${order ? `
-        <h3 style="margin:18px 0 4px">Order details</h3>
-        <div style="font-size:12px;color:#888">Order ID: ${String(order._id)} | Payment: ${order.payment.method.toUpperCase()} | ${order.payment.status.toUpperCase()}</div>
-        ${invoiceTable(order.items, order.subtotal, order.shipping, order.total)}
-        <h3 style="margin:20px 0 4px">Shipping to</h3>
-        ${addrBlock(order.address)}
-      ` : ""}
-      <a href="https://www.shriradhagovindstore.com/track${trackingId ? `?id=${encodeURIComponent(trackingId)}` : ""}" style="display:inline-block;margin-top:14px;background:${ACCENT};color:#fff;padding:10px 16px;border-radius:999px;text-decoration:none;font-size:13px">View order</a>
-    `),
-  }),
+  ) => {
+    const orderNum = order ? formatOrderNumber(order) : ref;
+    const effectiveTrackingId = trackingId ?? order?.trackingId;
+    const effectiveCourier = courier ?? order?.courier;
+    const trackingUrl = url || order?.courierTrackingUrl || getCourierTrackingUrl(effectiveCourier, effectiveTrackingId);
+    const hasTracking = !!(effectiveTrackingId && effectiveTrackingId.trim());
+
+    return {
+      subject: `Order #${orderNum} - ${status}`,
+      html: shell(`
+        <h2 style="margin:0 0 6px">Update on your order</h2>
+        <p>Hi ${name}, your order <b>#${orderNum}</b> is now <b style="color:${ACCENT}">${status}</b>.</p>
+
+        <div style="margin:14px 0;padding:14px 16px;background:#f0fdfa;border:1px solid #ccfbf1;border-radius:10px">
+          ${hasTracking ? `
+            <div style="font-size:12px;color:${ACCENT};letter-spacing:.1em;text-transform:uppercase">Tracking ID (AWB)</div>
+            <div style="font-size:20px;font-weight:700;color:${ACCENT}">${effectiveTrackingId}</div>
+            <div style="margin-top:6px;font-size:13px;color:#555">Order Number: <b>#${orderNum}</b></div>
+            <div style="margin-top:4px;font-size:13px;color:#555">Status: <b style="color:${ACCENT}">${status}</b></div>
+            <div style="margin-top:4px;font-size:13px;color:#555">Courier: <b>${effectiveCourier ?? "To be assigned"}</b></div>
+            ${trackingUrl ? `<div style="margin-top:8px"><a href="${trackingUrl}" style="display:inline-block;background:${ACCENT};color:#fff;padding:8px 16px;border-radius:999px;text-decoration:none;font-size:13px;font-weight:500">Track with ${effectiveCourier || "Courier"}</a></div>` : ""}
+          ` : `
+            <div style="font-size:12px;color:${ACCENT};letter-spacing:.1em;text-transform:uppercase">Order Details</div>
+            <div style="font-size:20px;font-weight:700;color:${ACCENT}">Order #${orderNum}</div>
+            <div style="margin-top:6px;font-size:13px;color:#555">Status: <b style="color:${ACCENT}">${status}</b></div>
+            ${effectiveCourier ? `<div style="margin-top:4px;font-size:13px;color:#555">Courier: <b>${effectiveCourier}</b></div>` : ""}
+            <div style="margin-top:4px;font-size:13px;color:#777">Tracking ID: <i>Will be assigned once shipped</i></div>
+            <div style="margin-top:10px">
+              <a href="https://www.shriradhagovindstore.com/track?id=${encodeURIComponent(orderNum)}"
+                style="display:inline-block;background:${ACCENT};color:#fff;padding:8px 16px;border-radius:999px;text-decoration:none;font-size:13px;font-weight:500">
+                View order status
+              </a>
+            </div>
+          `}
+        </div>
+
+        ${order ? `
+          <h3 style="margin:18px 0 4px">Order details</h3>
+          <div style="font-size:12px;color:#888">Order ID: #${orderNum}${hasTracking ? ` | Tracking ID: ${effectiveTrackingId}` : ""} | Payment: ${order.payment.method.toUpperCase()} | ${order.payment.status.toUpperCase()}</div>
+          ${invoiceTable(order.items, order.subtotal, order.shipping, order.total)}
+          ${customerBlock(name, order.customerEmail, order.address, order?.businessName, order?.gstin)}
+        ` : ""}
+      `),
+    };
+  },
 
   // legacy alias kept for other call sites
   orderPlaced: (name: string, orderId: string, total: number) => ({
-    subject: `Order #${orderId.slice(-6).toUpperCase()} received`,
+    subject: `Order #${orderId} received`,
     html: shell(`<h2>Thank you, ${name}!</h2><p>Your order <b>#${orderId}</b> for <b>${rupee(total)}</b> has been received.</p>`),
   }),
 };

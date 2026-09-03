@@ -3,7 +3,7 @@ import { useState } from "react";
 import { Youtube, Instagram, Facebook, Mail, Phone, MapPin } from "lucide-react";
 import { toast } from "sonner";
 import { useStore } from "@/lib/store";
-const logo = "/shriradhagovind store logo.jpeg";
+const logo = "/brand-logo-large.png";
 
 export function Footer() {
   const { settings } = useStore();

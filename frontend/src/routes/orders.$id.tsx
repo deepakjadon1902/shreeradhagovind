@@ -53,25 +53,44 @@ function OrderDetail() {
           Placed on {new Date(order.createdAt).toLocaleString()}
         </p>
 
-        {order.trackingId && (
-          <div className="premium-card p-5 mt-4 flex flex-wrap items-center gap-4">
-            <div className="flex-1 min-w-0">
-              <p className="text-xs uppercase tracking-wider text-muted-foreground">Tracking ID</p>
-              <p className="font-display text-xl text-primary">{order.trackingId}</p>
-            </div>
-            <div>
-              <p className="text-xs uppercase tracking-wider text-muted-foreground">Courier</p>
-              <p className="font-medium">{order.courier ?? "To be assigned"}</p>
-            </div>
+        <div className="premium-card p-5 mt-4 flex flex-wrap items-center justify-between gap-4">
+          <div className="flex-1 min-w-0 space-y-1">
+            <p className="text-xs uppercase tracking-wider text-muted-foreground">Shipment Details</p>
+            {order.trackingId ? (
+              <p className="font-mono text-base font-bold text-primary">
+                AWB / Tracking No: {order.trackingId}
+              </p>
+            ) : (
+              <p className="text-sm text-muted-foreground italic">
+                Tracking ID will be assigned once shipped
+              </p>
+            )}
+            {order.courier && (
+              <p className="text-xs text-muted-foreground">
+                Courier Partner: <span className="font-semibold text-foreground">{order.courier}</span>
+              </p>
+            )}
+          </div>
+          <div className="flex items-center gap-2">
+            {order.courierTrackingUrl && (
+              <a
+                href={order.courierTrackingUrl}
+                target="_blank"
+                rel="noreferrer"
+                className="h-10 px-4 rounded-full border border-primary text-primary text-sm font-medium inline-flex items-center hover:bg-primary/10"
+              >
+                Track on {order.courier || "Courier"}
+              </a>
+            )}
             <Link
               to="/track"
-              search={{ id: order.trackingId } as never}
-              className="h-10 px-5 rounded-full bg-primary text-primary-foreground text-sm inline-flex items-center"
+              search={{ id: order.trackingId || displayOrderNumber(order) } as never}
+              className="h-10 px-5 rounded-full bg-primary text-primary-foreground text-sm font-medium inline-flex items-center"
             >
-              Open public tracker
+              Order Status Tracker
             </Link>
           </div>
-        )}
+        </div>
 
         {!cancelled && (
           <div className="premium-card p-6 mt-6">
@@ -132,13 +151,30 @@ function OrderDetail() {
                 <Home className="h-4 w-4 text-primary" /> Shipping
               </h3>
               <p className="text-sm">{order.address.name}</p>
-              <p className="text-xs text-muted-foreground">
-                {order.address.line1}, {order.address.city}, {order.address.state}{" "}
+              {order.businessName && (
+                <p className="text-xs font-semibold text-foreground mt-0.5">
+                  Business: {order.businessName}
+                </p>
+              )}
+              {order.gstin && (
+                <p className="text-xs font-medium text-muted-foreground">
+                  GSTIN: {order.gstin}
+                </p>
+              )}
+              <p className="text-xs text-muted-foreground mt-1">
+                {[order.address.line1, order.address.line2, order.address.city, order.address.state]
+                  .filter(Boolean)
+                  .join(", ")}{" "}
                 {order.address.pincode}
               </p>
               <p className="mt-1 flex items-center gap-1 text-xs text-muted-foreground">
-                <Phone className="h-3 w-3" /> {order.address.phone}
+                <Phone className="h-3 w-3" /> Phone: {order.address.phone}
               </p>
+              {(order.address.alternatePhone || order.alternatePhone) && (
+                <p className="mt-1 flex items-center gap-1 text-xs text-muted-foreground">
+                  <Phone className="h-3 w-3" /> Alt Phone: {order.address.alternatePhone || order.alternatePhone}
+                </p>
+              )}
             </div>
             <div className="premium-card p-5">
               <h3 className="font-display text-lg mb-2 flex items-center gap-2">

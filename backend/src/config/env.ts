@@ -33,7 +33,7 @@ export const env = {
   CLOUDINARY_API_KEY: process.env.CLOUDINARY_API_KEY ?? "",
   CLOUDINARY_API_SECRET: process.env.CLOUDINARY_API_SECRET ?? "",
   RESEND_API_KEY: process.env.RESEND_API_KEY ?? "",
-  RESEND_FROM: process.env.RESEND_FROM ?? "Shri Radha Govind <onboarding@resend.dev>",
+  RESEND_FROM: process.env.RESEND_FROM ?? "Shri Radha Govind Store <orders@shriradhagovindstore.com>",
   RAZORPAY_KEY_ID: process.env.RAZORPAY_KEY_ID ?? "",
   RAZORPAY_KEY_SECRET: process.env.RAZORPAY_KEY_SECRET ?? "",
   ADMIN_EMAIL: process.env.ADMIN_EMAIL ?? "shriradhagovindstore@gmail.com",

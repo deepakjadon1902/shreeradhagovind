@@ -7,13 +7,19 @@ const orderItemSchema = new Schema(
     image: String,
     price: Number,
     qty: { type: Number, required: true, min: 1 },
+    hsnCode: { type: String, default: "" },
+    gstRate: { type: Number, default: 0 },
+    gstInclusive: { type: Boolean, default: true },
+    taxableAmount: Number,
+    gstAmount: Number,
   },
   { _id: false }
 );
 
 const orderSchema = new Schema(
   {
-    user: { type: Schema.Types.ObjectId, ref: "User", required: true, index: true },
+    user: { type: Schema.Types.ObjectId, ref: "User", index: true },
+    customerEmail: { type: String, trim: true, lowercase: true, index: true },
     orderNo: { type: Number, unique: true, sparse: true, index: true },
     trackingId: { type: String, unique: true, sparse: true, index: true },
     courier: {
@@ -26,10 +32,17 @@ const orderSchema = new Schema(
     subtotal: { type: Number, required: true },
     shipping: { type: Number, default: 0 },
     total: { type: Number, required: true },
+    alternatePhone: { type: String, default: "" },
+    needsGstInvoice: { type: Boolean, default: false },
+    businessName: { type: String, default: "", trim: true },
+    gstin: { type: String, default: "", trim: true, uppercase: true },
     address: {
       name: String,
       phone: String,
+      alternatePhone: { type: String, default: "" },
       line1: String,
+      line2: { type: String, default: "" },
+      postOffice: { type: String, default: "" },
       city: String,
       state: String,
       pincode: String,

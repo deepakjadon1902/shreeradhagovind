@@ -3,7 +3,7 @@ import crypto from "crypto";
 import Razorpay from "razorpay";
 import { z } from "zod";
 import { env } from "../config/env";
-import { requireAuth } from "../middleware/auth";
+import { optionalAuth } from "../middleware/auth";
 import { HttpError } from "../middleware/error";
 import { Product } from "../models/Product";
 import { Settings } from "../models/Settings";
@@ -15,7 +15,7 @@ const rzp =
     ? new Razorpay({ key_id: env.RAZORPAY_KEY_ID, key_secret: env.RAZORPAY_KEY_SECRET })
     : null;
 
-r.post("/razorpay/order", requireAuth, async (req, res, next) => {
+r.post("/razorpay/order", optionalAuth, async (req, res, next) => {
   try {
     if (!rzp) throw new HttpError(400, "Razorpay not configured");
     const { items } = z.object({
@@ -37,7 +37,7 @@ r.post("/razorpay/order", requireAuth, async (req, res, next) => {
       amount: Math.round(amount * 100), // paise
       currency: "INR",
       receipt: `rcpt_${Date.now()}`,
-      notes: { userId: req.user!.sub, source: "shri-radha-govind-store" },
+      notes: { userId: req.user?.sub || "guest", source: "shri-radha-govind-store" },
     });
     res.json({ order, keyId: env.RAZORPAY_KEY_ID });
   } catch (e) {
@@ -45,7 +45,7 @@ r.post("/razorpay/order", requireAuth, async (req, res, next) => {
   }
 });
 
-r.post("/razorpay/verify", requireAuth, async (req, res, next) => {
+r.post("/razorpay/verify", optionalAuth, async (req, res, next) => {
   try {
     if (!env.RAZORPAY_KEY_SECRET) throw new HttpError(400, "Razorpay not configured");
     const { order_id, payment_id, signature } = z
