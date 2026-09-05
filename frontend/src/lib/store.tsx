@@ -191,6 +191,9 @@ export type Settings = {
   heroTitle?: string;
   heroSubtitle?: string;
   footerDescription?: string;
+  homeHeroImage?: string;
+  vrindavanStoryImage?: string;
+  whatsappTemplate?: string;
 };
 
 const DEFAULT_SETTINGS: Settings = {
@@ -211,6 +214,9 @@ const DEFAULT_SETTINGS: Settings = {
   heroTitle: "Sacred Treasures From Vrindavan",
   heroSubtitle: "Handcrafted Japa malas, authentic Tulsi, sacred idols, and pure puja essentials blessed in the holy dham.",
   footerDescription: "Shri Radha Govind Store brings authentic, consecrated devotional items directly from the holy land of Vrindavan Dham to your home.",
+  homeHeroImage: "",
+  vrindavanStoryImage: "",
+  whatsappTemplate: "",
 };
 
 export type RegisteredUser = {
@@ -340,6 +346,7 @@ const mapProduct = (p: any): Product => ({
   isTaxable: p.isTaxable !== undefined ? Boolean(p.isTaxable) : true,
   metaTitle: p.metaTitle ?? "",
   metaDescription: p.metaDescription ?? "",
+  comboComponents: Array.isArray(p.comboComponents) ? p.comboComponents : [],
 });
 
 const mapSettings = (s: any): Partial<Settings> => ({
@@ -359,6 +366,9 @@ const mapSettings = (s: any): Partial<Settings> => ({
   heroTitle: s.heroTitle,
   heroSubtitle: s.heroSubtitle,
   footerDescription: s.footerDescription,
+  homeHeroImage: s.homeHeroImage,
+  vrindavanStoryImage: s.vrindavanStoryImage,
+  whatsappTemplate: s.whatsappTemplate,
 });
 
 const mapCategory = (c: any): Category => ({
@@ -442,6 +452,7 @@ const fallbackProduct = (i: any): Product => ({
   hsnCode: i.hsnCode ?? "",
   gstRate: typeof i.gstRate === "number" ? i.gstRate : 0,
   gstInclusive: typeof i.gstInclusive === "boolean" ? i.gstInclusive : true,
+  comboComponents: Array.isArray(i.comboComponents) ? i.comboComponents : [],
 });
 
 const mapOrder = (o: any, productLookup: Map<string, Product>): Order => {

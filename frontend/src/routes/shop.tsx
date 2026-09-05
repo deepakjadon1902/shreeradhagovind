@@ -3,30 +3,42 @@ import { useEffect, useMemo, useState } from "react";
 import { Layout } from "@/components/Layout";
 import { ProductCard } from "@/components/ProductCard";
 import { useStore } from "@/lib/store";
-import { SlidersHorizontal, ChevronRight, Home } from "lucide-react";
+import { SlidersHorizontal, ChevronRight, Home, Sparkles, X, RotateCcw } from "lucide-react";
 import { pageSeo } from "@/lib/seo";
 
-type Search = { q?: string; cat?: string };
+type Search = { q?: string; cat?: string; filter?: string };
 
 export const Route = createFileRoute("/shop")({
   validateSearch: (s: Record<string, unknown>): Search => ({
     q: typeof s.q === "string" ? s.q : undefined,
     cat: typeof s.cat === "string" ? s.cat : undefined,
+    filter: typeof s.filter === "string" ? s.filter : undefined,
   }),
   component: Shop,
   head: (ctx: any) => {
+    const isSacredPicks =
+      ctx?.search?.q?.toLowerCase() === "sacred-picks" ||
+      ctx?.search?.filter?.toLowerCase() === "sacred-picks";
     const category = ctx?.search?.cat;
-    const title = category
+    const title = isSacredPicks
+      ? "Sacred Picks — Devotional Favorites | Shri Radha Govind Store"
+      : category
       ? `Buy ${category} Online | Shri Radha Govind Store`
       : "Shop Tulsi Mala, Puja Items, Itra & Temple Gifts | Shri Radha Govind Store";
-    const description = category
+    const description = isSacredPicks
+      ? "Explore our curated Sacred Picks from Vrindavan: top-rated authentic Tulsi malas, pure Chandan, sacred Itra, and devotional essentials."
+      : category
       ? `Buy authentic ${category} online from Shri Radha Govind Store, Vrindavan. Explore trusted devotional products with fast shipping across India.`
       : "Shop Tulsi Mala, Kanthi Mala, Puja Essentials, Chandan, Tilak, Itra, Keychains, Temple Gifts and spiritual products from Vrindavan.";
 
     return pageSeo({
       title,
       description,
-      path: category ? `/shop?cat=${encodeURIComponent(category)}` : "/shop",
+      path: isSacredPicks
+        ? "/shop?q=sacred-picks"
+        : category
+        ? `/shop?cat=${encodeURIComponent(category)}`
+        : "/shop",
     });
   },
 });
@@ -37,8 +49,17 @@ function Shop() {
   const { adminProducts, categories, categoryTree } = useStore();
   const [cat, setCat] = useState<string>(search.cat ?? "All");
   const [sort, setSort] = useState("featured");
+  const [filterDrawerOpen, setFilterDrawerOpen] = useState(false);
+
+  const isSacredPicks = useMemo(() => {
+    return (
+      search.q?.toLowerCase() === "sacred-picks" ||
+      search.filter?.toLowerCase() === "sacred-picks"
+    );
+  }, [search.q, search.filter]);
+
   const catalogMaxPrice = useMemo(
-    () => Math.max(100, ...adminProducts.map((product) => product.price)),
+    () => Math.max(100, ...adminProducts.map((product) => product.price || 0)),
     [adminProducts],
   );
   const [maxPrice, setMaxPrice] = useState(catalogMaxPrice);
@@ -55,13 +76,41 @@ function Shop() {
     setCat(category);
     navigate({
       to: "/shop",
-      search: { ...search, cat: category === "All" ? undefined : category },
+      search: {
+        ...search,
+        cat: category === "All" ? undefined : category,
+        q: isSacredPicks ? undefined : search.q,
+        filter: undefined,
+      },
+    });
+  };
+
+  const selectSacredPicks = () => {
+    setCat("All");
+    navigate({
+      to: "/shop",
+      search: {
+        cat: undefined,
+        q: "sacred-picks",
+        filter: undefined,
+      },
+    });
+  };
+
+  const resetFilters = () => {
+    setMaxPrice(catalogMaxPrice);
+    setSort("featured");
+    setCat("All");
+    navigate({
+      to: "/shop",
+      search: {},
     });
   };
 
   const activeCategoryInfo = useMemo(() => {
-    if (cat === "All") return null;
-    const asParent = categoryTree.find((t) => t.name === cat);
+    if (cat === "All" || isSacredPicks) return null;
+    const catLower = cat.toLowerCase();
+    const asParent = categoryTree.find((t) => t.name.toLowerCase() === catLower);
     if (asParent) {
       return {
         parent: asParent,
@@ -71,10 +120,12 @@ function Shop() {
       };
     }
     const asChildParent = categoryTree.find((t) =>
-      (t.children || []).some((c) => c.name === cat),
+      (t.children || []).some((c) => c.name.toLowerCase() === catLower),
     );
     if (asChildParent) {
-      const currentChild = asChildParent.children.find((c) => c.name === cat);
+      const currentChild = asChildParent.children.find(
+        (c) => c.name.toLowerCase() === catLower,
+      );
       return {
         parent: asChildParent,
         current: currentChild || null,
@@ -83,49 +134,96 @@ function Shop() {
       };
     }
     return null;
-  }, [cat, categoryTree]);
+  }, [cat, categoryTree, isSacredPicks]);
 
   const products = useMemo(() => {
     let p = [...adminProducts];
-    if (cat !== "All") {
-      const parent = categoryTree.find((x) => x.name === cat);
-      const names = parent ? [parent.name, ...parent.children.map((x) => x.name)] : [cat];
-      p = p.filter((x) => names.includes(x.category));
+
+    if (isSacredPicks) {
+      // Sacred Picks: Featured deals or highest rated products
+      const featured = p.filter((x) => x.featuredDeal);
+      if (featured.length > 0) {
+        p = featured;
+      } else {
+        // Fallback to top-rated picks
+        p = [...p].sort((a, b) => b.rating - a.rating);
+      }
+    } else {
+      if (cat !== "All") {
+        const catLower = cat.toLowerCase();
+        const parent = categoryTree.find((x) => x.name.toLowerCase() === catLower);
+        if (parent) {
+          const names = [parent.name, ...parent.children.map((x) => x.name)].map((n) =>
+            n.toLowerCase(),
+          );
+          p = p.filter((x) => names.includes(x.category.toLowerCase()));
+        } else {
+          p = p.filter((x) => x.category.toLowerCase() === catLower);
+        }
+      }
+      if (search.q) {
+        const q = search.q.toLowerCase().trim();
+        p = p.filter(
+          (x) =>
+            x.name.toLowerCase().includes(q) ||
+            x.category.toLowerCase().includes(q) ||
+            (x.description && x.description.toLowerCase().includes(q)),
+        );
+      }
     }
-    if (search.q) {
-      const q = search.q.toLowerCase();
-      p = p.filter((x) => x.name.toLowerCase().includes(q) || x.category.toLowerCase().includes(q));
-    }
+
     p = p.filter((x) => x.price <= maxPrice);
+
     if (sort === "low") p.sort((a, b) => a.price - b.price);
     if (sort === "high") p.sort((a, b) => b.price - a.price);
     if (sort === "rating") p.sort((a, b) => b.rating - a.rating);
     return p;
-  }, [adminProducts, cat, search.q, sort, maxPrice, categoryTree]);
+  }, [adminProducts, cat, isSacredPicks, search.q, sort, maxPrice, categoryTree]);
+
+  const pageTitle = isSacredPicks
+    ? "Sacred Picks"
+    : cat !== "All"
+    ? cat
+    : search.q
+    ? `Search: "${search.q}"`
+    : "All Products";
 
   return (
     <Layout>
-      <div className="container-app py-6 md:py-8">
-        {/* Breadcrumb navigation */}
-        <nav aria-label="Breadcrumb" className="mb-4 flex items-center gap-1.5 text-xs text-muted-foreground flex-wrap">
-          <Link to="/" className="inline-flex items-center gap-1 hover:text-primary transition">
+      <div className="container-app py-4 sm:py-6">
+        {/* Breadcrumb Navigation */}
+        <nav
+          aria-label="Breadcrumb"
+          className="mb-3 flex items-center gap-1.5 text-xs text-muted-foreground flex-wrap"
+        >
+          <Link to="/" className="inline-flex items-center gap-1 hover:text-[#166F77] transition">
             <Home className="h-3.5 w-3.5" /> Home
           </Link>
           <ChevronRight className="h-3 w-3 text-muted-foreground/60" />
           <button
             type="button"
             onClick={() => selectCategory("All")}
-            className={`hover:text-primary transition ${cat === "All" ? "font-semibold text-foreground" : ""}`}
+            className={`hover:text-[#166F77] transition ${
+              cat === "All" && !isSacredPicks ? "font-semibold text-foreground" : ""
+            }`}
           >
             Shop
           </button>
+          {isSacredPicks && (
+            <>
+              <ChevronRight className="h-3 w-3 text-muted-foreground/60" />
+              <span className="font-semibold text-foreground">Sacred Picks</span>
+            </>
+          )}
           {activeCategoryInfo && (
             <>
               <ChevronRight className="h-3 w-3 text-muted-foreground/60" />
               <button
                 type="button"
                 onClick={() => selectCategory(activeCategoryInfo.parent.name)}
-                className={`hover:text-primary transition ${activeCategoryInfo.isParent ? "font-semibold text-foreground" : ""}`}
+                className={`hover:text-[#166F77] transition ${
+                  activeCategoryInfo.isParent ? "font-semibold text-foreground" : ""
+                }`}
               >
                 {activeCategoryInfo.parent.name}
               </button>
@@ -139,142 +237,211 @@ function Shop() {
           )}
         </nav>
 
-        <div className="flex flex-col gap-2 border-b border-border pb-5">
-          <p className="eyebrow">Sacred Collection</p>
-          <h1 className="section-title">
-            Shop {cat !== "All" ? <span className="text-primary">- {cat}</span> : "all products"}
-          </h1>
-          <p className="text-sm text-muted-foreground">
-            {products.length} sacred {products.length === 1 ? "product" : "products"}
-            {search.q ? ` matching "${search.q}"` : ""}
-          </p>
-        </div>
+        {/* Compact Category & Controls Header */}
+        <div className="rounded-xl border border-[#E7E1D6] bg-white p-3 sm:p-4 shadow-sm mb-4">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-[#E7E1D6]">
+            <div>
+              <div className="flex items-center gap-2">
+                <h1 className="font-serif text-lg sm:text-2xl font-bold text-[#2B211C]">
+                  {pageTitle}
+                </h1>
+                <span className="rounded-full bg-[#166F77]/10 px-2 py-0.5 text-xs font-semibold text-[#166F77]">
+                  {products.length} {products.length === 1 ? "item" : "items"}
+                </span>
+              </div>
+              <p className="text-xs text-muted-foreground mt-0.5">
+                {isSacredPicks
+                  ? "Handpicked sacred devotional items from Vrindavan"
+                  : "Authentic sacred products from Vrindavan"}
+              </p>
+            </div>
 
-        {/* Subcategory Pills Bar */}
-        {activeCategoryInfo && activeCategoryInfo.subcategories.length > 0 && (
-          <div className="mt-4 flex items-center gap-2 overflow-x-auto pb-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-            <button
-              type="button"
-              onClick={() => selectCategory(activeCategoryInfo.parent.name)}
-              className={`rounded-full px-3.5 py-1.5 text-xs font-medium shrink-0 transition ${
-                activeCategoryInfo.isParent
-                  ? "bg-primary text-primary-foreground shadow-sm"
-                  : "border border-border bg-white text-foreground hover:bg-muted/60"
-              }`}
-            >
-              All {activeCategoryInfo.parent.name}
-            </button>
-            {activeCategoryInfo.subcategories.map((sub) => (
+            {/* Sort & Filter Toggle Controls */}
+            <div className="flex items-center gap-2 self-start sm:self-auto">
               <button
-                key={sub.id}
                 type="button"
-                onClick={() => selectCategory(sub.name)}
-                className={`rounded-full px-3.5 py-1.5 text-xs font-medium shrink-0 transition ${
-                  cat === sub.name
-                    ? "bg-primary text-primary-foreground shadow-sm"
-                    : "border border-border bg-white text-foreground hover:bg-muted/60"
+                onClick={() => setFilterDrawerOpen(!filterDrawerOpen)}
+                className={`inline-flex items-center gap-1.5 h-9 rounded-lg border px-3 text-xs font-medium transition ${
+                  filterDrawerOpen || maxPrice < catalogMaxPrice
+                    ? "border-[#166F77] bg-[#166F77]/10 text-[#166F77]"
+                    : "border-[#E7E1D6] bg-white text-[#2B211C] hover:border-[#166F77]"
                 }`}
               >
-                {sub.name}
+                <SlidersHorizontal className="h-3.5 w-3.5" />
+                <span>Filters</span>
+                {maxPrice < catalogMaxPrice && (
+                  <span className="h-1.5 w-1.5 rounded-full bg-[#166F77]" />
+                )}
               </button>
-            ))}
-          </div>
-        )}
 
-        <div className="mt-6 grid gap-6 lg:grid-cols-[260px_1fr]">
-          <aside className="h-fit space-y-6 rounded-lg border border-border bg-white p-4 lg:sticky lg:top-32 shadow-sm">
-            <div>
-              <h3 className="mb-3 flex items-center gap-2 text-sm font-semibold">
-                <SlidersHorizontal className="h-4 w-4" /> Categories
-              </h3>
-              <div className="flex flex-col gap-1">
-                <button
-                  onClick={() => selectCategory("All")}
-                  className={`rounded-md px-3 py-2 text-left text-sm transition ${cat === "All" ? "bg-primary text-primary-foreground font-medium" : "hover:bg-muted"}`}
+              <div className="relative">
+                <select
+                  value={sort}
+                  aria-label="Sort products"
+                  onChange={(e) => setSort(e.target.value)}
+                  className="h-9 rounded-lg border border-[#E7E1D6] bg-white px-3 pr-7 text-xs font-medium text-[#2B211C] outline-none hover:border-[#166F77] focus:border-[#166F77] transition cursor-pointer"
                 >
-                  All Categories
-                </button>
-                {categoryTree.filter((p) => p.name.toLowerCase() !== "featured").length > 0
-                  ? categoryTree
-                      .filter((p) => p.name.toLowerCase() !== "featured")
-                      .map((parent) => (
-                        <div key={parent.id}>
-                          <button
-                            onClick={() => selectCategory(parent.name)}
-                            className={`w-full rounded-md px-3 py-2 text-left text-sm font-semibold transition ${cat === parent.name ? "bg-primary text-primary-foreground" : "hover:bg-muted"}`}
-                          >
-                            {parent.name}
-                          </button>
-                          {parent.children.filter((c) => c.name.toLowerCase() !== "featured").length > 0 && (
-                            <div className="ml-3 mt-1 space-y-1 border-l-2 border-border/60 pl-2.5">
-                              {parent.children
-                                .filter((c) => c.name.toLowerCase() !== "featured")
-                                .map((child) => (
-                                  <button
-                                    key={child.id}
-                                    onClick={() => selectCategory(child.name)}
-                                    className={`w-full rounded-md px-2.5 py-1.5 text-left text-xs transition ${cat === child.name ? "bg-primary text-primary-foreground font-medium" : "text-muted-foreground hover:text-foreground hover:bg-muted"}`}
-                                  >
-                                    {child.name}
-                                  </button>
-                                ))}
-                            </div>
-                          )}
-                        </div>
-                      ))
-                  : categories
-                      .filter((c) => c.toLowerCase() !== "featured")
-                      .map((c) => (
-                        <button
-                          key={c}
-                          onClick={() => selectCategory(c)}
-                          className={`rounded-md px-3 py-2 text-left text-sm transition ${cat === c ? "bg-primary text-primary-foreground" : "hover:bg-muted"}`}
-                        >
-                          {c}
-                        </button>
-                      ))}
+                  <option value="featured">Sort: Featured</option>
+                  <option value="low">Price: Low to High</option>
+                  <option value="high">Price: High to Low</option>
+                  <option value="rating">Top Rated</option>
+                </select>
               </div>
             </div>
-            <div>
-              <h3 className="mb-3 text-sm font-semibold">Price</h3>
-              <input
-                type="range"
-                min={100}
-                max={catalogMaxPrice}
-                step={50}
-                value={maxPrice}
-                onChange={(e) => setMaxPrice(+e.target.value)}
-                className="w-full accent-primary"
-              />
-              <p className="mt-1 text-xs text-muted-foreground">Up to Rs. {maxPrice}</p>
-            </div>
-            <div>
-              <h3 className="mb-3 text-sm font-semibold">Sort</h3>
-              <select
-                value={sort}
-                onChange={(e) => setSort(e.target.value)}
-                className="h-10 w-full rounded-md border bg-card px-3 text-sm outline-none focus:border-primary"
+          </div>
+
+          {/* Horizontal Scrollable Categories Pills */}
+          <div className="pt-3">
+            <div className="flex items-center gap-1.5 overflow-x-auto pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+              <button
+                type="button"
+                onClick={() => selectCategory("All")}
+                className={`h-8 rounded-full px-3 text-xs font-medium shrink-0 transition ${
+                  cat === "All" && !isSacredPicks
+                    ? "bg-[#166F77] text-white shadow-sm"
+                    : "bg-[#F8F4EC] text-[#2B211C] hover:bg-[#EDE6D8]"
+                }`}
               >
-                <option value="featured">Featured</option>
-                <option value="low">Price: Low to High</option>
-                <option value="high">Price: High to Low</option>
-                <option value="rating">Top rated</option>
-              </select>
+                All Categories
+              </button>
+
+              <button
+                type="button"
+                onClick={selectSacredPicks}
+                className={`inline-flex items-center gap-1 h-8 rounded-full px-3 text-xs font-medium shrink-0 transition ${
+                  isSacredPicks
+                    ? "bg-[#D9A441] text-white shadow-sm font-semibold"
+                    : "bg-[#FFF9EE] border border-[#D9A441]/40 text-[#9C6D18] hover:bg-[#FFF2D6]"
+                }`}
+              >
+                <Sparkles className="h-3 w-3" />
+                Sacred Picks
+              </button>
+
+              {categoryTree.map((parent) => (
+                <button
+                  key={parent.id}
+                  type="button"
+                  onClick={() => selectCategory(parent.name)}
+                  className={`h-8 rounded-full px-3 text-xs font-medium shrink-0 transition ${
+                    cat.toLowerCase() === parent.name.toLowerCase() && !isSacredPicks
+                      ? "bg-[#166F77] text-white shadow-sm"
+                      : "bg-[#F8F4EC] text-[#2B211C] hover:bg-[#EDE6D8]"
+                  }`}
+                >
+                  {parent.name}
+                </button>
+              ))}
             </div>
-          </aside>
-          <div>
-            {products.length === 0 ? (
-              <div className="rounded-lg border border-dashed border-border bg-white py-20 text-center text-muted-foreground">
-                No products match your filters.
-              </div>
-            ) : (
-              <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
-                {products.map((p) => (
-                  <ProductCard key={p.id} product={p} />
+
+            {/* Subcategory Pills (when parent is selected) */}
+            {activeCategoryInfo && activeCategoryInfo.subcategories.length > 0 && (
+              <div className="mt-2.5 pt-2.5 border-t border-[#E7E1D6]/70 flex items-center gap-1.5 overflow-x-auto pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+                <span className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider shrink-0 mr-1">
+                  Subcategories:
+                </span>
+                <button
+                  type="button"
+                  onClick={() => selectCategory(activeCategoryInfo.parent.name)}
+                  className={`h-7 rounded-md px-2.5 text-xs font-medium shrink-0 transition ${
+                    activeCategoryInfo.isParent
+                      ? "bg-[#166F77] text-white"
+                      : "bg-white border border-[#E7E1D6] text-muted-foreground hover:text-foreground"
+                  }`}
+                >
+                  All {activeCategoryInfo.parent.name}
+                </button>
+                {activeCategoryInfo.subcategories.map((sub) => (
+                  <button
+                    key={sub.id}
+                    type="button"
+                    onClick={() => selectCategory(sub.name)}
+                    className={`h-7 rounded-md px-2.5 text-xs font-medium shrink-0 transition ${
+                      cat.toLowerCase() === sub.name.toLowerCase()
+                        ? "bg-[#166F77] text-white"
+                        : "bg-white border border-[#E7E1D6] text-[#2B211C] hover:border-[#166F77]"
+                    }`}
+                  >
+                    {sub.name}
+                  </button>
                 ))}
               </div>
             )}
           </div>
+
+          {/* Expandable Filter Tray */}
+          {filterDrawerOpen && (
+            <div className="mt-3 pt-3 border-t border-[#E7E1D6] bg-[#FAF8F4] -mx-3 -mb-3 sm:-mx-4 sm:-mb-4 p-3 sm:p-4 rounded-b-xl">
+              <div className="flex flex-wrap items-center justify-between gap-4">
+                <div className="flex-1 min-w-[200px] max-w-sm">
+                  <div className="flex items-center justify-between text-xs mb-1">
+                    <span className="font-semibold text-[#2B211C]">Max Price</span>
+                    <span className="font-bold text-[#166F77]">Up to ₹{maxPrice}</span>
+                  </div>
+                  <input
+                    type="range"
+                    min={100}
+                    max={catalogMaxPrice}
+                    step={50}
+                    value={maxPrice}
+                    aria-label="Filter by maximum price"
+                    onChange={(e) => setMaxPrice(+e.target.value)}
+                    className="w-full accent-[#166F77] cursor-pointer"
+                  />
+                  <div className="flex justify-between text-[10px] text-muted-foreground mt-0.5">
+                    <span>₹100</span>
+                    <span>₹{catalogMaxPrice}</span>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-2">
+                  {(maxPrice < catalogMaxPrice || cat !== "All" || isSacredPicks) && (
+                    <button
+                      type="button"
+                      onClick={resetFilters}
+                      className="inline-flex items-center gap-1 h-8 rounded-lg border border-[#E7E1D6] bg-white px-2.5 text-xs text-muted-foreground hover:text-foreground transition"
+                    >
+                      <RotateCcw className="h-3 w-3" /> Reset Filters
+                    </button>
+                  )}
+                  <button
+                    type="button"
+                    onClick={() => setFilterDrawerOpen(false)}
+                    className="inline-flex items-center gap-1 h-8 rounded-lg bg-[#166F77] px-3 text-xs font-semibold text-white transition hover:bg-[#135E65]"
+                  >
+                    Done
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* Products Grid (Appears immediately near the top!) */}
+        <div>
+          {products.length === 0 ? (
+            <div className="rounded-xl border border-dashed border-[#E7E1D6] bg-white py-16 px-4 text-center">
+              <p className="font-serif text-lg font-semibold text-[#2B211C]">
+                No sacred products found
+              </p>
+              <p className="text-xs sm:text-sm text-muted-foreground mt-1 max-w-md mx-auto">
+                No items match your current selection. Try resetting filters or choosing another category.
+              </p>
+              <button
+                type="button"
+                onClick={resetFilters}
+                className="mt-4 inline-flex items-center gap-1.5 rounded-lg bg-[#166F77] px-4 py-2 text-xs font-semibold text-white shadow-sm transition hover:bg-[#135E65]"
+              >
+                View All Products
+              </button>
+            </div>
+          ) : (
+            <div className="grid grid-cols-2 gap-2.5 sm:gap-3 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
+              {products.map((p) => (
+                <ProductCard key={p.id} product={p} />
+              ))}
+            </div>
+          )}
         </div>
       </div>
     </Layout>

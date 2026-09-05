@@ -12,6 +12,21 @@ const orderItemSchema = new Schema(
     gstInclusive: { type: Boolean, default: true },
     taxableAmount: Number,
     gstAmount: Number,
+    comboComponents: [
+      {
+        name: String,
+        qty: Number,
+        hsnCode: String,
+        gstRate: Number,
+        gstInclusive: Boolean,
+        baseValue: Number,
+        allocatedTaxableValue: Number,
+        gstAmount: Number,
+        cgst: Number,
+        sgst: Number,
+        igst: Number,
+      },
+    ],
   },
   { _id: false }
 );

@@ -480,6 +480,92 @@ r.post("/", optionalAuth, async (req, res, next) => {
         }
       }
 
+      let comboSnapshot: any[] | undefined = undefined;
+      let finalTaxableAmount = Math.round(taxableUnit * i.qty * 100) / 100;
+      let finalGstAmount = Math.round(gstUnit * i.qty * 100) / 100;
+
+      if (Array.isArray(p.comboComponents) && p.comboComponents.length > 0) {
+        // Strict GST Validation: Every combo component must have a valid HSN code and configured GST rate
+        for (const c of p.comboComponents) {
+          const compName = (c?.name || "Component").trim();
+          const compHsn = (c?.hsnCode || "").trim();
+          const compGst = c?.gstRate;
+          if (!compHsn) {
+            throw new HttpError(
+              400,
+              `Order creation blocked: Combo component "${compName}" in product "${p.name}" is missing an HSN code. Please update the product GST configuration.`
+            );
+          }
+          if (typeof compGst !== "number" || isNaN(compGst) || compGst < 0 || compGst > 28) {
+            throw new HttpError(
+              400,
+              `Order creation blocked: Combo component "${compName}" in product "${p.name}" has an invalid GST rate (${compGst}). Please configure a valid GST rate (0% to 28%).`
+            );
+          }
+        }
+
+        const totalBaseValue = p.comboComponents.reduce(
+          (sum: number, c: any) => sum + (Number(c.baseValue) || 0) * (Number(c.qty) || 1),
+          0,
+        );
+        comboSnapshot = p.comboComponents.map((c: any) => {
+          const cQty = (Number(c.qty) || 1) * i.qty;
+          const cRate = Number(c.gstRate) || 0;
+          const cInclusive = c.gstInclusive !== false;
+          const compBase = (Number(c.baseValue) || 0) * (Number(c.qty) || 1);
+          const ratio = totalBaseValue > 0 ? compBase / totalBaseValue : 1 / p.comboComponents.length;
+          const allocatedPrice = Math.round(price * i.qty * ratio * 100) / 100;
+
+          let compTaxable = allocatedPrice;
+          let compGst = 0;
+          if (cRate > 0) {
+            if (cInclusive) {
+              compTaxable = Math.round((allocatedPrice / (1 + cRate / 100)) * 100) / 100;
+              compGst = Math.round((allocatedPrice - compTaxable) * 100) / 100;
+            } else {
+              compTaxable = allocatedPrice;
+              compGst = Math.round((allocatedPrice * (cRate / 100)) * 100) / 100;
+            }
+          }
+
+          return {
+            name: c.name,
+            qty: cQty,
+            hsnCode: c.hsnCode || "",
+            gstRate: cRate,
+            gstInclusive: cInclusive,
+            baseValue: Number(c.baseValue) || 0,
+            allocatedPrice,
+            taxableAmount: compTaxable,
+            gstAmount: compGst,
+          };
+        });
+
+        // Reconcile rounding differences on allocatedPrice so sum(allocatedPrice) === price * i.qty exactly
+        const totalAllocated = comboSnapshot.reduce((s, c) => s + c.allocatedPrice, 0);
+        const expectedTotal = Math.round(price * i.qty * 100) / 100;
+        const diff = Math.round((expectedTotal - totalAllocated) * 100) / 100;
+        if (diff !== 0 && comboSnapshot.length > 0) {
+          const last = comboSnapshot[comboSnapshot.length - 1];
+          last.allocatedPrice = Math.round((last.allocatedPrice + diff) * 100) / 100;
+          if (last.gstRate > 0) {
+            if (last.gstInclusive) {
+              last.taxableAmount = Math.round((last.allocatedPrice / (1 + last.gstRate / 100)) * 100) / 100;
+              last.gstAmount = Math.round((last.allocatedPrice - last.taxableAmount) * 100) / 100;
+            } else {
+              last.taxableAmount = last.allocatedPrice;
+              last.gstAmount = Math.round((last.allocatedPrice * (last.gstRate / 100)) * 100) / 100;
+            }
+          } else {
+            last.taxableAmount = last.allocatedPrice;
+            last.gstAmount = 0;
+          }
+        }
+
+        finalTaxableAmount = Math.round(comboSnapshot.reduce((s, c) => s + c.taxableAmount, 0) * 100) / 100;
+        finalGstAmount = Math.round(comboSnapshot.reduce((s, c) => s + c.gstAmount, 0) * 100) / 100;
+      }
+
       return {
         productId: p._id,
         name: p.name,
@@ -489,8 +575,9 @@ r.post("/", optionalAuth, async (req, res, next) => {
         hsnCode,
         gstRate,
         gstInclusive,
-        taxableAmount: Math.round(taxableUnit * i.qty * 100) / 100,
-        gstAmount: Math.round(gstUnit * i.qty * 100) / 100,
+        taxableAmount: finalTaxableAmount,
+        gstAmount: finalGstAmount,
+        comboComponents: comboSnapshot,
       };
     });
     const subtotal = items.reduce((s, i) => s + i.price * i.qty, 0);

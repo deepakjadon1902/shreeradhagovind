@@ -19,6 +19,14 @@ export type Product = {
   metaTitle?: string;
   metaDescription?: string;
   stock: number;
+  comboComponents?: Array<{
+    name: string;
+    qty: number;
+    hsnCode?: string;
+    gstRate: number;
+    gstInclusive?: boolean;
+    baseValue: number;
+  }>;
 };
 
 export const DEFAULT_CATEGORY_TREE = [

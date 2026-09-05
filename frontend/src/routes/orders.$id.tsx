@@ -24,6 +24,8 @@ import {
   ExternalLink,
   MapPin,
   Copy,
+  Star,
+  X as XIcon,
 } from "lucide-react";
 import { useEffect, useState, useCallback } from "react";
 import { api, isApiEnabled } from "@/lib/api";
@@ -61,6 +63,40 @@ function OrderDetail() {
   const [liveOrder, setLiveOrder] = useState<Order | null>(null);
   const [liveTracking, setLiveTracking] = useState<NormalizedTrackingData | null>(null);
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [reviewingProduct, setReviewingProduct] = useState<any | null>(null);
+  const [reviewRating, setReviewRating] = useState(5);
+  const [reviewComment, setReviewComment] = useState("");
+  const [submittingReview, setSubmittingReview] = useState(false);
+
+  const submitProductReview = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!reviewingProduct) return;
+    if (reviewComment.trim().length < 3) {
+      toast.error("Please provide a short review comment (at least 3 characters)");
+      return;
+    }
+    setSubmittingReview(true);
+    try {
+      await api("/reviews", {
+        method: "POST",
+        body: {
+          orderId: id,
+          productId: reviewingProduct.id,
+          rating: reviewRating,
+          comment: reviewComment.trim(),
+          guestAccessToken: search.token || undefined,
+        },
+      });
+      toast.success("Hare Krishna! Your review has been submitted for moderation and will appear publicly once approved.");
+      setReviewingProduct(null);
+      setReviewComment("");
+      setReviewRating(5);
+    } catch (err: any) {
+      toast.error(err?.message || "Failed to submit review");
+    } finally {
+      setSubmittingReview(false);
+    }
+  };
 
   const initialOrder = orders.find((o) => o.id === id);
 
@@ -589,9 +625,25 @@ function OrderDetail() {
                       Qty: {i.qty} × {formatINR(i.product.price)}
                     </p>
                   </div>
-                  <span className="font-semibold text-sm text-stone-900">
-                    {formatINR(i.product.price * i.qty)}
-                  </span>
+                  <div className="text-right shrink-0">
+                    <span className="font-semibold text-sm text-stone-900 block">
+                      {formatINR(i.product.price * i.qty)}
+                    </span>
+                    {order.status === "Delivered" && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setReviewingProduct(i.product);
+                          setReviewRating(5);
+                          setReviewComment("");
+                        }}
+                        className="mt-1.5 inline-flex items-center gap-1 text-xs font-semibold text-[#166F77] hover:underline"
+                      >
+                        <Star className="w-3.5 h-3.5 text-amber-500 fill-amber-400" />
+                        Write a Review
+                      </button>
+                    )}
+                  </div>
                 </div>
               ))}
             </div>
@@ -661,6 +713,109 @@ function OrderDetail() {
             </div>
           </aside>
         </div>
+
+        {reviewingProduct && (
+          <div className="fixed inset-0 bg-black/60 z-50 grid place-items-center p-4 animate-in fade-in duration-150">
+            <div
+              className="bg-white rounded-2xl border border-stone-200 p-6 w-full max-w-md shadow-2xl space-y-4"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="flex items-start justify-between border-b pb-3">
+                <div>
+                  <h3 className="font-serif text-xl font-bold text-stone-900">Write a Review</h3>
+                  <p className="text-xs text-stone-500 mt-0.5">Share your experience with this sacred item</p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setReviewingProduct(null)}
+                  className="p-1 rounded-lg hover:bg-stone-100 text-stone-400 hover:text-stone-700"
+                >
+                  <XIcon className="w-4 h-4" />
+                </button>
+              </div>
+
+              <div className="flex items-center gap-3 bg-stone-50 p-3 rounded-xl border border-stone-200">
+                <img
+                  src={reviewingProduct.image}
+                  alt={reviewingProduct.name}
+                  className="w-12 h-12 object-cover rounded-lg border bg-white shrink-0"
+                />
+                <div className="min-w-0 flex-1">
+                  <p className="text-xs font-semibold text-stone-900 truncate">{reviewingProduct.name}</p>
+                  <span className="text-[11px] text-emerald-700 font-medium">Verified Purchase</span>
+                </div>
+              </div>
+
+              <form onSubmit={submitProductReview} className="space-y-4">
+                <div>
+                  <label className="block text-xs font-semibold text-stone-700 mb-1.5">
+                    Your Rating (रेटिंग)
+                  </label>
+                  <div className="flex items-center gap-1.5">
+                    {[1, 2, 3, 4, 5].map((star) => (
+                      <button
+                        key={star}
+                        type="button"
+                        onClick={() => setReviewRating(star)}
+                        className="p-1 rounded hover:scale-110 transition"
+                      >
+                        <Star
+                          className={`w-6 h-6 ${
+                            star <= reviewRating
+                              ? "fill-amber-400 text-amber-400"
+                              : "text-stone-300 fill-stone-100"
+                          }`}
+                        />
+                      </button>
+                    ))}
+                    <span className="text-xs font-semibold text-stone-600 ml-2">
+                      {reviewRating === 5
+                        ? "5/5 - Outstanding"
+                        : reviewRating === 4
+                        ? "4/5 - Very Good"
+                        : reviewRating === 3
+                        ? "3/5 - Good"
+                        : reviewRating === 2
+                        ? "2/5 - Fair"
+                        : "1/5 - Poor"}
+                    </span>
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold text-stone-700 mb-1">
+                    Your Review (अनुभव / टिप्पणी)
+                  </label>
+                  <textarea
+                    required
+                    rows={4}
+                    value={reviewComment}
+                    onChange={(e) => setReviewComment(e.target.value)}
+                    placeholder="How was the quality, craftsmanship, and devotional experience of this item?"
+                    className="w-full rounded-xl border border-stone-300 p-3 text-sm focus:outline-none focus:border-[#166F77] focus:ring-1 focus:ring-[#166F77]"
+                  />
+                </div>
+
+                <div className="flex justify-end gap-2 pt-2 border-t">
+                  <button
+                    type="button"
+                    onClick={() => setReviewingProduct(null)}
+                    className="h-10 px-4 rounded-xl border border-stone-200 text-xs font-semibold hover:bg-stone-50"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={submittingReview}
+                    className="h-10 px-5 rounded-xl bg-[#166F77] text-white text-xs font-semibold hover:bg-[#166F77]/90 disabled:opacity-50 transition shadow-sm"
+                  >
+                    {submittingReview ? "Submitting..." : "Submit Review"}
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        )}
       </div>
     </Layout>
   );

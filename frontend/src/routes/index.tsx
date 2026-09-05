@@ -39,7 +39,7 @@ export const Route = createFileRoute("/")({
 });
 
 function Home() {
-  const { adminProducts, categoryTree } = useStore();
+  const { adminProducts, categoryTree, settings } = useStore();
 
   const categoryShelves = useMemo(
     () =>
@@ -127,7 +127,7 @@ function Home() {
           <div className="relative">
             <div className="soft-shadow overflow-hidden rounded-2xl border border-[#E7E1D6] bg-white p-2">
               <img
-                src={homeHero}
+                src={settings?.homeHeroImage?.trim() || homeHero}
                 alt="Shri Radha Govind Store devotional collection from Vrindavan"
                 className="aspect-[4/3] w-full rounded-xl object-cover object-center"
               />
@@ -155,7 +155,7 @@ function Home() {
           <div className="grid items-center gap-6 md:grid-cols-[280px_1fr] lg:grid-cols-[340px_1fr] lg:gap-10">
             <div className="soft-shadow overflow-hidden rounded-xl border border-[#E7E1D6] bg-white p-1.5">
               <img
-                src={heroKrishna}
+                src={settings?.vrindavanStoryImage?.trim() || heroKrishna}
                 alt="Shri Radha Govind Vrindavan"
                 className="aspect-[4/3] w-full rounded-lg object-cover"
               />

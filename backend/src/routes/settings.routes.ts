@@ -29,6 +29,9 @@ r.patch("/", requireAuth, requireAdmin, async (req, res, next) => {
         freeShipThreshold: z.number().min(0).optional(),
         shippingFee: z.number().min(0).optional(),
         codEnabled: z.boolean().optional(),
+        homeHeroImage: z.string().optional(),
+        vrindavanStoryImage: z.string().optional(),
+        whatsappTemplate: z.string().optional(),
       })
       .parse(req.body);
     const s = await Settings.findOneAndUpdate({ key: "global" }, data, { new: true, upsert: true });

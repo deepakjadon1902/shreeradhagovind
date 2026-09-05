@@ -82,6 +82,19 @@ const productSchema = z.object({
   metaTitle: z.string().optional().default(""),
   metaDescription: z.string().optional().default(""),
   isActive: z.boolean().optional().default(true),
+  comboComponents: z
+    .array(
+      z.object({
+        name: z.string().min(1, "Component name is required"),
+        qty: z.number().min(1).default(1),
+        hsnCode: z.string().trim().min(2, "HSN code is required for each combo component"),
+        gstRate: z.number().min(0).max(28),
+        gstInclusive: z.boolean().optional().default(true),
+        baseValue: z.number().min(0).optional().default(0),
+      })
+    )
+    .optional()
+    .default([]),
 });
 
 r.post("/", requireAuth, requireAdmin, async (req, res, next) => {

@@ -30,6 +30,16 @@ const productSchema = new Schema(
     metaTitle: { type: String, default: "", trim: true },
     metaDescription: { type: String, default: "", trim: true },
     isActive: { type: Boolean, default: true },
+    comboComponents: [
+      {
+        name: { type: String, required: true, trim: true },
+        qty: { type: Number, default: 1, min: 1 },
+        hsnCode: { type: String, default: "", trim: true },
+        gstRate: { type: Number, default: 0, min: 0, max: 28 },
+        gstInclusive: { type: Boolean, default: true },
+        baseValue: { type: Number, default: 0, min: 0 },
+      },
+    ],
   },
   { timestamps: true }
 );

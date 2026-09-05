@@ -13,6 +13,17 @@ export type InvoiceItem = {
   gstInclusive?: boolean;
   taxableAmount?: number;
   gstAmount?: number;
+  comboComponents?: Array<{
+    name: string;
+    qty: number;
+    hsnCode?: string;
+    gstRate?: number;
+    gstInclusive?: boolean;
+    baseValue?: number;
+    allocatedPrice?: number;
+    taxableAmount?: number;
+    gstAmount?: number;
+  }>;
 };
 
 export type InvoiceAddr = {
@@ -92,6 +103,18 @@ export type ComputedTaxLine = {
   sgst: number;
   igst: number;
   lineTotal: number;
+  components?: Array<{
+    name: string;
+    hsnCode: string;
+    qty: number;
+    allocatedPrice: number;
+    taxableValue: number;
+    gstRate: number;
+    taxAmount: number;
+    cgst: number;
+    sgst: number;
+    igst: number;
+  }>;
 };
 
 export type ComputedTaxSummary = {
@@ -135,39 +158,90 @@ export function computeOrderTaxDetails(
     let unitTax = 0;
     let taxableValue = round2(unitPrice * qty);
     let taxAmount = 0;
-
-    // Strict priority: Use stored snapshot taxable/gst amounts if present on the historical order
-    if (typeof it.taxableAmount === "number" && typeof it.gstAmount === "number" && (it.taxableAmount > 0 || it.gstAmount > 0)) {
-      taxableValue = round2(it.taxableAmount);
-      taxAmount = round2(it.gstAmount);
-      taxableUnit = round2(taxableValue / qty);
-      unitTax = round2(taxAmount / qty);
-    } else if (gstRate > 0) {
-      if (gstInclusive) {
-        taxableUnit = round2(unitPrice / (1 + gstRate / 100));
-        unitTax = round2(unitPrice - taxableUnit);
-      } else {
-        taxableUnit = unitPrice;
-        unitTax = round2(unitPrice * (gstRate / 100));
-      }
-      taxableValue = round2(taxableUnit * qty);
-      taxAmount = round2(unitTax * qty);
-    }
-
-    const lineTotal = gstInclusive ? round2(unitPrice * qty) : round2((unitPrice + unitTax) * qty);
-
     let cgst = 0;
     let sgst = 0;
     let igst = 0;
+    let components: ComputedTaxLine["components"] = undefined;
 
-    if (taxAmount > 0 || gstRate > 0) {
-      if (isIntraState) {
-        cgst = round2(taxAmount / 2);
-        sgst = round2(taxAmount - cgst);
-      } else {
-        igst = taxAmount;
+    if (Array.isArray(it.comboComponents) && it.comboComponents.length > 0) {
+      components = it.comboComponents.map((comp) => {
+        const compName = (comp.name || "Component").trim();
+        const compHsn = (comp.hsnCode || "").trim();
+        if (!compHsn || compHsn === "-") {
+          throw new Error(
+            `Invalid GST configuration: Combo component "${compName}" is missing an HSN code. Cannot compute taxes or generate invoice without valid HSN.`
+          );
+        }
+        if (comp.gstRate === undefined || comp.gstRate === null || isNaN(Number(comp.gstRate)) || Number(comp.gstRate) < 0 || Number(comp.gstRate) > 28) {
+          throw new Error(
+            `Invalid GST configuration: Combo component "${compName}" has an invalid GST rate (${comp.gstRate}). Cannot compute taxes or generate invoice.`
+          );
+        }
+        const cTaxable = round2(comp.taxableAmount ?? 0);
+        const cTax = round2(comp.gstAmount ?? 0);
+        const cRate = round2(Number(comp.gstRate) || 0);
+        let cCgst = 0;
+        let cSgst = 0;
+        let cIgst = 0;
+        if (cTax > 0 || cRate > 0) {
+          if (isIntraState) {
+            cCgst = round2(cTax / 2);
+            cSgst = round2(cTax - cCgst);
+          } else {
+            cIgst = cTax;
+          }
+        }
+        return {
+          name: comp.name,
+          hsnCode: compHsn,
+          qty: Math.max(1, Number(comp.qty) || 1),
+          allocatedPrice: round2(comp.allocatedPrice ?? (cTaxable + cTax)),
+          taxableValue: cTaxable,
+          gstRate: cRate,
+          taxAmount: cTax,
+          cgst: cCgst,
+          sgst: cSgst,
+          igst: cIgst,
+        };
+      });
+
+      taxableValue = round2(components.reduce((sum, c) => sum + c.taxableValue, 0));
+      taxAmount = round2(components.reduce((sum, c) => sum + c.taxAmount, 0));
+      cgst = round2(components.reduce((sum, c) => sum + c.cgst, 0));
+      sgst = round2(components.reduce((sum, c) => sum + c.sgst, 0));
+      igst = round2(components.reduce((sum, c) => sum + c.igst, 0));
+      taxableUnit = round2(taxableValue / qty);
+      unitTax = round2(taxAmount / qty);
+    } else {
+      // Strict priority: Use stored snapshot taxable/gst amounts if present on the historical order
+      if (typeof it.taxableAmount === "number" && typeof it.gstAmount === "number" && (it.taxableAmount > 0 || it.gstAmount > 0)) {
+        taxableValue = round2(it.taxableAmount);
+        taxAmount = round2(it.gstAmount);
+        taxableUnit = round2(taxableValue / qty);
+        unitTax = round2(taxAmount / qty);
+      } else if (gstRate > 0) {
+        if (gstInclusive) {
+          taxableUnit = round2(unitPrice / (1 + gstRate / 100));
+          unitTax = round2(unitPrice - taxableUnit);
+        } else {
+          taxableUnit = unitPrice;
+          unitTax = round2(unitPrice * (gstRate / 100));
+        }
+        taxableValue = round2(taxableUnit * qty);
+        taxAmount = round2(unitTax * qty);
+      }
+
+      if (taxAmount > 0 || gstRate > 0) {
+        if (isIntraState) {
+          cgst = round2(taxAmount / 2);
+          sgst = round2(taxAmount - cgst);
+        } else {
+          igst = taxAmount;
+        }
       }
     }
+
+    const lineTotal = gstInclusive ? round2(unitPrice * qty) : round2((unitPrice + unitTax) * qty);
 
     return {
       name,
@@ -183,6 +257,7 @@ export function computeOrderTaxDetails(
       sgst,
       igst,
       lineTotal,
+      components,
     };
   });
 
@@ -300,6 +375,7 @@ export async function enrichInvoiceItems(items: InvoiceItem[]): Promise<InvoiceI
       gstInclusive,
       taxableAmount: it.taxableAmount,
       gstAmount: it.gstAmount,
+      comboComponents: it.comboComponents || it.product?.comboComponents || prod?.comboComponents,
     };
   });
 }
@@ -575,6 +651,52 @@ export async function generateInvoicePDF(data: InvoiceData): Promise<Buffer> {
         }
 
         curY += rowH;
+
+        if (line.components && line.components.length > 0) {
+          line.components.forEach((comp) => {
+            const compRowH = 15;
+            if (curY + compRowH > doc.page.height - 180) {
+              doc.addPage();
+              curY = 40;
+            }
+            doc.fillColor("#6b7280").font("Helvetica-Oblique").fontSize(7.5);
+            doc.text(`   • ${comp.name}`, colDef.item.x + 8, curY + 3, {
+              width: colDef.item.w - 12,
+            });
+            if (hasTaxBreakup) {
+              doc.text(comp.hsnCode, colDef.hsn.x, curY + 3, {
+                width: colDef.hsn.w,
+                align: colDef.hsn.align,
+              });
+              doc.text(String(comp.qty), colDef.qty.x, curY + 3, {
+                width: colDef.qty.w,
+                align: colDef.qty.align,
+              });
+              doc.text("-", colDef.rate.x, curY + 3, {
+                width: colDef.rate.w,
+                align: colDef.rate.align,
+              });
+              doc.text(rupee(comp.taxableValue), colDef.taxable.x, curY + 3, {
+                width: colDef.taxable.w,
+                align: colDef.taxable.align,
+              });
+              doc.text(comp.gstRate > 0 ? `${comp.gstRate}%` : "0%", colDef.gstRate.x, curY + 3, {
+                width: colDef.gstRate.w,
+                align: colDef.gstRate.align,
+              });
+              doc.text(rupee(comp.taxAmount), colDef.taxAmt.x, curY + 3, {
+                width: colDef.taxAmt.w,
+                align: colDef.taxAmt.align,
+              });
+              doc.text(rupee(comp.allocatedPrice), colDef.total.x - 8, curY + 3, {
+                width: colDef.total.w,
+                align: colDef.total.align,
+              });
+            }
+            curY += compRowH;
+          });
+        }
+
         doc.moveTo(left, curY).lineTo(right, curY).strokeColor("#e5e7eb").lineWidth(0.5).stroke();
       });
 

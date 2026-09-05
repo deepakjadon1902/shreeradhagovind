@@ -76,6 +76,37 @@ function ProductDetail() {
   const [qty, setQty] = useState(1);
   const [recentIds, setRecentIds] = useState<string[]>([]);
   const [selectedImage, setSelectedImage] = useState("");
+  const [reviewsList, setReviewsList] = useState<any[]>([]);
+  const [loadingReviews, setLoadingReviews] = useState(false);
+
+  useEffect(() => {
+    if (!product?.id) return;
+    let alive = true;
+    const fetchReviews = async () => {
+      setLoadingReviews(true);
+      try {
+        const res = await fetch(`${API_URL}/reviews/product/${encodeURIComponent(product.id)}`);
+        if (res.ok) {
+          const data = await res.json();
+          if (alive && Array.isArray(data)) {
+            setReviewsList(data);
+          }
+        }
+      } catch {
+        // ignore
+      } finally {
+        if (alive) setLoadingReviews(false);
+      }
+    };
+    fetchReviews();
+    return () => {
+      alive = false;
+    };
+  }, [product?.id]);
+
+  const avgRating = reviewsList.length > 0
+    ? reviewsList.reduce((sum, r) => sum + (Number(r.rating) || 5), 0) / reviewsList.length
+    : (product?.rating || 5);
 
   useEffect(() => {
     if (!product || typeof window === "undefined") return;
@@ -249,6 +280,99 @@ function ProductDetail() {
             </div>
           </div>
         </div>
+
+        {/* Customer Reviews Section */}
+        <section className="mt-16 border-t border-border/70 pt-12">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-8">
+            <div>
+              <p className="text-xs uppercase tracking-[.22em] text-primary font-semibold mb-1">
+                Verified Feedback
+              </p>
+              <h2 className="font-display text-3xl">Customer Reviews</h2>
+            </div>
+            {reviewsList.length > 0 && (
+              <div className="flex items-center gap-3 bg-white px-4 py-2 rounded-xl border border-border shadow-sm">
+                <div className="flex items-center text-amber-500 gap-1">
+                  {[1, 2, 3, 4, 5].map((s) => (
+                    <Star
+                      key={s}
+                      className={`h-4 w-4 ${
+                        s <= Math.round(avgRating)
+                          ? "fill-amber-400 text-amber-400"
+                          : "text-slate-200 fill-slate-200"
+                      }`}
+                    />
+                  ))}
+                </div>
+                <span className="text-sm font-bold text-foreground">{avgRating.toFixed(1)} / 5.0</span>
+                <span className="text-xs text-muted-foreground">({reviewsList.length} verified review{reviewsList.length === 1 ? "" : "s"})</span>
+              </div>
+            )}
+          </div>
+
+          {loadingReviews ? (
+            <div className="p-8 text-center text-sm text-muted-foreground">
+              Loading verified reviews...
+            </div>
+          ) : reviewsList.length === 0 ? (
+            <div className="bg-white rounded-2xl border border-border p-8 text-center max-w-xl mx-auto space-y-2">
+              <Star className="h-8 w-8 mx-auto text-amber-400/50" />
+              <h3 className="font-semibold text-base text-foreground">No Verified Reviews Yet</h3>
+              <p className="text-xs text-muted-foreground leading-relaxed">
+                Reviews can only be submitted by devotees who have purchased and received this sacred item. Be the first to share your experience after receiving your order!
+              </p>
+            </div>
+          ) : (
+            <div className="grid md:grid-cols-2 gap-4">
+              {reviewsList.map((rev) => (
+                <div
+                  key={rev._id}
+                  className="bg-white rounded-xl border border-border p-5 shadow-sm space-y-3"
+                >
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <div className="h-8 w-8 rounded-full bg-teal-50 border border-teal-200 text-teal-800 font-bold grid place-items-center text-xs">
+                        {(rev.customerName || "C").charAt(0).toUpperCase()}
+                      </div>
+                      <div>
+                        <div className="text-sm font-semibold text-foreground flex items-center gap-1.5">
+                          <span>{rev.customerName || "Verified Buyer"}</span>
+                          <span className="inline-flex items-center gap-0.5 text-[10px] font-semibold text-emerald-700 bg-emerald-50 border border-emerald-200 px-1.5 py-0.5 rounded-full">
+                            <Check className="h-2.5 w-2.5 stroke-[3]" /> Verified Purchase
+                          </span>
+                        </div>
+                        <div className="text-[11px] text-muted-foreground">
+                          {new Date(rev.createdAt).toLocaleDateString("en-IN", {
+                            day: "numeric",
+                            month: "short",
+                            year: "numeric",
+                          })}
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center text-amber-400 gap-0.5">
+                      {[1, 2, 3, 4, 5].map((s) => (
+                        <Star
+                          key={s}
+                          className={`h-3.5 w-3.5 ${
+                            s <= (rev.rating || 5)
+                              ? "fill-amber-400 text-amber-400"
+                              : "text-slate-200 fill-slate-200"
+                          }`}
+                        />
+                      ))}
+                    </div>
+                  </div>
+
+                  <p className="text-sm text-foreground/80 leading-relaxed font-sans">
+                    {rev.comment}
+                  </p>
+                </div>
+              ))}
+            </div>
+          )}
+        </section>
 
         {related.length > 0 && (
           <section className="mt-20">

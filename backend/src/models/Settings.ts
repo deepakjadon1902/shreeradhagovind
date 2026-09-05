@@ -12,6 +12,9 @@ const settingsSchema = new Schema(
     shippingFee: { type: Number, default: 49 },
     codEnabled: { type: Boolean, default: true },
     razorpayKeyId: { type: String, default: "" },
+    homeHeroImage: { type: String, default: "" },
+    vrindavanStoryImage: { type: String, default: "" },
+    whatsappTemplate: { type: String, default: "" },
   },
   { timestamps: true }
 );

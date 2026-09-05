@@ -61,6 +61,8 @@ import {
   Clock,
   Pause,
   Play,
+  MessageCircle,
+  Star,
 } from "lucide-react";
 
 export const Route = createFileRoute("/admin")({
@@ -81,6 +83,7 @@ type Tab =
   | "blogs"
   | "users"
   | "payments"
+  | "reviews"
   | "settings";
 
 function errorMessage(error: unknown, fallback: string) {
@@ -221,6 +224,87 @@ function formatOrderPaymentMethod(method?: string, status?: string) {
     ? status.charAt(0).toUpperCase() + status.slice(1).toLowerCase()
     : "Pending";
   return `${m} — ${s}`;
+}
+
+function normalizeIndianPhone(phone?: string | null): { valid: boolean; digits: string; reason?: string } {
+  if (!phone || !phone.trim()) return { valid: false, digits: "", reason: "Phone number is missing" };
+  const rawDigits = phone.replace(/\D/g, "");
+  if (rawDigits.length === 10) {
+    return { valid: true, digits: `91${rawDigits}` };
+  }
+  if (rawDigits.length === 11 && rawDigits.startsWith("0")) {
+    return { valid: true, digits: `91${rawDigits.slice(1)}` };
+  }
+  if (rawDigits.length === 12 && rawDigits.startsWith("91")) {
+    return { valid: true, digits: rawDigits };
+  }
+  return { valid: false, digits: "", reason: "Customer phone is not a valid 10-digit mobile number" };
+}
+
+function buildWhatsAppOrderUrl(order: Order, template?: string): { url?: string; disabledReason?: string } {
+  const phoneCheck = normalizeIndianPhone(order.address?.phone || (order as any).phone);
+  if (!phoneCheck.valid) {
+    return { disabledReason: phoneCheck.reason };
+  }
+
+  const firstName = (order.address?.name || "Customer").trim().split(/\s+/)[0] || "Customer";
+  const orderId = `#${displayOrderNumber(order)}`;
+  const trackingId = order.trackingId || "Pending";
+  const courierService = order.courier || "Standard Delivery";
+  const origin = typeof window !== "undefined" ? window.location.origin : "https://www.shriradhagovindstore.com";
+  const trackingLink = order.courierTrackingUrl || (order.trackingId ? getCourierTrackingUrl(order.courier, order.trackingId) : `${origin}/track?order=${displayOrderNumber(order)}`);
+
+  const defaultTpl = "Hare Krishna {{FIRST_NAME}}! Thank you for ordering from Shri Radha Govind Store. Your order {{ORDER_ID}} has been shipped via {{SHIPPING_SERVICE}} with tracking number {{TRACKING_ID}}. Track here: {{TRACKING_LINK}}";
+  let msg = (template && template.trim()) ? template.trim() : defaultTpl;
+  msg = msg
+    .replace(/{{FIRST_NAME}}/g, firstName)
+    .replace(/{{ORDER_ID}}/g, orderId)
+    .replace(/{{TRACKING_ID}}/g, trackingId)
+    .replace(/{{SHIPPING_SERVICE}}/g, courierService)
+    .replace(/{{TRACKING_LINK}}/g, trackingLink);
+
+  return {
+    url: `https://wa.me/${phoneCheck.digits}?text=${encodeURIComponent(msg)}`,
+  };
+}
+
+function WhatsAppCustomerButton({
+  order,
+  template,
+  variant = "sm",
+}: {
+  order: Order;
+  template?: string;
+  variant?: "sm" | "md";
+}) {
+  const res = buildWhatsAppOrderUrl(order, template);
+  if (!res.url) {
+    return (
+      <span
+        title={res.disabledReason || "No valid phone number available"}
+        className={`inline-flex items-center gap-1.5 rounded-lg border border-border/60 bg-muted/40 text-muted-foreground/60 text-xs font-semibold cursor-not-allowed opacity-60 ${
+          variant === "md" ? "h-11 px-4" : "h-9 px-3"
+        }`}
+      >
+        <MessageCircle className="h-3.5 w-3.5" />
+        <span>WhatsApp</span>
+      </span>
+    );
+  }
+  return (
+    <a
+      href={res.url}
+      target="_blank"
+      rel="noopener noreferrer"
+      className={`inline-flex items-center gap-1.5 rounded-lg border border-emerald-600/30 bg-emerald-50 text-emerald-700 hover:bg-emerald-100 hover:border-emerald-600/50 text-xs font-semibold transition shadow-sm ${
+        variant === "md" ? "h-11 px-4" : "h-9 px-3"
+      }`}
+      title="Open WhatsApp chat with customer in new tab"
+    >
+      <MessageCircle className="h-3.5 w-3.5 text-emerald-600" />
+      <span>WhatsApp</span>
+    </a>
+  );
 }
 
 function AdminRoot() {
@@ -412,6 +496,9 @@ function AdminRoot() {
             <div className="flex md:block space-x-1 md:space-x-0 md:space-y-1">
               <NavBtn active={tab === "blogs"} onClick={() => setTab("blogs")} icon={FileText}>
                 Blog
+              </NavBtn>
+              <NavBtn active={tab === "reviews"} onClick={() => setTab("reviews")} icon={Star}>
+                Product Reviews
               </NavBtn>
             </div>
           </div>
@@ -783,6 +870,7 @@ function AdminRoot() {
                         </div>
 
                         <div className="flex items-center gap-2">
+                          <WhatsAppCustomerButton order={o} template={settings.whatsappTemplate} variant="sm" />
                           <button
                             type="button"
                             onClick={() => {
@@ -1066,6 +1154,7 @@ function AdminRoot() {
         )}
 
         {tab === "settings" && <SettingsPanel settings={settings} onSave={updateSettings} />}
+        {tab === "reviews" && <ReviewsManager />}
       </main>
     </div>
   );
@@ -1245,6 +1334,25 @@ function ProductEditor({
     metaTitle: product?.metaTitle ?? "",
     metaDescription: product?.metaDescription ?? "",
   }));
+  const [comboComponents, setComboComponents] = useState<Array<{
+    name: string;
+    qty: number;
+    hsnCode: string;
+    gstRate: number;
+    baseValue: number;
+    gstInclusive: boolean;
+  }>>(() => {
+    return Array.isArray((product as any)?.comboComponents) && (product as any).comboComponents.length > 0
+      ? (product as any).comboComponents.map((c: any) => ({
+          name: c.name || "",
+          qty: Number(c.qty) || 1,
+          hsnCode: c.hsnCode || "",
+          gstRate: Number(c.gstRate) || 0,
+          baseValue: Number(c.baseValue) || 0,
+          gstInclusive: c.gstInclusive !== false,
+        }))
+      : [];
+  });
   const [saving, setSaving] = useState(false);
 
   const safeTree: (Category & { children?: Category[] })[] = useMemo(
@@ -1284,6 +1392,19 @@ function ProductEditor({
     if (p.price < 0 || p.mrp < 0 || p.stock < 0) {
       return toast.error("Price, MRP and stock cannot be negative");
     }
+
+    // Strict Combo Components Validation: Every active component must have a valid name and HSN code
+    const activeComponents = comboComponents.filter((c) => c.name.trim().length > 0);
+    for (let i = 0; i < activeComponents.length; i++) {
+      const comp = activeComponents[i];
+      if (!comp.hsnCode || comp.hsnCode.trim().length < 2) {
+        return toast.error(`Component #${i + 1} ("${comp.name}") is missing a valid HSN code.`);
+      }
+      if (typeof comp.gstRate !== "number" || isNaN(comp.gstRate) || comp.gstRate < 0 || comp.gstRate > 28) {
+        return toast.error(`Component #${i + 1} ("${comp.name}") has an invalid GST rate.`);
+      }
+    }
+
     setSaving(true);
     try {
       await onSave({
@@ -1301,6 +1422,7 @@ function ProductEditor({
         metaDescription: (p.metaDescription || "").trim(),
         rating: Math.max(0, Math.min(5, Number(p.rating) || 0)),
         reviews: Math.max(0, Number(p.reviews) || 0),
+        comboComponents: activeComponents,
       });
     } finally {
       setSaving(false);
@@ -1523,6 +1645,125 @@ function ProductEditor({
                 <span className="font-bold">Final: ₹{(editGstInclusive ? editPrice : editPrice + gstPreview).toFixed(2)}</span>
               </div>
             )}
+
+            {/* Combo / Kit Components Breakdown */}
+            <div className="pt-3 border-t border-teal-200/80 space-y-2.5">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h4 className="text-xs font-bold text-teal-900 uppercase tracking-wider">
+                    Combo / Kit Components (Multi-Rate GST)
+                  </h4>
+                  <p className="text-[11px] text-teal-700">
+                    If this item is a combo bundle with individual items having different GST rates/HSNs, add them below.
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() =>
+                    setComboComponents((prev) => [
+                      ...prev,
+                      { name: "", qty: 1, hsnCode: "", gstRate: 5, baseValue: 100, gstInclusive: true },
+                    ])
+                  }
+                  className="h-7 px-2.5 rounded-lg bg-teal-700 text-white text-xs font-semibold hover:bg-teal-800 transition inline-flex items-center gap-1 shadow-sm"
+                >
+                  <Plus className="h-3.5 w-3.5" /> Add Component
+                </button>
+              </div>
+
+              {comboComponents.length > 0 && (
+                <div className="space-y-2">
+                  <div className="grid grid-cols-12 gap-1.5 text-[10px] font-bold text-teal-900 uppercase tracking-wider px-1">
+                    <span className="col-span-4">Component Name</span>
+                    <span className="col-span-1 text-center">Qty</span>
+                    <span className="col-span-2">HSN</span>
+                    <span className="col-span-2 text-center">GST %</span>
+                    <span className="col-span-2 text-right">Base (₹)</span>
+                    <span className="col-span-1 text-center">Del</span>
+                  </div>
+                  {comboComponents.map((comp, idx) => (
+                    <div key={idx} className="grid grid-cols-12 gap-1.5 items-center bg-white/90 p-2 rounded-lg border border-teal-200">
+                      <input
+                        type="text"
+                        placeholder="e.g. Radha Dress"
+                        value={comp.name}
+                        onChange={(e) => {
+                          const updated = [...comboComponents];
+                          updated[idx].name = e.target.value;
+                          setComboComponents(updated);
+                        }}
+                        className="col-span-4 h-8 px-2 rounded border border-border text-xs focus:outline-none focus:border-primary"
+                      />
+                      <input
+                        type="number"
+                        min="1"
+                        value={comp.qty}
+                        onChange={(e) => {
+                          const updated = [...comboComponents];
+                          updated[idx].qty = Math.max(1, parseInt(e.target.value) || 1);
+                          setComboComponents(updated);
+                        }}
+                        className="col-span-1 h-8 px-1 text-center rounded border border-border text-xs focus:outline-none focus:border-primary"
+                      />
+                      <input
+                        type="text"
+                        placeholder="HSN *"
+                        value={comp.hsnCode}
+                        onChange={(e) => {
+                          const updated = [...comboComponents];
+                          updated[idx].hsnCode = e.target.value;
+                          setComboComponents(updated);
+                        }}
+                        className={`col-span-2 h-8 px-2 rounded border text-xs focus:outline-none focus:border-primary ${
+                          !comp.hsnCode.trim() ? "border-amber-500 bg-amber-50/50" : "border-border"
+                        }`}
+                        title={!comp.hsnCode.trim() ? "HSN code is required" : undefined}
+                      />
+                      <select
+                        value={comp.gstRate}
+                        onChange={(e) => {
+                          const updated = [...comboComponents];
+                          updated[idx].gstRate = Number(e.target.value) || 0;
+                          setComboComponents(updated);
+                        }}
+                        className="col-span-2 h-8 px-1 text-xs rounded border border-border bg-white focus:outline-none focus:border-primary"
+                      >
+                        <option value="0">0%</option>
+                        <option value="3">3%</option>
+                        <option value="5">5%</option>
+                        <option value="12">12%</option>
+                        <option value="18">18%</option>
+                        <option value="28">28%</option>
+                      </select>
+                      <input
+                        type="number"
+                        min="0"
+                        placeholder="Base"
+                        value={comp.baseValue}
+                        onChange={(e) => {
+                          const updated = [...comboComponents];
+                          updated[idx].baseValue = Math.max(0, parseFloat(e.target.value) || 0);
+                          setComboComponents(updated);
+                        }}
+                        className="col-span-2 h-8 px-2 text-right rounded border border-border text-xs focus:outline-none focus:border-primary"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setComboComponents(comboComponents.filter((_, i) => i !== idx))}
+                        className="col-span-1 h-8 w-8 mx-auto grid place-items-center text-muted-foreground hover:text-destructive transition"
+                        title="Remove component"
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </button>
+                    </div>
+                  ))}
+                  <div className="text-[11px] text-teal-800 bg-teal-100/60 p-2 rounded flex justify-between font-mono">
+                    <span>{comboComponents.length} component(s) defined</span>
+                    <span>Total Base Value: ₹{comboComponents.reduce((sum, c) => sum + (c.baseValue * c.qty), 0).toFixed(2)}</span>
+                  </div>
+                </div>
+              )}
+            </div>
           </div>
 
           {/* Section 4: Product Content */}
@@ -2003,6 +2244,52 @@ function SettingsPanel({
               className="mt-1 w-full rounded-lg border bg-background p-3 text-sm focus:outline-none focus:border-primary"
             />
           </label>
+
+          <div className="pt-3 border-t border-border/70 space-y-2">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-medium text-muted-foreground">Homepage Hero Banner Image</span>
+              {Boolean(s.homeHeroImage) && (
+                <button
+                  type="button"
+                  onClick={() => setS({ ...s, homeHeroImage: "" })}
+                  className="text-[11px] text-destructive hover:underline"
+                >
+                  Reset to Default
+                </button>
+              )}
+            </div>
+            <AdminImageUpload
+              label=""
+              value={s.homeHeroImage || ""}
+              onChange={(url) => setS({ ...s, homeHeroImage: url })}
+            />
+            <p className="text-[11px] text-muted-foreground">
+              When unset, defaults to standard devotional hero banner (<code className="bg-slate-100 px-1 py-0.5 rounded">/home-devotional-hero.png</code>).
+            </p>
+          </div>
+
+          <div className="pt-3 border-t border-border/70 space-y-2">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-medium text-muted-foreground">Vrindavan Story Section Image ("A Little Piece of Vrindavan")</span>
+              {Boolean(s.vrindavanStoryImage) && (
+                <button
+                  type="button"
+                  onClick={() => setS({ ...s, vrindavanStoryImage: "" })}
+                  className="text-[11px] text-destructive hover:underline"
+                >
+                  Reset to Default
+                </button>
+              )}
+            </div>
+            <AdminImageUpload
+              label=""
+              value={s.vrindavanStoryImage || ""}
+              onChange={(url) => setS({ ...s, vrindavanStoryImage: url })}
+            />
+            <p className="text-[11px] text-muted-foreground">
+              Displays in the devotional heritage section on the homepage. Defaults to authentic Vrindavan Krishna portrait.
+            </p>
+          </div>
         </section>
 
         {/* Section 3: Shipping & Delivery */}
@@ -2055,6 +2342,36 @@ function SettingsPanel({
             <span className="font-medium">Enable Cash on Delivery (COD)</span>
           </label>
         </section>
+
+        {/* Section 5: WhatsApp Notification Template */}
+        <section className="bg-white rounded-xl border border-border p-6 shadow-sm space-y-3 lg:col-span-2">
+          <div className="flex items-center justify-between border-b border-border/70 pb-2">
+            <h2 className="font-display text-xl text-[#166F77] flex items-center gap-2">
+              <MessageCircle className="h-5 w-5 text-emerald-600" /> WhatsApp Notification Template
+            </h2>
+            <span className="text-[11px] text-muted-foreground">Click-to-chat order template</span>
+          </div>
+          <p className="text-xs text-muted-foreground">
+            Customise the message opened when clicking the "WhatsApp Customer" button on orders. Dynamic tags will be replaced automatically.
+          </p>
+          <div className="flex flex-wrap gap-1.5 py-1">
+            {["{{FIRST_NAME}}", "{{ORDER_ID}}", "{{TRACKING_ID}}", "{{SHIPPING_SERVICE}}", "{{TRACKING_LINK}}"].map((tag) => (
+              <span key={tag} className="px-2 py-0.5 rounded bg-slate-100 text-slate-700 text-[11px] font-mono border border-slate-200 select-all">
+                {tag}
+              </span>
+            ))}
+          </div>
+          <label className="block text-sm">
+            <span className="text-xs font-medium text-muted-foreground">Message Template</span>
+            <textarea
+              value={s.whatsappTemplate ?? ""}
+              onChange={(e) => setS({ ...s, whatsappTemplate: e.target.value })}
+              rows={3}
+              placeholder="Hare Krishna {{FIRST_NAME}}! Thank you for ordering from Shri Radha Govind Store. Your order {{ORDER_ID}} has been shipped via {{SHIPPING_SERVICE}} with tracking number {{TRACKING_ID}}. Track here: {{TRACKING_LINK}}"
+              className="mt-1 w-full rounded-lg border bg-background p-3 text-sm focus:outline-none focus:border-primary font-sans"
+            />
+          </label>
+        </section>
       </div>
       <div className="flex justify-end mt-6">
         <button
@@ -2086,6 +2403,7 @@ function OrderManager({
     note?: string;
   }) => void;
 }) {
+  const { settings } = useStore();
   const [order, setOrder] = useState<Order>(initialOrder);
   const [events, setEvents] = useState<CourierEvent[]>([]);
   const [lastSync, setLastSync] = useState<number | null>(null);
@@ -2334,6 +2652,7 @@ function OrderManager({
           </div>
 
           <div className="flex items-center gap-2">
+            <WhatsAppCustomerButton order={order} template={settings.whatsappTemplate} variant="sm" />
             <button
               type="button"
               onClick={() => downloadOrderInvoicePdf(order)}
@@ -4207,6 +4526,258 @@ function BlogManager({
           </article>
         ))}
       </div>
+    </div>
+  );
+}
+
+function ReviewsManager() {
+  const [reviews, setReviews] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [statusFilter, setStatusFilter] = useState<"all" | "pending" | "approved" | "rejected">("all");
+  const [search, setSearch] = useState("");
+
+  const loadReviews = async () => {
+    setLoading(true);
+    try {
+      const token = getToken();
+      const res = await fetch(`${API_URL}/reviews/admin`, {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
+      if (!res.ok) throw new Error("Failed to load reviews");
+      const data = await res.json();
+      setReviews(Array.isArray(data) ? data : []);
+    } catch (err: any) {
+      toast.error(err.message || "Could not fetch reviews");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    loadReviews();
+  }, []);
+
+  const updateStatus = async (id: string, status: "approved" | "rejected") => {
+    try {
+      const token = getToken();
+      const res = await fetch(`${API_URL}/reviews/admin/${id}/status`, {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ status }),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.message || "Failed to update status");
+      }
+      toast.success(`Review marked as ${status}`);
+      setReviews((prev) =>
+        prev.map((r) => (r._id === id ? { ...r, status } : r))
+      );
+    } catch (err: any) {
+      toast.error(err.message || "Action failed");
+    }
+  };
+
+  const deleteReview = async (id: string) => {
+    if (!window.confirm("Are you sure you want to permanently delete this review?")) return;
+    try {
+      const token = getToken();
+      const res = await fetch(`${API_URL}/reviews/admin/${id}`, {
+        method: "DELETE",
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
+      if (!res.ok) throw new Error("Failed to delete review");
+      toast.success("Review deleted");
+      setReviews((prev) => prev.filter((r) => r._id !== id));
+    } catch (err: any) {
+      toast.error(err.message || "Deletion failed");
+    }
+  };
+
+  const filtered = reviews.filter((r) => {
+    if (statusFilter !== "all" && r.status !== statusFilter) return false;
+    if (!search) return true;
+    const q = search.toLowerCase();
+    return (
+      (r.customerName || "").toLowerCase().includes(q) ||
+      (r.productName || "").toLowerCase().includes(q) ||
+      (r.comment || "").toLowerCase().includes(q) ||
+      String(r.orderNo || "").includes(q)
+    );
+  });
+
+  return (
+    <div className="space-y-6">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+        <div>
+          <h1 className="font-display text-3xl">Product Reviews Moderation</h1>
+          <p className="text-sm text-muted-foreground">
+            Moderate genuine customer feedback before publishing to product pages. Only real purchasers can submit.
+          </p>
+        </div>
+        <button
+          onClick={loadReviews}
+          disabled={loading}
+          className="inline-flex items-center gap-2 h-10 px-4 rounded-xl border border-border bg-white text-xs font-semibold hover:bg-muted transition shadow-sm"
+        >
+          <RefreshCw className={`h-3.5 w-3.5 ${loading ? "animate-spin" : ""}`} />
+          Refresh
+        </button>
+      </div>
+
+      <div className="flex flex-col sm:flex-row gap-3 items-start sm:items-center justify-between">
+        <div className="flex items-center gap-2 overflow-x-auto pb-1 max-w-full">
+          {(["all", "pending", "approved", "rejected"] as const).map((st) => {
+            const count = st === "all" ? reviews.length : reviews.filter((r) => r.status === st).length;
+            return (
+              <button
+                key={st}
+                onClick={() => setStatusFilter(st)}
+                className={`h-9 px-3.5 rounded-lg text-xs font-semibold whitespace-nowrap transition border ${
+                  statusFilter === st
+                    ? "bg-primary text-primary-foreground border-primary shadow-sm"
+                    : "bg-white text-muted-foreground border-border hover:border-primary/50 hover:text-foreground"
+                }`}
+              >
+                {st === "all" ? "All Reviews" : st.charAt(0).toUpperCase() + st.slice(1)} ({count})
+              </button>
+            );
+          })}
+        </div>
+
+        <div className="relative w-full sm:w-64">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+          <input
+            type="text"
+            placeholder="Search reviews..."
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            className="h-9 pl-9 pr-3 w-full rounded-lg border bg-white text-xs focus:outline-none focus:border-primary"
+          />
+        </div>
+      </div>
+
+      {loading ? (
+        <div className="p-12 text-center text-muted-foreground">Loading reviews...</div>
+      ) : filtered.length === 0 ? (
+        <div className="bg-white rounded-xl border border-border p-12 text-center text-muted-foreground">
+          <Star className="h-10 w-10 mx-auto text-muted-foreground/40 mb-3" />
+          <p className="font-semibold text-foreground">No reviews found</p>
+          <p className="text-xs mt-1">There are no reviews matching the selected filter.</p>
+        </div>
+      ) : (
+        <div className="bg-white rounded-xl border border-border overflow-hidden shadow-sm">
+          <table className="w-full text-sm">
+            <thead className="bg-muted/40 border-b border-border text-xs text-muted-foreground uppercase tracking-wider text-left">
+              <tr>
+                <th className="px-4 py-3">Product</th>
+                <th className="px-4 py-3">Customer</th>
+                <th className="px-4 py-3">Rating</th>
+                <th className="px-4 py-3 min-w-[200px]">Review Comment</th>
+                <th className="px-4 py-3">Status</th>
+                <th className="px-4 py-3">Date</th>
+                <th className="px-4 py-3 text-right">Actions</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-border/60">
+              {filtered.map((r) => (
+                <tr key={r._id} className="hover:bg-slate-50/70 transition">
+                  <td className="px-4 py-3 font-medium text-foreground">
+                    <div className="flex items-center gap-2">
+                      {r.productImage && (
+                        <img src={r.productImage} alt="" className="w-9 h-9 object-cover rounded border" />
+                      )}
+                      <div>
+                        <div className="line-clamp-1 font-semibold">{r.productName || "Product"}</div>
+                        {r.orderNo && (
+                          <span className="text-[11px] text-muted-foreground">Order #{r.orderNo}</span>
+                        )}
+                      </div>
+                    </div>
+                  </td>
+                  <td className="px-4 py-3">
+                    <div className="font-medium text-foreground">{r.customerName || "Customer"}</div>
+                    {r.customerEmail && (
+                      <div className="text-[11px] text-muted-foreground">{r.customerEmail}</div>
+                    )}
+                  </td>
+                  <td className="px-4 py-3">
+                    <div className="flex items-center text-amber-500 gap-0.5">
+                      {[1, 2, 3, 4, 5].map((s) => (
+                        <Star
+                          key={s}
+                          className={`h-3.5 w-3.5 ${
+                            s <= (r.rating || 5) ? "fill-amber-400 text-amber-400" : "text-slate-200 fill-slate-200"
+                          }`}
+                        />
+                      ))}
+                    </div>
+                  </td>
+                  <td className="px-4 py-3 text-xs text-slate-700 leading-relaxed max-w-sm">
+                    {r.comment}
+                  </td>
+                  <td className="px-4 py-3">
+                    <span
+                      className={`inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-semibold ${
+                        r.status === "approved"
+                          ? "bg-emerald-50 text-emerald-700 border border-emerald-200"
+                          : r.status === "rejected"
+                          ? "bg-rose-50 text-rose-700 border border-rose-200"
+                          : "bg-amber-50 text-amber-700 border border-amber-200"
+                      }`}
+                    >
+                      {r.status.toUpperCase()}
+                    </span>
+                  </td>
+                  <td className="px-4 py-3 text-xs text-muted-foreground whitespace-nowrap">
+                    {new Date(r.createdAt).toLocaleDateString("en-IN", {
+                      day: "numeric",
+                      month: "short",
+                      year: "numeric",
+                    })}
+                  </td>
+                  <td className="px-4 py-3 text-right whitespace-nowrap">
+                    <div className="inline-flex items-center gap-1.5">
+                      {r.status !== "approved" && (
+                        <button
+                          onClick={() => updateStatus(r._id, "approved")}
+                          className="h-8 px-2.5 rounded bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold transition"
+                          title="Approve Review"
+                        >
+                          Approve
+                        </button>
+                      )}
+                      {r.status !== "rejected" && (
+                        <button
+                          onClick={() => updateStatus(r._id, "rejected")}
+                          className="h-8 px-2.5 rounded bg-rose-600 hover:bg-rose-700 text-white text-xs font-semibold transition"
+                          title="Reject Review"
+                        >
+                          Reject
+                        </button>
+                      )}
+                      <button
+                        onClick={() => deleteReview(r._id)}
+                        className="h-8 w-8 rounded border border-border hover:bg-rose-50 hover:border-rose-200 text-muted-foreground hover:text-rose-600 grid place-items-center transition"
+                        title="Delete Review"
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
     </div>
   );
 }
