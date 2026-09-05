@@ -66,6 +66,16 @@ export type Order = {
     state: string;
     pincode: string;
   };
+  billingAddress?: {
+    name?: string;
+    line1?: string;
+    line2?: string;
+    postOffice?: string;
+    city?: string;
+    state?: string;
+    pincode?: string;
+  };
+  createAccount?: boolean;
   payment: {
     method: "razorpay" | "cod";
     status: PaymentStatus;
@@ -154,7 +164,7 @@ const DEFAULT_SETTINGS: Settings = {
   currency: "INR",
   freeShipThreshold: 999,
   shippingFee: 49,
-  razorpayKeyId: "rzp_test_XXXXXXXXXXXXXX",
+  razorpayKeyId: "",
   codEnabled: true,
   announcement:
     "॥ Radhe Radhe ॥  -  Made With Love From The Heart Of Vrindavan  -  Free shipping above Rs. 999",
@@ -453,6 +463,17 @@ const mapOrder = (o: any, productLookup: Map<string, Product>): Order => {
     businessName: String(o?.businessName || ""),
     gstin: String(o?.gstin || ""),
     address: safeAddress,
+    billingAddress: o?.billingAddress
+      ? {
+          name: String(o.billingAddress.name || ""),
+          line1: String(o.billingAddress.line1 || ""),
+          line2: String(o.billingAddress.line2 || ""),
+          postOffice: String(o.billingAddress.postOffice || ""),
+          city: String(o.billingAddress.city || ""),
+          state: String(o.billingAddress.state || ""),
+          pincode: String(o.billingAddress.pincode || ""),
+        }
+      : undefined,
     payment: safePayment,
     status: o?.status ?? "Placed",
     createdAt: o?.createdAt ? new Date(o.createdAt).getTime() : Date.now(),
@@ -977,11 +998,13 @@ export function StoreProvider({ children }: { children: ReactNode }) {
           method: "POST",
           body: {
             email: orderEmail,
+            createAccount: o.createAccount,
             needsGstInvoice: o.needsGstInvoice,
             businessName: o.businessName,
             gstin: o.gstin,
             items: o.items.map((i) => ({ productId: i.product.id, qty: i.qty })),
             address: o.address,
+            billingAddress: o.billingAddress,
             payment: {
               method: o.payment.method,
               status: o.payment.status,

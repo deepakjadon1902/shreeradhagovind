@@ -159,7 +159,7 @@ r.get("/:id/invoice", requireAuth, async (req, res, next) => {
       subtotal: o.subtotal,
       shipping: o.shipping,
       total: o.total,
-      address: o.address as any,
+      address: (o.billingAddress?.line1 ? o.billingAddress : o.address) as any,
       payment: {
         method: o.payment?.method ?? "cod",
         status: o.payment?.status ?? "pending",
@@ -181,6 +181,7 @@ const GSTIN_REGEX = /^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z]{1}[1-9A-Z]{1}Z[0-9A-Z]{1}$/;
 
 const createSchema = z.object({
   email: z.string().email().optional(),
+  createAccount: z.boolean().optional().default(false),
   needsGstInvoice: z.boolean().optional().default(false),
   businessName: z.string().optional().default(""),
   gstin: z.string().optional().default(""),
@@ -200,6 +201,17 @@ const createSchema = z.object({
     state: z.string().optional().default(""),
     pincode: z.string().min(1),
   }),
+  billingAddress: z
+    .object({
+      name: z.string().optional().default(""),
+      line1: z.string().optional().default(""),
+      line2: z.string().optional().default(""),
+      postOffice: z.string().optional().default(""),
+      city: z.string().optional().default(""),
+      state: z.string().optional().default(""),
+      pincode: z.string().optional().default(""),
+    })
+    .optional(),
   payment: z.object({
     method: z.enum(["razorpay", "cod"]),
     razorpayOrderId: z.string().optional(),
@@ -253,36 +265,41 @@ r.post("/", optionalAuth, async (req, res, next) => {
     }
 
     if (!orderUserId) {
-      // Guest checkout: Check if user exists with this email
-      const existingUser = await User.findOne({ email: normalizedEmail });
-      if (!existingUser) {
-        // Automatically create customer account with passwordSet=false
-        user = await User.create({
-          name: body.address.name.trim() || "Customer",
-          email: normalizedEmail,
-          phone: body.address.phone.trim(),
-          passwordHash: "",
-          passwordSet: false,
-          role: "user",
-          address: {
-            line1: body.address.line1,
-            city: body.address.city,
-            state: body.address.state,
-            pincode: body.address.pincode,
-          },
-        });
-        isNewAccount = true;
-        orderUserId = user._id;
-        // Issue session token for the newly created customer
-        sessionToken = signToken({
-          sub: String(user._id),
-          role: user.role,
-          email: user.email,
-        });
-        sendEmail({ to: normalizedEmail, ...tpl.welcome(user.name) }).catch(() => {});
+      // Guest checkout: Only create an account if customer explicitly opted in
+      if (body.createAccount) {
+        const existingUser = await User.findOne({ email: normalizedEmail });
+        if (!existingUser) {
+          user = await User.create({
+            name: body.address.name.trim() || "Customer",
+            email: normalizedEmail,
+            phone: body.address.phone.trim(),
+            passwordHash: "",
+            passwordSet: false,
+            role: "user",
+            address: {
+              line1: body.address.line1,
+              city: body.address.city,
+              state: body.address.state,
+              pincode: body.address.pincode,
+            },
+          });
+          isNewAccount = true;
+          orderUserId = user._id;
+          // Issue session token for the newly created customer
+          sessionToken = signToken({
+            sub: String(user._id),
+            role: user.role,
+            email: user.email,
+          });
+          sendEmail({ to: normalizedEmail, ...tpl.welcome(user.name) }).catch(() => {});
+        } else {
+          // Existing email entered as guest does NOT prove ownership.
+          orderUserId = undefined;
+          user = null;
+          sessionToken = undefined;
+        }
       } else {
-        // Existing email entered as guest does NOT prove ownership.
-        // Create unlinked guest order until email owner verifies via OTP login.
+        // Customer chose to continue as guest without account creation
         orderUserId = undefined;
         user = null;
         sessionToken = undefined;
@@ -432,6 +449,17 @@ r.post("/", optionalAuth, async (req, res, next) => {
         state: body.address.state,
         pincode: body.address.pincode,
       },
+      billingAddress: body.billingAddress
+        ? {
+            name: body.billingAddress.name || "",
+            line1: body.billingAddress.line1 || "",
+            line2: body.billingAddress.line2 || "",
+            postOffice: body.billingAddress.postOffice?.trim() || "",
+            city: body.billingAddress.city || "",
+            state: body.billingAddress.state || "",
+            pincode: body.billingAddress.pincode || "",
+          }
+        : undefined,
       payment: {
         method: body.payment.method,
         status: body.payment.method === "razorpay" ? "paid" : "pending",

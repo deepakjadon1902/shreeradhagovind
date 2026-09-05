@@ -47,6 +47,15 @@ const orderSchema = new Schema(
       state: String,
       pincode: String,
     },
+    billingAddress: {
+      name: { type: String, default: "" },
+      line1: { type: String, default: "" },
+      line2: { type: String, default: "" },
+      postOffice: { type: String, default: "" },
+      city: { type: String, default: "" },
+      state: { type: String, default: "" },
+      pincode: { type: String, default: "" },
+    },
     payment: {
       method: { type: String, enum: ["razorpay", "cod"], required: true },
       status: { type: String, enum: ["pending", "paid", "failed", "refunded"], default: "pending" },

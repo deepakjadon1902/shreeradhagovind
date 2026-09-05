@@ -2,13 +2,16 @@ import { Router } from "express";
 import { z } from "zod";
 import { Settings } from "../models/Settings";
 import { requireAuth, requireAdmin } from "../middleware/auth";
+import { env } from "../config/env";
 
 const r = Router();
 
 r.get("/", async (_req, res, next) => {
   try {
     const s = (await Settings.findOne({ key: "global" })) ?? (await Settings.create({ key: "global" }));
-    res.json({ settings: s });
+    const sObj = s.toObject();
+    sObj.razorpayKeyId = env.RAZORPAY_KEY_ID || "";
+    res.json({ settings: sObj });
   } catch (e) {
     next(e);
   }
@@ -26,11 +29,12 @@ r.patch("/", requireAuth, requireAdmin, async (req, res, next) => {
         freeShipThreshold: z.number().min(0).optional(),
         shippingFee: z.number().min(0).optional(),
         codEnabled: z.boolean().optional(),
-        razorpayKeyId: z.string().optional(),
       })
       .parse(req.body);
     const s = await Settings.findOneAndUpdate({ key: "global" }, data, { new: true, upsert: true });
-    res.json({ settings: s });
+    const sObj = s.toObject();
+    sObj.razorpayKeyId = env.RAZORPAY_KEY_ID || "";
+    res.json({ settings: sObj });
   } catch (e) {
     next(e);
   }
