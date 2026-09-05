@@ -30,7 +30,14 @@ app.use(
     credentials: true,
   })
 );
-app.use(express.json({ limit: "2mb" }));
+app.use(
+  express.json({
+    limit: "2mb",
+    verify: (req: any, _res, buf) => {
+      req.rawBody = buf;
+    },
+  })
+);
 app.use(morgan(env.NODE_ENV === "production" ? "combined" : "dev"));
 app.use("/api", rateLimit({ windowMs: 60_000, max: 300 }));
 

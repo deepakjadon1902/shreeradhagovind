@@ -66,12 +66,39 @@ const orderSchema = new Schema(
     },
     status: {
       type: String,
-      enum: ["Placed", "Confirmed", "Processing", "Packed", "Shipped", "Out for delivery", "Delivered", "Cancelled"],
+      enum: [
+        "Placed",
+        "Confirmed",
+        "Processing",
+        "Hold",
+        "Packed",
+        "Shipped",
+        "Out for delivery",
+        "Delivered",
+        "Cancelled",
+      ],
       default: "Placed",
       index: true,
     },
+    holdReason: { type: String, default: "" },
+    holdAt: { type: Date },
+    guestAccessToken: { type: String, sparse: true, index: true },
+    courierTrackingData: { type: Schema.Types.Mixed, default: null },
+    courierTrackingLastFetchedAt: { type: Date },
+    statusHistory: [
+      {
+        status: { type: String, required: true },
+        changedAt: { type: Date, default: Date.now },
+        changedBy: { type: String, default: "system" },
+        note: { type: String, default: "" },
+        holdReason: { type: String, default: "" },
+      },
+    ],
   },
   { timestamps: true }
 );
+
+orderSchema.index({ "payment.razorpayOrderId": 1 }, { sparse: true });
+orderSchema.index({ "payment.razorpayPaymentId": 1 }, { sparse: true });
 
 export const Order = model("Order", orderSchema);

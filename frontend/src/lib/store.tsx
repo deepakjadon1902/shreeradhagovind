@@ -88,13 +88,53 @@ export type Order = {
     | "Placed"
     | "Confirmed"
     | "Processing"
+    | "Hold"
     | "Packed"
     | "Shipped"
     | "Out for delivery"
     | "Delivered"
     | "Cancelled";
+  holdReason?: string;
+  holdAt?: string;
+  guestAccessToken?: string;
+  courierTrackingData?: NormalizedTrackingData | null;
+  statusHistory?: {
+    status: string;
+    changedAt: string;
+    changedBy?: string;
+    note?: string;
+    holdReason?: string;
+  }[];
   createdAt: number;
 };
+
+export interface CourierCheckpoint {
+  time: string;
+  location: string;
+  description: string;
+  status?: string;
+}
+
+export interface NormalizedTrackingData {
+  status:
+    | "info_received"
+    | "in_transit"
+    | "out_for_delivery"
+    | "delivered"
+    | "exception"
+    | "undelivered"
+    | "unknown";
+  latestStatus: string;
+  latestMessage: string;
+  currentLocation: string;
+  origin: string | null;
+  destination: string | null;
+  expectedDeliveryDate: string | null;
+  checkpoints: CourierCheckpoint[];
+  lastUpdated: string;
+  provider: "trackcourier";
+  quotaExceeded?: boolean;
+}
 export type Address = { line1: string; line2?: string; postOffice?: string; city: string; state: string; pincode: string };
 export type User = {
   id?: string;
@@ -231,9 +271,10 @@ type Store = {
       courier?: Courier | null;
       courierTrackingUrl?: string;
       status?: Order["status"];
+      holdReason?: string;
+      note?: string;
     },
   ) => Promise<void> | void;
-  verifyOrderPayment: (id: string, status: PaymentStatus) => Promise<void> | void;
   categories: string[];
   addCategory: (name: string, parentId?: string | null) => Promise<void> | void;
   renameCategory: (oldName: string, newName: string) => Promise<void> | void;
@@ -1077,49 +1118,6 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     toast.success("Order updated");
   };
 
-  const verifyOrderPayment: Store["verifyOrderPayment"] = async (id, status) => {
-    if (apiEnabled) {
-      try {
-        const r = await api<{ order: any }>(`/admin/orders/${id}/payment`, {
-          method: "PATCH",
-          body: { status },
-        });
-        const lookup = new Map(adminProducts.map((p) => [p.id, p]));
-        const updated = mapOrder(r.order, lookup);
-        setOrders((arr) => arr.map((o) => (o.id === id ? updated : o)));
-        toast.success(
-          status === "paid"
-            ? "Payment marked paid  -  email sent"
-            : status === "failed"
-              ? "Payment marked failed  -  order cancelled"
-              : `Payment marked ${status}`,
-        );
-        return;
-      } catch (e: any) {
-        toast.error(e?.message);
-        return;
-      }
-    }
-    setOrders((arr) =>
-      arr.map((o) =>
-        o.id === id
-          ? {
-              ...o,
-              payment: { ...o.payment, status },
-              status: status === "failed" ? "Cancelled" : o.status,
-            }
-          : o,
-      ),
-    );
-    toast.success(
-      status === "paid"
-        ? "Marked paid"
-        : status === "failed"
-          ? "Marked failed  -  cancelled"
-          : `Marked ${status}`,
-    );
-  };
-
   // ---- categories ----
   const addCategory: Store["addCategory"] = async (name, parentId = null) => {
     const n = name.trim();
@@ -1519,7 +1517,6 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     deleteProduct,
     updateOrderStatus,
     updateOrderTracking,
-    verifyOrderPayment,
     categories,
     categoryDetails,
     categoryTree,

@@ -205,11 +205,22 @@ export function computeOrderTaxDetails(
 }
 
 function findLogoPath(): string | null {
+  const logoFile = "1080X1080Retina Llogo.png";
   const candidates = [
-    path.join(__dirname, "../../../frontend/public/logo.png"),
-    path.join(process.cwd(), "frontend/public/logo.png"),
-    path.join(process.cwd(), "../frontend/public/logo.png"),
-    path.join(process.cwd(), "public/logo.png"),
+    // 1. In same backend assets dir relative to this file (__dirname is src/utils or dist/utils)
+    path.join(__dirname, "../assets", logoFile),
+    // 2. In src/assets relative to dist/utils when running compiled JS
+    path.join(__dirname, "../../src/assets", logoFile),
+    // 3. Process CWD based resolutions
+    path.join(process.cwd(), "src/assets", logoFile),
+    path.join(process.cwd(), "dist/assets", logoFile),
+    path.join(process.cwd(), "backend/src/assets", logoFile),
+    path.join(process.cwd(), "backend/dist/assets", logoFile),
+    // 4. Fallback logo file names
+    path.join(__dirname, "../assets/logo.png"),
+    path.join(__dirname, "../../src/assets/logo.png"),
+    path.join(process.cwd(), "src/assets/logo.png"),
+    path.join(process.cwd(), "dist/assets/logo.png"),
   ];
   for (const c of candidates) {
     if (fs.existsSync(c)) {
@@ -342,9 +353,11 @@ export async function generateInvoicePDF(data: InvoiceData): Promise<Buffer> {
         try {
           // Render logo neatly on the top left
           doc.image(logoPath, left, topY, { fit: [72, 72] });
-        } catch {
-          // ignore
+        } catch (err: any) {
+          console.warn("[Invoice] Warning: Could not embed logo image:", err?.message);
         }
+      } else {
+        console.warn("[Invoice] Notice: Logo asset not found at candidate paths");
       }
 
       // Seller Info on Right Side
@@ -427,12 +440,13 @@ export async function generateInvoicePDF(data: InvoiceData): Promise<Buffer> {
 
       // Right: Invoice & Order Metadata
       let metaY = curY;
+      const payMethod = data.payment?.method || "";
       const payMethodLabel =
-        data.payment.method === "cod"
+        payMethod === "cod"
           ? "Cash on Delivery (COD)"
-          : data.payment.method === "razorpay"
+          : payMethod === "razorpay"
           ? "UPI/Credit Card/Debit Card/NetBanking"
-          : data.payment.method;
+          : (payMethod || "Online Payment");
 
       const metaRows: [string, string][] = [
         ["Invoice Number:", invoiceNumberStr],

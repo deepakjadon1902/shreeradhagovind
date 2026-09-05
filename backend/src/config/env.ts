@@ -36,6 +36,16 @@ export const env = {
   RESEND_FROM: process.env.RESEND_FROM ?? "Shri Radha Govind Store <orders@shriradhagovindstore.com>",
   RAZORPAY_KEY_ID: process.env.RAZORPAY_KEY_ID ?? "",
   RAZORPAY_KEY_SECRET: process.env.RAZORPAY_KEY_SECRET ?? "",
+  RAZORPAY_WEBHOOK_SECRET: process.env.RAZORPAY_WEBHOOK_SECRET ?? "",
+  TRACKCOURIER_API_KEY: process.env.TRACKCOURIER_API_KEY ?? "",
+  TRACKCOURIER_MONTHLY_BUDGET: Number(process.env.TRACKCOURIER_MONTHLY_BUDGET ?? 80),
+  TRACKING_IN_TRANSIT_REFRESH_HOURS: Number(process.env.TRACKING_IN_TRANSIT_REFRESH_HOURS ?? 24),
+  TRACKING_OFD_REFRESH_MINUTES: Number(process.env.TRACKING_OFD_REFRESH_MINUTES ?? 120),
+  TRACKING_SYNC_INTERVAL_MINUTES: Number(process.env.TRACKING_SYNC_INTERVAL_MINUTES ?? 60),
+  ENABLE_IN_PROCESS_TRACKING_SCHEDULER:
+    process.env.ENABLE_IN_PROCESS_TRACKING_SCHEDULER !== undefined
+      ? process.env.ENABLE_IN_PROCESS_TRACKING_SCHEDULER === "true"
+      : (process.env.NODE_ENV ?? "development") !== "production",
   ADMIN_EMAIL: process.env.ADMIN_EMAIL ?? "shriradhagovindstore@gmail.com",
   ADMIN_PASSWORD: process.env.ADMIN_PASSWORD ?? "shriradhagovindstore108@",
   ADMIN_NAME: process.env.ADMIN_NAME ?? "Shri Radha Govind Store",

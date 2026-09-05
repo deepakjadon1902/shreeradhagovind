@@ -602,9 +602,8 @@ function Checkout() {
           }
         },
         modal: {
-          ondismiss: async () => {
-            await reportPaymentFailed(rzpOrder.id, "Payment dismissed by user");
-            toast.error("Payment cancelled. Your order was not placed.");
+          ondismiss: () => {
+            toast.info("Payment window closed. You can retry payment anytime.");
             reject(new Error("dismissed"));
           },
         },

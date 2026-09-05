@@ -18,6 +18,10 @@ import {
 } from "../utils/email";
 import { generateInvoicePDF, type InvoiceData } from "../utils/invoice";
 import { getCourierTrackingUrl } from "../utils/courier";
+import {
+  syncOrderTracking,
+  requestManualTrackingRefresh,
+} from "../services/courierTracking.service";
 import { env } from "../config/env";
 
 const r = Router();
@@ -62,7 +66,27 @@ async function nextOrderNo() {
   }
 }
 
-// ---- public tracking (no auth) ----
+function maskName(name?: string | null): string {
+  if (!name) return "Customer";
+  const parts = name.trim().split(/\s+/);
+  return parts
+    .map((p) => {
+      if (p.length <= 2) return p[0] + "*";
+      return p[0] + "*".repeat(Math.max(1, p.length - 2)) + p[p.length - 1];
+    })
+    .join(" ");
+}
+
+function maskPincode(pin?: string | null): string {
+  if (!pin) return "";
+  const clean = pin.trim();
+  if (clean.length === 6) {
+    return clean.slice(0, 3) + "***";
+  }
+  return clean.slice(0, 2) + "*".repeat(Math.max(1, clean.length - 2));
+}
+
+// ---- public tracking (privacy protected DTO, no sensitive data exposed) ----
 r.get("/track/:trackingId", async (req, res, next) => {
   try {
     const rawTerm = (req.params.trackingId || "").trim();
@@ -74,33 +98,71 @@ r.get("/track/:trackingId", async (req, res, next) => {
         ...(Number.isInteger(asNumber) && asNumber > 0 ? [{ orderNo: asNumber }] : []),
       ],
     };
-    const o = await Order.findOne(query);
-    if (!o) throw new HttpError(404, "No order found for this tracking ID or Order Number");
+    const foundOrder = await Order.findOne(query);
+    if (!foundOrder) throw new HttpError(404, "No order found for this tracking ID or Order Number");
+    let o = foundOrder;
+
+    let trackingData = null;
+    if (o.courier && o.trackingId) {
+      const synced = await syncOrderTracking(o);
+      if (synced.order) o = synced.order;
+      trackingData = synced.tracking;
+    }
+
     const trackingUrl = o.courierTrackingUrl || getCourierTrackingUrl(o.courier, o.trackingId);
     res.json({
       order: {
         orderNo: o.orderNo,
         trackingId: o.trackingId,
         status: o.status,
+        holdReason: o.status === "Hold" ? o.holdReason : undefined,
+        statusHistory: (o.statusHistory || []).map((h: any) => ({
+          status: h.status,
+          changedAt: h.changedAt,
+          holdReason: h.status === "Hold" ? h.holdReason : undefined,
+        })),
         courier: o.courier,
         courierTrackingUrl: trackingUrl,
+        courierTrackingData: trackingData,
         createdAt: o.createdAt,
         items: o.items.map((i: any) => ({
           name: i.name,
           image: i.image,
           qty: i.qty,
-          price: i.price,
         })),
         total: o.total,
         address: {
-          city: o.address?.city,
-          state: o.address?.state,
-          pincode: o.address?.pincode,
-          name: o.address?.name,
+          city: o.address?.city || "",
+          state: o.address?.state || "",
+          pincode: maskPincode(o.address?.pincode),
+          name: maskName(o.address?.name),
         },
         payment: { method: o.payment?.method, status: o.payment?.status },
       },
+      tracking: trackingData,
     });
+  } catch (e) {
+    next(e);
+  }
+});
+
+// Explicit manual refresh for public tracking (cooldown & budget protected)
+r.post("/track/:trackingId/refresh", async (req, res, next) => {
+  try {
+    const rawTerm = (req.params.trackingId || "").trim();
+    const term = rawTerm.toUpperCase().replace(/^#/, "");
+    const asNumber = Number(term);
+    const query: any = {
+      $or: [
+        { trackingId: term },
+        ...(Number.isInteger(asNumber) && asNumber > 0 ? [{ orderNo: asNumber }] : []),
+      ],
+    };
+    const foundOrder = await Order.findOne(query);
+    if (!foundOrder) throw new HttpError(404, "No order found for this tracking ID or Order Number");
+
+    const result = await requestManualTrackingRefresh(foundOrder);
+    res.json(result);
   } catch (e) {
     next(e);
   }
@@ -118,29 +180,68 @@ r.get("/", requireAuth, async (req, res, next) => {
   }
 });
 
-r.get("/:id", requireAuth, async (req, res, next) => {
+r.get("/:id", optionalAuth, async (req, res, next) => {
   try {
-    const o = await Order.findById(req.params.id);
+    let o = await Order.findById(req.params.id);
     if (!o) throw new HttpError(404, "Order not found");
-    const userId = req.user!.sub;
-    const isOwner = String(o.user) === userId;
-    const isAdmin = req.user!.role === "admin";
-    if (!isOwner && !isAdmin)
-      throw new HttpError(403, "Forbidden");
-    res.json({ order: o });
+    const userId = req.user?.sub;
+    const isOwner = userId && String(o.user) === userId;
+    const isAdmin = req.user?.role === "admin";
+    const token = typeof req.query.token === "string" ? req.query.token.trim() : "";
+    const isTokenAuthorized = Boolean(token && o.guestAccessToken && token === o.guestAccessToken);
+
+    if (!isOwner && !isAdmin && !isTokenAuthorized) {
+      throw new HttpError(403, "Access forbidden. Please sign in or use your secure order link.");
+    }
+
+    let trackingData = null;
+    if (o.courier && o.trackingId) {
+      const synced = await syncOrderTracking(o);
+      if (synced.order) o = synced.order;
+      trackingData = synced.tracking;
+    }
+
+    res.json({ order: o, tracking: trackingData });
   } catch (e) {
     next(e);
   }
 });
 
-r.get("/:id/invoice", requireAuth, async (req, res, next) => {
+// Explicit manual refresh for customer order detail (cooldown & budget protected)
+r.post("/:id/refresh", optionalAuth, async (req, res, next) => {
   try {
     const o = await Order.findById(req.params.id);
     if (!o) throw new HttpError(404, "Order not found");
-    const userId = req.user!.sub;
-    const isOwner = String(o.user) === userId;
-    const isAdmin = req.user!.role === "admin";
-    if (!isOwner && !isAdmin) throw new HttpError(403, "Forbidden");
+    const userId = req.user?.sub;
+    const isOwner = userId && String(o.user) === userId;
+    const isAdmin = req.user?.role === "admin";
+    const token = typeof req.query.token === "string" ? req.query.token.trim() : "";
+    const isTokenAuthorized = Boolean(token && o.guestAccessToken && token === o.guestAccessToken);
+
+    if (!isOwner && !isAdmin && !isTokenAuthorized) {
+      throw new HttpError(403, "Access forbidden. Please sign in or use your secure order link.");
+    }
+
+    const result = await requestManualTrackingRefresh(o);
+    res.json(result);
+  } catch (e) {
+    next(e);
+  }
+});
+
+r.get("/:id/invoice", optionalAuth, async (req, res, next) => {
+  try {
+    const o = await Order.findById(req.params.id);
+    if (!o) throw new HttpError(404, "Order not found");
+    const userId = req.user?.sub;
+    const isOwner = userId && String(o.user) === userId;
+    const isAdmin = req.user?.role === "admin";
+    const token = typeof req.query.token === "string" ? req.query.token.trim() : "";
+    const isTokenAuthorized = Boolean(token && o.guestAccessToken && token === o.guestAccessToken);
+
+    if (!isOwner && !isAdmin && !isTokenAuthorized) {
+      throw new HttpError(403, "Access forbidden. Please sign in or use your secure order link.");
+    }
 
     const orderNum = formatOrderNumber(o);
     const invoiceData: InvoiceData = {
@@ -425,6 +526,9 @@ r.post("/", optionalAuth, async (req, res, next) => {
       );
     }
 
+    const guestAccessToken = crypto.randomBytes(24).toString("hex");
+    const initialStatus = body.payment.method === "razorpay" ? "Confirmed" : "Placed";
+
     const order = await Order.create({
       user: orderUserId,
       customerEmail: normalizedEmail,
@@ -467,7 +571,19 @@ r.post("/", optionalAuth, async (req, res, next) => {
         razorpayPaymentId: body.payment.razorpayPaymentId,
         razorpaySignature: body.payment.razorpaySignature,
       },
-      status: "Placed",
+      status: initialStatus,
+      guestAccessToken,
+      statusHistory: [
+        {
+          status: initialStatus,
+          changedAt: new Date(),
+          changedBy: orderUserId ? "customer" : "guest",
+          note:
+            body.payment.method === "razorpay"
+              ? "Payment verified & order confirmed"
+              : "Order placed (Cash on Delivery)",
+        },
+      ],
     });
 
     const payment = order.payment;
@@ -625,10 +741,15 @@ r.post("/payment-failed", optionalAuth, async (req, res, next) => {
         status: "Cancelled",
       });
     } else if (order) {
-      order.payment!.status = "failed";
-      order.payment!.failureReason = reason;
-      order.status = "Cancelled";
-      await order.save();
+      // Guard: Do not downgrade an order that was already paid or Confirmed
+      if (order.payment?.status !== "paid" && order.status !== "Confirmed") {
+        order.payment!.status = "failed";
+        order.payment!.failureReason = reason;
+        order.status = "Cancelled";
+        await order.save();
+      } else {
+        return res.json({ ok: true, ignored: true, reason: "Order is already paid/confirmed" });
+      }
     }
 
     const user = req.user?.sub ? await User.findById(req.user.sub) : null;

@@ -43,6 +43,32 @@ export function formatOrderNumber(order: {
   return "5000";
 }
 
+export function buildEmailOrderPayload(o: any): EmailOrderPayload {
+  return {
+    _id: o._id,
+    orderNo: o.orderNo ?? undefined,
+    trackingId: o.trackingId ?? undefined,
+    courier: o.courier ?? undefined,
+    courierTrackingUrl: o.courierTrackingUrl ?? undefined,
+    status: o.status ?? "Placed",
+    businessName: o.businessName ?? undefined,
+    gstin: o.gstin ?? undefined,
+    needsGstInvoice: o.needsGstInvoice,
+    items: o.items as any,
+    subtotal: o.subtotal ?? 0,
+    shipping: o.shipping ?? 0,
+    total: o.total ?? 0,
+    address: o.address as any,
+    payment: {
+      method: o.payment?.method ?? "cod",
+      status: o.payment?.status ?? "pending",
+      razorpayPaymentId: o.payment?.razorpayPaymentId ?? undefined,
+    },
+    customerEmail: o.customerEmail ?? undefined,
+    createdAt: o.createdAt,
+  };
+}
+
 export async function sendEmail(opts: {
   to: string;
   subject: string;
@@ -219,9 +245,9 @@ type Addr = {
   pincode?: string;
 };
 
-const rupee = (n: number) => `₹${Number(n || 0).toLocaleString("en-IN")}`;
+const rupee = (n?: number) => `₹${Number(n || 0).toLocaleString("en-IN")}`;
 
-const invoiceTable = (items: Item[], subtotal: number, shipping: number, total: number) => `
+const invoiceTable = (items?: Item[], subtotal?: number, shipping?: number, total?: number) => `
   <table style="width:100%;border-collapse:collapse;margin-top:12px;font-size:14px">
     <thead>
       <tr style="background:#f4f4f1;text-align:left">
@@ -232,20 +258,20 @@ const invoiceTable = (items: Item[], subtotal: number, shipping: number, total: 
       </tr>
     </thead>
     <tbody>
-      ${items.map((i) => `
+      ${(items || []).map((i) => `
         <tr style="border-top:1px solid #eee">
           <td style="padding:10px 12px">${i.name ?? "Item"}</td>
           <td style="padding:10px 12px;text-align:center">${i.qty}</td>
           <td style="padding:10px 12px;text-align:right">${rupee(i.price ?? 0)}</td>
-          <td style="padding:10px 12px;text-align:right">${rupee((i.price ?? 0) * i.qty)}</td>
+          <td style="padding:10px 12px;text-align:right">${rupee((i.price ?? 0) * (i.qty || 1))}</td>
         </tr>`).join("")}
     </tbody>
     <tfoot>
-      <tr><td colspan="3" style="padding:8px 12px;text-align:right">Subtotal</td><td style="padding:8px 12px;text-align:right">${rupee(subtotal)}</td></tr>
-      <tr><td colspan="3" style="padding:8px 12px;text-align:right">Shipping</td><td style="padding:8px 12px;text-align:right">${shipping === 0 ? "FREE" : rupee(shipping)}</td></tr>
+      <tr><td colspan="3" style="padding:8px 12px;text-align:right">Subtotal</td><td style="padding:8px 12px;text-align:right">${rupee(subtotal || 0)}</td></tr>
+      <tr><td colspan="3" style="padding:8px 12px;text-align:right">Shipping</td><td style="padding:8px 12px;text-align:right">${!shipping || shipping === 0 ? "FREE" : rupee(shipping)}</td></tr>
       <tr style="background:#f4f4f1;font-weight:700">
         <td colspan="3" style="padding:10px 12px;text-align:right">Total Paid</td>
-        <td style="padding:10px 12px;text-align:right;color:${ACCENT}">${rupee(total)}</td>
+        <td style="padding:10px 12px;text-align:right;color:${ACCENT}">${rupee(total || 0)}</td>
       </tr>
     </tfoot>
   </table>`;
@@ -401,7 +427,7 @@ export const tpl = {
 
         ${order ? `
           <h3 style="margin:18px 0 4px">Order details</h3>
-          <div style="font-size:12px;color:#888">Order ID: #${orderNum}${hasTracking ? ` | Tracking ID: ${effectiveTrackingId}` : ""} | Payment: ${order.payment.method.toUpperCase()} | ${order.payment.status.toUpperCase()}</div>
+          <div style="font-size:12px;color:#888">Order ID: #${orderNum}${hasTracking ? ` | Tracking ID: ${effectiveTrackingId}` : ""}${order.payment ? ` | Payment: ${(order.payment.method || "ONLINE").toUpperCase()} | ${(order.payment.status || "PAID").toUpperCase()}` : ""}</div>
           ${invoiceTable(order.items, order.subtotal, order.shipping, order.total)}
           ${customerBlock(name, order.customerEmail, order.address, order?.businessName, order?.gstin)}
         ` : ""}
