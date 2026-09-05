@@ -547,7 +547,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   const refreshProducts = useCallback(async () => {
     if (!apiEnabled) return [];
     try {
-      const prodRes = await api<{ products: any[] }>("/products");
+      const prodRes = await api<{ products: any[] }>("/products", { retries: 1, retryDelayMs: 1000 });
       const prods = (prodRes?.products || []).map(mapProduct);
       setAdminProducts(prods);
       return prods;
@@ -578,7 +578,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
 
     (async () => {
       // 1. Independent products fetch
-      const prodPromise = api<{ products: any[] }>("/products")
+      const prodPromise = api<{ products: any[] }>("/products", { retries: 2, retryDelayMs: 1500 })
         .then((prodRes) => {
           const products = (prodRes?.products || []).map(mapProduct);
           setAdminProducts(products);
@@ -590,7 +590,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         });
 
       // 2. Independent categories fetch
-      const catPromise = api<{ categories: any[] }>("/categories")
+      const catPromise = api<{ categories: any[] }>("/categories", { retries: 2, retryDelayMs: 1500 })
         .then((catRes) => {
           const mappedCategories = (catRes?.categories || []).map(mapCategory);
           setCategoryDetails(mappedCategories);
@@ -602,7 +602,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         });
 
       // 3. Independent settings fetch
-      const setPromise = api<{ settings: any }>("/settings")
+      const setPromise = api<{ settings: any }>("/settings", { retries: 2, retryDelayMs: 1500 })
         .then((setRes) => {
           if (setRes?.settings) {
             setSettings((s) => ({ ...s, ...mapSettings(setRes.settings) }));
@@ -613,7 +613,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         });
 
       // 4. Independent blogs fetch
-      const blogPromise = api<{ blogs: any[] }>("/blogs?all=true")
+      const blogPromise = api<{ blogs: any[] }>("/blogs?all=true", { retries: 2, retryDelayMs: 1500 })
         .then((blogRes) => {
           if (blogRes?.blogs) {
             setBlogs(blogRes.blogs.map(mapBlog));

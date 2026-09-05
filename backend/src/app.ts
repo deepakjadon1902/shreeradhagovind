@@ -3,6 +3,7 @@ import cors from "cors";
 import helmet from "helmet";
 import morgan from "morgan";
 import rateLimit from "express-rate-limit";
+import mongoose from "mongoose";
 import { env } from "./config/env";
 import { notFound, errorHandler } from "./middleware/error";
 
@@ -42,7 +43,16 @@ app.use(morgan(env.NODE_ENV === "production" ? "combined" : "dev"));
 app.use("/api", rateLimit({ windowMs: 60_000, max: 300 }));
 
 app.get("/", (_req, res) => res.json({ ok: true, service: "shri-radha-govind-api" }));
-app.get("/api/health", (_req, res) => res.json({ ok: true, ts: Date.now() }));
+app.get("/api/health", (_req, res) => {
+  const isDbReady = mongoose.connection.readyState === 1;
+  const status = isDbReady ? 200 : 503;
+  res.status(status).json({
+    ok: isDbReady,
+    status: isDbReady ? "healthy" : "db_disconnected",
+    dbState: mongoose.connection.readyState,
+    ts: Date.now(),
+  });
+});
 
 app.use("/api/auth", authRoutes);
 app.use("/api/products", productRoutes);

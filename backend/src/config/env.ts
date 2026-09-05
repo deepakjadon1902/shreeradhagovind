@@ -17,11 +17,15 @@ const configuredCorsOrigins = (process.env.CORS_ORIGIN ?? "")
   .map((origin) => origin.trim())
   .filter(Boolean);
 
+const isProduction = (process.env.NODE_ENV ?? "development") === "production";
+
 export const env = {
   NODE_ENV: process.env.NODE_ENV ?? "development",
   PORT: Number(process.env.PORT ?? 5000),
   CORS_ORIGIN: [...new Set([...defaultCorsOrigins, ...configuredCorsOrigins])],
-  MONGODB_URI: must("MONGODB_URI", "mongodb://127.0.0.1:27017/shri_radha_govind"),
+  MONGODB_URI: isProduction
+    ? must("MONGODB_URI")
+    : (process.env.MONGODB_URI || "mongodb://127.0.0.1:27017/shri_radha_govind"),
   JWT_SECRET: must("JWT_SECRET", "dev-insecure-change-me"),
   JWT_EXPIRES_IN: process.env.JWT_EXPIRES_IN ?? "7d",
   GOOGLE_CLIENT_ID: process.env.GOOGLE_CLIENT_ID ?? "",
