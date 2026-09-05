@@ -11,6 +11,7 @@ import {
   tpl,
   formatOrderNumber,
 } from "../utils/email";
+import { generateInvoicePDF, type InvoiceData } from "../utils/invoice";
 import { getCourierTrackingUrl } from "../utils/courier";
 
 const r = Router();
@@ -162,6 +163,51 @@ r.get("/orders/:id", async (req, res, next) => {
   }
 });
 
+// Download / Stream Invoice PDF for Admin
+r.get("/orders/:id/invoice", async (req, res, next) => {
+  try {
+    const o = await Order.findById(req.params.id).populate("user", "name email");
+    if (!o) throw new HttpError(404, "Order not found");
+
+    const u: any = o.user;
+    const customerName = o.address?.name || u?.name || "Customer";
+    const customerEmail = o.customerEmail || u?.email || "";
+    const orderNum = formatOrderNumber(o);
+
+    const invoiceData: InvoiceData = {
+      orderId: String(o._id),
+      orderNo: o.orderNo ?? orderNum,
+      invoiceNo: `INV-${orderNum}`,
+      trackingId: o.trackingId ?? undefined,
+      courier: o.courier ?? null,
+      status: o.status,
+      customerName,
+      customerEmail,
+      businessName: o.businessName,
+      gstin: o.gstin,
+      needsGstInvoice: o.needsGstInvoice,
+      items: o.items as any,
+      subtotal: o.subtotal,
+      shipping: o.shipping,
+      total: o.total,
+      address: o.address as any,
+      payment: {
+        method: o.payment?.method ?? "cod",
+        status: o.payment?.status ?? "pending",
+        razorpayPaymentId: o.payment?.razorpayPaymentId ?? undefined,
+      },
+      createdAt: o.createdAt,
+    };
+
+    const pdfBuffer = await generateInvoicePDF(invoiceData);
+    res.setHeader("Content-Type", "application/pdf");
+    res.setHeader("Content-Disposition", `inline; filename="Invoice-${orderNum}.pdf"`);
+    res.send(pdfBuffer);
+  } catch (e) {
+    next(e);
+  }
+});
+
 function buildEmailOrder(o: any) {
   return {
     _id: o._id,
@@ -170,6 +216,9 @@ function buildEmailOrder(o: any) {
     courier: o.courier ?? undefined,
     courierTrackingUrl: o.courierTrackingUrl ?? undefined,
     status: o.status ?? "Placed",
+    businessName: o.businessName ?? undefined,
+    gstin: o.gstin ?? undefined,
+    needsGstInvoice: o.needsGstInvoice,
     items: o.items as any,
     subtotal: o.subtotal ?? 0,
     shipping: o.shipping ?? 0,

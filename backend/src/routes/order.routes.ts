@@ -16,6 +16,7 @@ import {
   tpl,
   formatOrderNumber,
 } from "../utils/email";
+import { generateInvoicePDF, type InvoiceData } from "../utils/invoice";
 import { getCourierTrackingUrl } from "../utils/courier";
 import { env } from "../config/env";
 
@@ -127,6 +128,50 @@ r.get("/:id", requireAuth, async (req, res, next) => {
     if (!isOwner && !isAdmin)
       throw new HttpError(403, "Forbidden");
     res.json({ order: o });
+  } catch (e) {
+    next(e);
+  }
+});
+
+r.get("/:id/invoice", requireAuth, async (req, res, next) => {
+  try {
+    const o = await Order.findById(req.params.id);
+    if (!o) throw new HttpError(404, "Order not found");
+    const userId = req.user!.sub;
+    const isOwner = String(o.user) === userId;
+    const isAdmin = req.user!.role === "admin";
+    if (!isOwner && !isAdmin) throw new HttpError(403, "Forbidden");
+
+    const orderNum = formatOrderNumber(o);
+    const invoiceData: InvoiceData = {
+      orderId: String(o._id),
+      orderNo: o.orderNo ?? orderNum,
+      invoiceNo: `INV-${orderNum}`,
+      trackingId: o.trackingId ?? undefined,
+      courier: o.courier ?? null,
+      status: o.status,
+      customerName: o.address?.name || "Customer",
+      customerEmail: o.customerEmail ?? undefined,
+      businessName: o.businessName,
+      gstin: o.gstin,
+      needsGstInvoice: o.needsGstInvoice,
+      items: o.items as any,
+      subtotal: o.subtotal,
+      shipping: o.shipping,
+      total: o.total,
+      address: o.address as any,
+      payment: {
+        method: o.payment?.method ?? "cod",
+        status: o.payment?.status ?? "pending",
+        razorpayPaymentId: o.payment?.razorpayPaymentId ?? undefined,
+      },
+      createdAt: o.createdAt,
+    };
+
+    const pdfBuffer = await generateInvoicePDF(invoiceData);
+    res.setHeader("Content-Type", "application/pdf");
+    res.setHeader("Content-Disposition", `inline; filename="Invoice-${orderNum}.pdf"`);
+    res.send(pdfBuffer);
   } catch (e) {
     next(e);
   }

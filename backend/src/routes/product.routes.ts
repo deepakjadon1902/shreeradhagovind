@@ -1,6 +1,7 @@
 import { Router } from "express";
 import { z } from "zod";
 import { Product } from "../models/Product";
+import { Category } from "../models/Category";
 import { requireAuth, requireAdmin } from "../middleware/auth";
 import { HttpError } from "../middleware/error";
 
@@ -18,7 +19,16 @@ r.get("/", async (req, res, next) => {
   try {
     const { category, q, sort } = req.query as Record<string, string | undefined>;
     const filter: any = { isActive: true };
-    if (category && category !== "all") filter.category = category;
+    if (category && category !== "all") {
+      const parent = await Category.findOne({ name: category });
+      if (parent) {
+        const children = await Category.find({ parentId: parent._id, isActive: true });
+        const names = [parent.name, ...children.map((c) => c.name)];
+        filter.category = { $in: names };
+      } else {
+        filter.category = category;
+      }
+    }
     if (q) filter.name = { $regex: q, $options: "i" };
     const sortMap: Record<string, any> = {
       newest: { createdAt: -1 },
@@ -69,6 +79,8 @@ const productSchema = z.object({
   gstRate: z.number().min(0).max(28).optional().default(0),
   gstInclusive: z.boolean().optional().default(true),
   isTaxable: z.boolean().optional().default(true),
+  metaTitle: z.string().optional().default(""),
+  metaDescription: z.string().optional().default(""),
   isActive: z.boolean().optional().default(true),
 });
 

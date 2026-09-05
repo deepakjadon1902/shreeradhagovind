@@ -2,6 +2,7 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { Layout } from "@/components/Layout";
 import { useStore } from "@/lib/store";
 import { pageSeo, slugify } from "@/lib/seo";
+import { FormattedText } from "@/components/SimpleRichEditor";
 
 export const Route = createFileRoute("/blog/$slug")({
   component: BlogPost,
@@ -57,8 +58,8 @@ function BlogPost() {
             className="mt-8 max-h-[440px] w-full rounded-lg object-cover"
           />
         )}
-        <div className="prose prose-neutral mt-8 max-w-none whitespace-pre-line text-foreground">
-          {post.content || post.excerpt}
+        <div className="mt-8 text-foreground leading-relaxed text-base">
+          <FormattedText content={post.content || post.excerpt} />
         </div>
       </article>
     </Layout>

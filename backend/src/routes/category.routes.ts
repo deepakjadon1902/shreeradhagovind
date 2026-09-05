@@ -42,13 +42,17 @@ r.get("/", async (_req, res, next) => {
 r.get("/tree", async (_req, res, next) => {
   try {
     const categories = await withProductCounts({ isActive: true });
+    const rootCategories = categories.filter((c) => !c.parentId);
     const byParent = new Map<string, any[]>();
     for (const c of categories) {
-      const key = c.parentId ? String(c.parentId) : "root";
-      byParent.set(key, [...(byParent.get(key) ?? []), c]);
+      if (c.parentId) {
+        const pId = String(c.parentId);
+        byParent.set(pId, [...(byParent.get(pId) ?? []), c]);
+      }
     }
-    const attach = (items: any[]): any[] => items.map((c) => ({ ...c, children: attach(byParent.get(String(c._id)) ?? []) }));
-    res.json({ categories: attach(byParent.get("root") ?? []) });
+    const attach = (items: any[]): any[] =>
+      items.map((c) => ({ ...c, children: attach(byParent.get(String(c._id)) ?? []) }));
+    res.json({ categories: attach(rootCategories) });
   } catch (e) {
     next(e);
   }
@@ -57,7 +61,12 @@ r.get("/tree", async (_req, res, next) => {
 r.post("/", requireAuth, requireAdmin, async (req, res, next) => {
   try {
     const data = categorySchema.parse(req.body);
-    const slug = slugify(data.slug ?? data.name);
+    const baseSlug = slugify(data.slug ?? data.name);
+    let slug = baseSlug;
+    let counter = 1;
+    while (await Category.findOne({ slug })) {
+      slug = `${baseSlug}-${counter++}`;
+    }
     const c = await Category.create({ ...data, slug, parentId: data.parentId || null });
     res.status(201).json({ category: c });
   } catch (e) {
@@ -79,7 +88,17 @@ r.patch("/:id", requireAuth, requireAdmin, async (req, res, next) => {
   try {
     const data = categorySchema.partial().parse(req.body);
     const patch: any = { ...data };
-    if (data.name || data.slug) patch.slug = slugify(data.slug ?? data.name!);
+    if (data.name || data.slug) {
+      const baseSlug = slugify(data.slug ?? data.name!);
+      let slug = baseSlug;
+      let counter = 1;
+      let existing = await Category.findOne({ slug, _id: { $ne: req.params.id } });
+      while (existing) {
+        slug = `${baseSlug}-${counter++}`;
+        existing = await Category.findOne({ slug, _id: { $ne: req.params.id } });
+      }
+      patch.slug = slug;
+    }
     if ("parentId" in data) patch.parentId = data.parentId || null;
     const prev = await Category.findById(req.params.id);
     if (!prev) throw new HttpError(404, "Not found");
@@ -96,7 +115,10 @@ r.patch("/:id", requireAuth, requireAdmin, async (req, res, next) => {
 r.delete("/:id", requireAuth, requireAdmin, async (req, res, next) => {
   try {
     const c = await Category.findByIdAndDelete(req.params.id);
-    if (c) await Product.updateMany({ category: c.name }, { isActive: false });
+    if (c) {
+      await Category.updateMany({ parentId: req.params.id }, { parentId: null });
+      await Product.updateMany({ category: c.name }, { isActive: false });
+    }
     res.json({ ok: true });
   } catch (e) {
     next(e);

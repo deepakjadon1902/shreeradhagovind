@@ -16,12 +16,14 @@ export type Product = {
   gstRate?: number;
   gstInclusive?: boolean;
   isTaxable?: boolean;
+  metaTitle?: string;
+  metaDescription?: string;
   stock: number;
 };
 
 export const DEFAULT_CATEGORY_TREE = [
   { name: "Tulsi Mala", children: ["Japa Mala", "Kanthi Mala", "Tulsi Bracelet"] },
-  { name: "Puja Essentials", children: ["Chandan & Tilak", "Kapoor", "Puja Accessories"] },
+  { name: "Puja Essentials", children: ["Chandan & Tilak", "Kapoor", "Puja Accessories", "Dhoop & Incense"] },
   { name: "Itra & Fragrance", children: ["Rose Itra", "Sandalwood Itra", "Other Itra"] },
   { name: "Jewellery", children: ["Bracelets", "Pendants", "Necklaces"] },
   { name: "Gifts & Toys", children: ["Radha Krishna Dolls", "Keychains", "Gift Items"] },

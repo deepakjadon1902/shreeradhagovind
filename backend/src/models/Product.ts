@@ -27,6 +27,8 @@ const productSchema = new Schema(
     gstRate: { type: Number, default: 0, min: 0, max: 28 },
     gstInclusive: { type: Boolean, default: true },
     isTaxable: { type: Boolean, default: true },
+    metaTitle: { type: String, default: "", trim: true },
+    metaDescription: { type: String, default: "", trim: true },
     isActive: { type: Boolean, default: true },
   },
   { timestamps: true }

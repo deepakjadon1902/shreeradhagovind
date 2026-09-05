@@ -53,24 +53,24 @@ export function Header() {
   };
 
   return (
-    <header className="sticky top-0 z-40 border-b border-border/80 bg-white/95 shadow-sm backdrop-blur">
-      <div className="text-foreground">
+    <header className="sticky top-0 z-40 border-b border-[#E7E1D6] bg-[#FFFFF4]/98 shadow-[0_1px_4px_rgba(43,33,28,0.03)] backdrop-blur-md">
+      <div className="text-[#2B211C]">
         <div className="container-app flex min-h-[74px] flex-wrap items-center gap-3 py-3 sm:flex-nowrap sm:gap-5">
           <button
-            onClick={() => setMobileOpen((value) => !value)}
-            className="grid h-10 w-10 shrink-0 place-items-center rounded-md border border-border bg-white lg:hidden"
-            aria-label="Toggle navigation"
+            onClick={() => setDrawerOpen(true)}
+            className="grid h-10 w-10 shrink-0 place-items-center rounded-lg border border-[#E7E1D6] bg-[#FFFFF4] text-[#2B211C] transition hover:bg-[#F8F4EC] lg:hidden"
+            aria-label="Open navigation menu"
           >
-            {mobileOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
+            <Menu className="h-5 w-5" />
           </button>
 
           <Link
             to="/"
             onClick={closeMenus}
-            className="flex shrink-0 items-center rounded-md p-1 transition hover:bg-secondary"
+            className="flex shrink-0 items-center rounded-lg p-1 transition hover:bg-[#F8F4EC]"
             aria-label="Shri Radha Govind Store home"
           >
-            <span className="grid h-14 w-14 place-items-center overflow-hidden rounded-full border border-border bg-white shadow-sm">
+            <span className="grid h-14 w-14 place-items-center overflow-hidden rounded-full border border-[#E7E1D6] bg-white shadow-sm">
               <img
                 src={logo}
                 srcSet="/brand-logo-retina.png 512w, /brand-logo-large.png 1080w"
@@ -82,24 +82,24 @@ export function Header() {
           </Link>
 
           <nav
-            className="ml-auto flex shrink-0 items-center gap-1 lg:hidden"
+            className="ml-auto flex shrink-0 items-center gap-0.5 min-[360px]:gap-1 text-[#2B211C] lg:hidden"
             aria-label="Mobile account links"
           >
             <MobileNavIcon to={user ? "/profile" : "/login"} label="Account" icon={User} />
-            <MobileNavIcon to="/wishlist" label="Wishlist" icon={Heart} count={wishlist.length} />
             <MobileNavIcon to={user ? "/orders" : "/login"} label="Orders" icon={Package} />
+            <MobileNavIcon to="/wishlist" label="Wishlist" icon={Heart} count={wishlist.length} />
             <MobileNavIcon to="/cart" label="Cart" icon={ShoppingCart} count={cartCount} />
           </nav>
 
           <form
             onSubmit={submit}
-            className="order-last flex h-11 w-full overflow-hidden rounded-md border border-border bg-white text-foreground shadow-sm ring-2 ring-transparent transition focus-within:border-primary/40 focus-within:ring-primary/10 sm:order-none sm:flex-1"
+            className="order-last flex h-11 w-full overflow-hidden rounded-lg border border-[#E7E1D6] bg-white text-[#2B211C] shadow-sm transition focus-within:border-[#166F77] focus-within:ring-2 focus-within:ring-[#166F77]/10 sm:order-none sm:flex-1"
           >
             <select
               aria-label="Search category"
-              className="hidden w-28 border-r border-border bg-secondary/60 px-2 text-xs outline-none md:block"
+              className="hidden w-32 border-r border-[#E7E1D6] bg-[#F8F4EC] px-2 text-xs font-medium text-[#2B211C] outline-none md:block"
             >
-              <option>All</option>
+              <option>All Categories</option>
               {categoryTree.map((category) => (
                 <option key={category.id}>{category.name}</option>
               ))}
@@ -107,18 +107,18 @@ export function Header() {
             <input
               value={query}
               onChange={(event) => setQuery(event.target.value)}
-              placeholder="Search Tulsi mala, puja essentials and gifts"
-              className="min-w-0 flex-1 px-4 text-sm outline-none"
+              placeholder="Search Tulsi mala, puja essentials, itra..."
+              className="min-w-0 flex-1 bg-transparent px-4 text-sm outline-none placeholder:text-[#6A605A]"
             />
             <button
-              className="grid w-14 place-items-center bg-primary text-primary-foreground transition hover:bg-primary/90"
+              className="grid w-14 place-items-center bg-[#166F77] text-white transition hover:bg-[#135E65]"
               aria-label="Search"
             >
               <Search className="h-5 w-5" />
             </button>
           </form>
 
-          <nav className="ml-auto hidden shrink-0 items-center gap-1 lg:flex">
+          <nav className="ml-auto hidden shrink-0 items-center gap-1.5 lg:flex">
             <div
               className="relative"
               onMouseEnter={() => setAccountOpen(true)}
@@ -126,11 +126,14 @@ export function Header() {
             >
               <button
                 onClick={() => setAccountOpen((value) => !value)}
-                className="rounded-md px-3 py-2 text-left transition hover:bg-secondary"
+                className="rounded-lg px-3 py-2 text-left transition hover:bg-[#F8F4EC]"
               >
-                <span className="block text-[11px] text-muted-foreground">Hello, {firstName}</span>
-                <strong className="flex items-center text-sm">
-                  Account & Lists <ChevronDown className="h-3.5 w-3.5" />
+                <span className="block text-[11px] font-medium text-[#6A605A]">
+                  {user ? `Hello, ${firstName}` : "Welcome"}
+                </span>
+                <strong className="flex items-center gap-1 text-sm font-semibold text-[#2B211C]">
+                  {user ? "Account & Orders" : "Sign In / Register"}{" "}
+                  <ChevronDown className="h-3.5 w-3.5 text-[#6A605A]" />
                 </strong>
               </button>
               {accountOpen && (
@@ -144,112 +147,99 @@ export function Header() {
             </div>
             <Link
               to={user ? "/orders" : "/login"}
-              className="rounded-md px-3 py-2 transition hover:bg-secondary"
+              className="rounded-lg px-3 py-2 transition hover:bg-[#F8F4EC]"
             >
-              <span className="block text-[11px] text-muted-foreground">Returns</span>
-              <strong className="text-sm">& Orders</strong>
+              <span className="block text-[11px] font-medium text-[#6A605A]">Track</span>
+              <strong className="text-sm font-semibold text-[#2B211C]">Orders</strong>
             </Link>
             <Link
               to="/wishlist"
-              className="relative grid h-12 w-12 place-items-center rounded-md transition hover:bg-secondary"
+              className="relative grid h-11 w-11 place-items-center rounded-lg text-[#2B211C] transition hover:bg-[#F8F4EC]"
               aria-label="Wishlist"
             >
-              <Heart className="h-6 w-6" />
+              <Heart className="h-5 w-5" />
               {wishlist.length > 0 && <Badge>{wishlist.length}</Badge>}
             </Link>
             <Link
               to="/cart"
-              className="relative flex h-12 items-end gap-1 rounded-md px-2 pb-2 transition hover:bg-secondary"
+              className="relative flex h-11 items-center gap-2 rounded-lg bg-[#166F77]/10 px-3 text-[#166F77] transition hover:bg-[#166F77]/15"
             >
-              <ShoppingCart className="h-8 w-8" />
-              <strong className="text-sm">Cart</strong>
+              <ShoppingCart className="h-5 w-5" />
+              <strong className="text-sm font-semibold">Cart</strong>
               {cartCount > 0 && <Badge>{cartCount}</Badge>}
             </Link>
           </nav>
         </div>
       </div>
 
-      <div className="border-t border-primary/10 bg-primary text-primary-foreground">
-        <div className="container-app flex h-11 items-center gap-1 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+      <div className="border-t border-[#E7E1D6] bg-[#FFFFF4] text-[#2B211C]">
+        <div className="container-app flex h-10 items-center gap-0.5 sm:gap-1 overflow-x-auto lg:overflow-visible [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
           <button
             onClick={() => setDrawerOpen(true)}
-            className="flex h-9 shrink-0 items-center gap-2 rounded-md px-3 text-sm font-semibold transition hover:bg-white/10"
+            className="flex h-8 shrink-0 items-center gap-1.5 rounded-md px-2.5 text-xs sm:text-sm font-semibold text-[#166F77] hover:bg-[#F8F4EC] transition"
           >
-            <Menu className="h-5 w-5" /> All
+            <Menu className="h-4 w-4" /> <span>All</span>
           </button>
           <Shortcut label="Sacred Picks" search="sacred-picks" />
-          <Link
-            to="/about"
-            className="flex h-11 shrink-0 items-center gap-1 rounded-md px-3 text-sm font-medium hover:bg-white/10"
-          >
-            About Us
-          </Link>
           {categoryTree.map((category) => (
             <div
               key={category.id}
-              className="relative h-11 shrink-0"
+              className="relative shrink-0 flex items-center h-10 group"
               onMouseEnter={() => setOpenCategory(category.id)}
               onMouseLeave={() => setOpenCategory(null)}
             >
-              <Link
-                to="/shop"
-                search={{ cat: category.name } as never}
-                className="flex h-11 items-center gap-1 rounded-md px-3 text-sm font-medium hover:bg-white/10"
-              >
-                {category.name}
-                {category.children.length > 0 && <ChevronDown className="h-3.5 w-3.5" />}
-              </Link>
+              <div className="flex items-center rounded-md hover:bg-[#F8F4EC] transition">
+                <Link
+                  to="/shop"
+                  search={{ cat: category.name } as never}
+                  onClick={() => setOpenCategory(null)}
+                  className="px-2 sm:px-2.5 py-1 text-xs sm:text-[13px] font-medium text-[#2B211C] hover:text-[#166F77] transition whitespace-nowrap"
+                >
+                  {category.name}
+                </Link>
+                {category.children.length > 0 && (
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      setOpenCategory((prev) => (prev === category.id ? null : category.id));
+                    }}
+                    className="pr-2 pl-0.5 py-1 text-[#6A605A] hover:text-[#166F77] transition"
+                    aria-label={`Toggle ${category.name} dropdown`}
+                  >
+                    <ChevronDown
+                      className={`h-3 w-3 transition-transform duration-200 ${
+                        openCategory === category.id ? "rotate-180 text-[#166F77]" : ""
+                      }`}
+                    />
+                  </button>
+                )}
+              </div>
+
               {openCategory === category.id && category.children.length > 0 && (
-                <MegaMenu category={category} onClose={() => setOpenCategory(null)} />
+                <div
+                  className="absolute left-0 top-full z-50 pt-1 pointer-events-auto"
+                  onMouseEnter={() => setOpenCategory(category.id)}
+                  onMouseLeave={() => setOpenCategory(null)}
+                >
+                  <MegaMenu category={category} onClose={() => setOpenCategory(null)} />
+                </div>
               )}
             </div>
           ))}
           <Link
             to="/blog"
-            className="flex h-11 shrink-0 items-center gap-1 rounded-md px-3 text-sm font-medium hover:bg-white/10"
+            className="flex shrink-0 h-8 items-center gap-1.5 rounded-md px-2.5 text-xs sm:text-[13px] font-medium text-[#166F77] hover:text-[#135E65] hover:bg-[#F8F4EC] transition whitespace-nowrap"
           >
-            <Newspaper className="h-4 w-4" /> Devotional Blog
+            <Newspaper className="h-3.5 w-3.5" /> Devotional Blog
           </Link>
         </div>
       </div>
 
       {settings.announcement && (
-        <div className="bg-[#f6f6f6] px-4 py-1.5 text-center text-xs font-semibold text-black">
-          {settings.announcement}
-        </div>
-      )}
-
-      {mobileOpen && (
-        <div className="border-b bg-white p-3 text-foreground lg:hidden">
-          <div className="mb-2 flex gap-2">
-            <Link
-              to={user ? "/profile" : "/login"}
-              onClick={() => setMobileOpen(false)}
-              className="flex-1 rounded-lg bg-muted px-3 py-2 text-sm font-semibold"
-            >
-              Hello, {firstName} - Account
-            </Link>
-            <Link
-              to={user ? "/orders" : "/login"}
-              onClick={() => setMobileOpen(false)}
-              className="rounded-lg bg-muted px-3 py-2 text-sm font-semibold"
-            >
-              Orders
-            </Link>
-          </div>
-          <div className="flex gap-2 overflow-x-auto pb-1 [scrollbar-width:none]">
-            {categoryTree.map((category) => (
-              <Link
-                key={category.id}
-                to="/shop"
-                search={{ cat: category.name } as never}
-                onClick={() => setMobileOpen(false)}
-                className="shrink-0 rounded-md border border-primary/20 px-4 py-2 text-sm font-medium"
-              >
-                {category.name}
-              </Link>
-            ))}
-          </div>
+        <div className="border-t border-[#E7E1D6] bg-[#F8F4EC] px-4 py-1.5 text-center text-xs font-medium text-[#2B211C]">
+          <span className="line-clamp-1">{settings.announcement}</span>
         </div>
       )}
 
@@ -258,7 +248,8 @@ export function Header() {
         categories={categoryTree}
         expanded={expandedDrawer}
         setExpanded={setExpandedDrawer}
-        userName={firstName}
+        userName={user ? firstName : "devotee"}
+        isLoggedIn={!!user}
         onClose={() => setDrawerOpen(false)}
       />
     </header>
@@ -270,7 +261,7 @@ function Shortcut({ label, search }: { label: string; search: string }) {
     <Link
       to="/shop"
       search={{ q: search } as never}
-      className="flex h-11 shrink-0 items-center rounded px-3 text-sm font-medium hover:bg-white/10"
+      className="flex h-8 shrink-0 items-center rounded-md px-2 sm:px-2.5 text-xs sm:text-[13px] font-medium text-[#2B211C] hover:text-[#166F77] hover:bg-[#F8F4EC] transition whitespace-nowrap"
     >
       {label}
     </Link>
@@ -291,10 +282,10 @@ function MobileNavIcon({
   return (
     <Link
       to={to}
-      className="relative grid h-10 w-9 place-items-center rounded-md text-white hover:bg-white/10"
+      className="relative grid h-9 w-8 min-[360px]:h-10 min-[360px]:w-9 place-items-center rounded-md text-[#2B211C] hover:bg-[#F8F4EC] transition"
       aria-label={label}
     >
-      <Icon className="h-5 w-5" />
+      <Icon className="h-4 w-4 min-[360px]:h-5 min-[360px]:w-5" />
       {!!count && <Badge>{count}</Badge>}
     </Link>
   );
@@ -308,45 +299,41 @@ function MegaMenu({
   onClose: () => void;
 }) {
   return (
-    <div className="absolute left-0 top-full z-50 w-[620px] rounded-b-md border border-t-0 bg-white p-5 text-foreground shadow-xl">
-      <div className="grid grid-cols-[1fr_180px] gap-5">
-        <div>
-          <p className="mb-3 text-xs font-bold uppercase tracking-[.15em] text-primary">
-            Shop {category.name}
-          </p>
-          <div className="grid grid-cols-2 gap-2">
-            {category.children.map((child) => (
-              <Link
-                key={child.id}
-                to="/shop"
-                search={{ cat: child.name } as never}
-                onClick={onClose}
-                className="group flex items-center gap-2 rounded-md p-3 hover:bg-muted"
-              >
-                <ChevronRight className="h-4 w-4 text-accent" />
-                <span>
-                  <strong className="block text-sm">{child.name}</strong>
-                  <small className="text-muted-foreground">Explore collection</small>
-                </span>
-              </Link>
-            ))}
-          </div>
-        </div>
+    <div className="w-52 rounded-lg border border-[#E7E1D6] bg-white p-2.5 text-[#2B211C] shadow-xl">
+      <div className="border-b border-[#E7E1D6]/70 px-2.5 pb-2 mb-1">
         <Link
           to="/shop"
           search={{ cat: category.name } as never}
           onClick={onClose}
-          className="relative flex min-h-40 flex-col justify-end overflow-hidden rounded-md bg-primary p-4 text-primary-foreground"
+          className="text-xs font-bold uppercase tracking-wider text-[#166F77] hover:underline block"
         >
-          {category.image && (
-            <img
-              src={category.image}
-              alt=""
-              className="absolute inset-0 h-full w-full object-cover opacity-25"
-            />
-          )}
-          <strong className="relative text-lg font-semibold">Sacred {category.name}</strong>
-          <span className="relative mt-1 text-xs text-white/75">View the complete collection</span>
+          {category.name}
+        </Link>
+      </div>
+
+      <div className="flex flex-col space-y-0.5 max-h-[300px] overflow-y-auto [scrollbar-width:none]">
+        {category.children.map((child) => (
+          <Link
+            key={child.id}
+            to="/shop"
+            search={{ cat: child.name } as never}
+            onClick={onClose}
+            className="block rounded-md px-2.5 py-1.5 text-xs font-medium text-[#2B211C] hover:bg-[#F8F4EC] hover:text-[#166F77] transition"
+          >
+            {child.name}
+          </Link>
+        ))}
+      </div>
+
+      <div className="mt-1 pt-1.5 border-t border-[#E7E1D6]/70 px-2.5">
+        <Link
+          to="/shop"
+          search={{ cat: category.name } as never}
+          onClick={onClose}
+          className="inline-flex items-center gap-1 text-xs font-semibold text-[#166F77] hover:underline"
+        >
+          <span>View All</span>
+          <ChevronRight className="h-3 w-3" />
         </Link>
       </div>
     </div>
@@ -359,97 +346,143 @@ function AllDrawer({
   expanded,
   setExpanded,
   userName,
+  isLoggedIn,
   onClose,
 }: {
   open: boolean;
   categories: (Category & { children: Category[] })[];
   expanded: string | null;
-  setExpanded: (id: string | null) => void;
+  setExpanded: (id: string | null | ((prev: string | null) => string | null)) => void;
   userName: string;
+  isLoggedIn: boolean;
   onClose: () => void;
 }) {
   if (!open) return null;
   return (
-    <div className="fixed inset-0 z-[100] h-dvh overflow-hidden bg-black/65" onMouseDown={onClose}>
+    <div className="fixed inset-0 z-[100] h-dvh overflow-hidden bg-black/60 backdrop-blur-sm" onMouseDown={onClose}>
       <aside
         role="dialog"
         aria-modal="true"
         aria-label="All store categories"
-        className="h-dvh max-h-dvh w-[min(92vw,390px)] overflow-y-auto overscroll-contain bg-white text-foreground shadow-2xl"
+        className="h-dvh max-h-dvh w-[min(88vw,340px)] overflow-y-auto overscroll-contain bg-[#FFFFF4] text-[#2B211C] shadow-2xl flex flex-col justify-between"
         onMouseDown={(event) => event.stopPropagation()}
       >
-        <div className="sticky top-0 z-10 flex h-16 items-center justify-between bg-primary px-5 text-primary-foreground">
-          <Link
-            to="/profile"
-            onClick={onClose}
-            className="flex items-center gap-3 text-lg font-bold"
-          >
-            <User className="h-7 w-7" /> Hello, {userName}
-          </Link>
-          <button
-            onClick={onClose}
-            className="rounded-md p-2 hover:bg-white/10"
-            aria-label="Close menu"
-          >
-            <X className="h-6 w-6" />
-          </button>
-        </div>
-        <DrawerSection title="Shop by Category">
-          {categories.map((category) => (
-            <div key={category.id}>
-              <div className="flex items-center">
-                <Link
-                  to="/shop"
-                  search={{ cat: category.name } as never}
-                  onClick={onClose}
-                  className="flex-1 px-5 py-3 text-sm font-medium hover:bg-muted"
-                >
-                  {category.name}
-                </Link>
-                {category.children.length > 0 && (
-                  <button
-                    onClick={() => setExpanded(expanded === category.id ? null : category.id)}
-                    className="p-4"
-                    aria-label={`Expand ${category.name}`}
+        <div>
+          <div className="sticky top-0 z-10 flex h-14 items-center justify-between border-b border-[#E7E1D6] bg-[#166F77] px-4 text-white">
+            <Link
+              to={isLoggedIn ? "/profile" : "/login"}
+              onClick={onClose}
+              className="flex items-center gap-2.5 text-sm font-semibold"
+            >
+              <User className="h-5 w-5" />
+              <span>{isLoggedIn ? `Hello, ${userName}` : "Sign In / Register"}</span>
+            </Link>
+            <button
+              onClick={onClose}
+              className="grid h-8 w-8 place-items-center rounded-lg hover:bg-white/10"
+              aria-label="Close menu"
+            >
+              <X className="h-5 w-5" />
+            </button>
+          </div>
+
+          <div className="border-b border-[#E7E1D6]/70 bg-white px-4 py-2.5">
+            <Link
+              to="/shop"
+              onClick={onClose}
+              className="flex items-center justify-between text-xs font-bold uppercase tracking-wider text-[#166F77] hover:underline"
+            >
+              <span>Explore All Products</span>
+              <ChevronRight className="h-3.5 w-3.5" />
+            </Link>
+          </div>
+
+          <DrawerSection title="Shop by Category">
+            {categories.map((category) => (
+              <div key={category.id} className="border-b border-[#E7E1D6]/50 last:border-b-0">
+                <div className="flex items-center justify-between hover:bg-[#F8F4EC] transition">
+                  <Link
+                    to="/shop"
+                    search={{ cat: category.name } as never}
+                    onClick={onClose}
+                    className="flex-1 px-4 py-2.5 text-xs sm:text-sm font-medium text-[#2B211C] hover:text-[#166F77]"
                   >
-                    <ChevronRight
-                      className={`h-4 w-4 transition ${expanded === category.id ? "rotate-90" : ""}`}
-                    />
-                  </button>
+                    {category.name}
+                  </Link>
+                  {category.children.length > 0 && (
+                    <button
+                      type="button"
+                      onClick={() => setExpanded((prev) => (prev === category.id ? null : category.id))}
+                      className="px-3 py-2.5 text-[#166F77] hover:bg-[#E7E1D6]/40 transition"
+                      aria-label={`Toggle ${category.name} subcategories`}
+                    >
+                      <ChevronDown
+                        className={`h-4 w-4 transition-transform duration-200 ${
+                          expanded === category.id ? "rotate-180" : ""
+                        }`}
+                      />
+                    </button>
+                  )}
+                </div>
+                {expanded === category.id && category.children.length > 0 && (
+                  <div className="bg-[#FAF4EE] py-1.5 pl-6 pr-3 space-y-0.5 border-t border-[#E7E1D6]/40">
+                    {category.children.map((child) => (
+                      <Link
+                        key={child.id}
+                        to="/shop"
+                        search={{ cat: child.name } as never}
+                        onClick={onClose}
+                        className="flex items-center gap-2 py-1.5 px-2 text-xs font-medium text-[#6A605A] hover:text-[#166F77] hover:bg-white/60 rounded transition"
+                      >
+                        <span className="h-1 w-1 rounded-full bg-[#D9A441]" />
+                        <span>{child.name}</span>
+                      </Link>
+                    ))}
+                    <Link
+                      to="/shop"
+                      search={{ cat: category.name } as never}
+                      onClick={onClose}
+                      className="flex items-center gap-1 py-1.5 px-2 text-xs font-semibold text-[#166F77] hover:underline"
+                    >
+                      See all in {category.name} →
+                    </Link>
+                  </div>
                 )}
               </div>
-              {expanded === category.id && (
-                <div className="bg-muted py-1">
-                  {category.children.map((child) => (
-                    <Link
-                      key={child.id}
-                      to="/shop"
-                      search={{ cat: child.name } as never}
-                      onClick={onClose}
-                      className="block px-9 py-2.5 text-sm text-muted-foreground hover:bg-muted hover:text-primary"
-                    >
-                      {child.name}
-                    </Link>
-                  ))}
-                </div>
-              )}
-            </div>
-          ))}
-        </DrawerSection>
-        <DrawerSection title="Help & Account">
-          <Link to="/about" onClick={onClose} className="block px-5 py-3 text-sm hover:bg-muted">
-            About Us
-          </Link>
-          <Link to="/orders" onClick={onClose} className="block px-5 py-3 text-sm hover:bg-muted">
-            Your Orders
-          </Link>
-          <Link to="/wishlist" onClick={onClose} className="block px-5 py-3 text-sm hover:bg-muted">
-            Your Wishlist
-          </Link>
-          <Link to="/contact" onClick={onClose} className="block px-5 py-3 text-sm hover:bg-muted">
-            Customer Support
-          </Link>
-        </DrawerSection>
+            ))}
+          </DrawerSection>
+
+          <DrawerSection title="Account & Support">
+            <Link
+              to={isLoggedIn ? "/orders" : "/login"}
+              onClick={onClose}
+              className="block px-4 py-2.5 text-xs font-medium text-[#2B211C] hover:bg-[#F8F4EC]"
+            >
+              Your Orders
+            </Link>
+            <Link
+              to="/wishlist"
+              onClick={onClose}
+              className="block px-4 py-2.5 text-xs font-medium text-[#2B211C] hover:bg-[#F8F4EC]"
+            >
+              Your Wishlist
+            </Link>
+            <Link
+              to="/cart"
+              onClick={onClose}
+              className="block px-4 py-2.5 text-xs font-medium text-[#2B211C] hover:bg-[#F8F4EC]"
+            >
+              Shopping Cart
+            </Link>
+            <Link
+              to="/contact"
+              onClick={onClose}
+              className="block px-4 py-2.5 text-xs font-medium text-[#2B211C] hover:bg-[#F8F4EC]"
+            >
+              Customer Support & Contact
+            </Link>
+          </DrawerSection>
+        </div>
       </aside>
     </div>
   );
@@ -457,8 +490,8 @@ function AllDrawer({
 
 function DrawerSection({ title, children }: { title: string; children: ReactNode }) {
   return (
-    <section className="border-b py-3">
-      <h2 className="px-5 py-2 text-lg font-bold">{title}</h2>
+    <section className="border-b border-[#E7E1D6] py-2">
+      <h2 className="px-4 py-2 text-xs font-bold uppercase tracking-wider text-[#166F77]">{title}</h2>
       {children}
     </section>
   );
@@ -501,10 +534,7 @@ function AccountMenu({
           </button>
         </>
       ) : (
-        <>
-          <AccountLink to="/login" icon={User} label="Sign in" onClick={onClose} />
-          <AccountLink to="/signup" icon={User} label="Create account" onClick={onClose} />
-        </>
+        <AccountLink to="/login" icon={User} label="Login / Sign Up" onClick={onClose} />
       )}
     </div>
   );

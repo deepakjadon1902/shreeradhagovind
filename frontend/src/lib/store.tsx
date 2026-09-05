@@ -23,6 +23,16 @@ export const COURIERS: Courier[] = [
   "Bluedart",
 ];
 export type PaymentStatus = "paid" | "pending" | "failed" | "refunded";
+export type OrderItem = {
+  product: Product;
+  qty: number;
+  hsnCode?: string;
+  price?: number;
+  mrp?: number;
+  taxableAmount?: number;
+  gstAmount?: number;
+  gstRate?: number;
+};
 export type Order = {
   id: string;
   orderNo?: number;
@@ -30,7 +40,16 @@ export type Order = {
   trackingId?: string;
   courier?: Courier | null;
   courierTrackingUrl?: string;
-  items: { product: Product; qty: number }[];
+  items: OrderItem[];
+  subtotal?: number;
+  shipping?: number;
+  packagingFee?: number;
+  discount?: number;
+  taxableAmount?: number;
+  cgst?: number;
+  sgst?: number;
+  igst?: number;
+  gstTotal?: number;
   total: number;
   alternatePhone?: string;
   needsGstInvoice?: boolean;
@@ -110,12 +129,18 @@ export type Settings = {
   tagline: string;
   supportEmail: string;
   supportPhone: string;
+  whatsappPhone?: string;
+  storeAddress?: string;
+  gstin?: string;
   currency: string;
   freeShipThreshold: number;
   shippingFee: number;
   razorpayKeyId: string;
   codEnabled: boolean;
   announcement: string;
+  heroTitle?: string;
+  heroSubtitle?: string;
+  footerDescription?: string;
 };
 
 const DEFAULT_SETTINGS: Settings = {
@@ -123,6 +148,9 @@ const DEFAULT_SETTINGS: Settings = {
   tagline: "Made With Love From The Heart Of Vrindavan",
   supportEmail: "support@shriradhagovindstore.com",
   supportPhone: "+91 7500533505",
+  whatsappPhone: "+91 7500533505",
+  storeAddress: "Vrindavan, Mathura, Uttar Pradesh, India - 281121",
+  gstin: "",
   currency: "INR",
   freeShipThreshold: 999,
   shippingFee: 49,
@@ -130,6 +158,9 @@ const DEFAULT_SETTINGS: Settings = {
   codEnabled: true,
   announcement:
     "॥ Radhe Radhe ॥  -  Made With Love From The Heart Of Vrindavan  -  Free shipping above Rs. 999",
+  heroTitle: "Sacred Treasures From Vrindavan",
+  heroSubtitle: "Handcrafted Japa malas, authentic Tulsi, sacred idols, and pure puja essentials blessed in the holy dham.",
+  footerDescription: "Shri Radha Govind Store brings authentic, consecrated devotional items directly from the holy land of Vrindavan Dham to your home.",
 };
 
 export type RegisteredUser = {
@@ -206,6 +237,7 @@ type Store = {
   fetchOrderEvents: (id: string) => Promise<{ events: CourierEvent[]; order: Order } | null>;
   categoryDetails: Category[];
   categoryTree: (Category & { children: Category[] })[];
+  adminCategoryTree: (Category & { children: Category[] })[];
   saveCategory: (c: Partial<Category> & { name: string; id?: string }) => Promise<void> | void;
   reorderCategories: (
     items: { id: string; sortOrder: number; parentId?: string | null }[],
@@ -251,18 +283,31 @@ const mapProduct = (p: any): Product => ({
   rating: p.rating ?? 0,
   reviews: p.reviews ?? 0,
   details: p.details ?? [],
+  hsnCode: p.hsnCode ?? "",
+  gstRate: p.gstRate !== undefined ? Number(p.gstRate) : 0,
+  gstInclusive: p.gstInclusive !== undefined ? Boolean(p.gstInclusive) : true,
+  isTaxable: p.isTaxable !== undefined ? Boolean(p.isTaxable) : true,
+  metaTitle: p.metaTitle ?? "",
+  metaDescription: p.metaDescription ?? "",
 });
 
 const mapSettings = (s: any): Partial<Settings> => ({
   siteName: s.siteName,
   tagline: s.tagline,
   supportEmail: s.email ?? s.supportEmail,
+  supportPhone: s.phone ?? s.supportPhone,
+  whatsappPhone: s.whatsappPhone,
+  storeAddress: s.address ?? s.storeAddress,
+  gstin: s.gstin,
   currency: s.currency,
   freeShipThreshold: s.freeShipThreshold,
   shippingFee: s.shippingFee,
   razorpayKeyId: s.razorpayKeyId,
   codEnabled: s.codEnabled,
   announcement: s.announcement,
+  heroTitle: s.heroTitle,
+  heroSubtitle: s.heroSubtitle,
+  footerDescription: s.footerDescription,
 });
 
 const mapCategory = (c: any): Category => ({
@@ -333,8 +378,8 @@ const fallbackProduct = (i: any): Product => ({
   id: String(i.productId ?? i.id ?? ""),
   name: i.name ?? "Product",
   description: "",
-  price: i.price ?? 0,
-  mrp: 0,
+  price: typeof i.price === "number" ? i.price : 0,
+  mrp: typeof i.mrp === "number" ? i.mrp : 0,
   image: i.image ?? "",
   images: [],
   featuredDeal: false,
@@ -343,40 +388,82 @@ const fallbackProduct = (i: any): Product => ({
   rating: 0,
   reviews: 0,
   details: [],
+  hsnCode: i.hsnCode ?? "",
+  gstRate: typeof i.gstRate === "number" ? i.gstRate : 0,
+  gstInclusive: typeof i.gstInclusive === "boolean" ? i.gstInclusive : true,
 });
 
-const mapOrder = (o: any, productLookup: Map<string, Product>): Order => ({
-  id: String(o._id ?? o.id),
-  orderNo: typeof o.orderNo === "number" ? o.orderNo : undefined,
-  customerEmail: o.customerEmail ?? undefined,
-  trackingId: o.trackingId ?? undefined,
-  courier: o.courier ?? null,
-  courierTrackingUrl: o.courierTrackingUrl ?? "",
-  items: (o.items ?? []).map((i: any) => ({
-    product: productLookup.get(String(i.productId)) ?? fallbackProduct(i),
-    qty: i.qty,
-  })),
-  total: o.total,
-  alternatePhone: o.alternatePhone ?? o.address?.alternatePhone ?? "",
-  needsGstInvoice: o.needsGstInvoice ?? false,
-  businessName: o.businessName ?? "",
-  gstin: o.gstin ?? "",
-  address: o.address ?? { name: "", phone: "", alternatePhone: "", line1: "", line2: "", postOffice: "", city: "", state: "", pincode: "" },
-  payment: {
-    method: o.payment?.method ?? "cod",
-    status: (o.payment?.status as PaymentStatus) ?? "pending",
-    razorpayOrderId: o.payment?.razorpayOrderId,
-    razorpayPaymentId: o.payment?.razorpayPaymentId,
-    razorpaySignature: o.payment?.razorpaySignature,
-    failureReason: o.payment?.failureReason,
-  },
-  status: o.status ?? "Placed",
-  createdAt: o.createdAt ? new Date(o.createdAt).getTime() : Date.now(),
-});
+const mapOrder = (o: any, productLookup: Map<string, Product>): Order => {
+  const safeAddress: Order["address"] = {
+    name: String(o?.address?.name || o?.customerName || "Devotee"),
+    phone: String(o?.address?.phone || o?.phone || ""),
+    alternatePhone: String(o?.address?.alternatePhone || o?.alternatePhone || ""),
+    line1: String(o?.address?.line1 || o?.line1 || ""),
+    line2: String(o?.address?.line2 || o?.line2 || ""),
+    postOffice: String(o?.address?.postOffice || o?.postOffice || ""),
+    city: String(o?.address?.city || o?.city || ""),
+    state: String(o?.address?.state || o?.state || ""),
+    pincode: String(o?.address?.pincode || o?.pincode || ""),
+  };
 
-export const displayOrderNumber = (order: Pick<Order, "id" | "orderNo">) => {
-  if (order.orderNo) return String(order.orderNo).padStart(4, "0");
-  const hash = order.id.split("").reduce((sum, char) => sum + char.charCodeAt(0), 0);
+  const safePayment: Order["payment"] = {
+    method: o?.payment?.method === "razorpay" ? "razorpay" : "cod",
+    status: ((o?.payment?.status as PaymentStatus) || "pending"),
+    razorpayOrderId: o?.payment?.razorpayOrderId ? String(o.payment.razorpayOrderId) : undefined,
+    razorpayPaymentId: o?.payment?.razorpayPaymentId ? String(o.payment.razorpayPaymentId) : undefined,
+    razorpaySignature: o?.payment?.razorpaySignature ? String(o.payment.razorpaySignature) : undefined,
+    failureReason: o?.payment?.failureReason ? String(o.payment.failureReason) : undefined,
+  };
+
+  return {
+    id: String(o?._id ?? o?.id ?? Math.random().toString(36).slice(2)),
+    orderNo: typeof o?.orderNo === "number" ? o.orderNo : undefined,
+    customerEmail: o?.customerEmail ? String(o.customerEmail) : undefined,
+    trackingId: o?.trackingId ? String(o.trackingId) : undefined,
+    courier: (o?.courier as Courier) || null,
+    courierTrackingUrl: String(o?.courierTrackingUrl || ""),
+    items: Array.isArray(o?.items)
+      ? o.items.map((i: any) => {
+          const matchedProd = productLookup.get(String(i?.productId ?? i?._id));
+          const baseProd = matchedProd ?? fallbackProduct(i);
+          return {
+            product: baseProd,
+            qty: Number(i?.qty) || 1,
+            hsnCode: i?.hsnCode || baseProd.hsnCode || "",
+            price: typeof i?.price === "number" ? i.price : baseProd.price,
+            mrp: typeof i?.mrp === "number" ? i.mrp : baseProd.mrp,
+            taxableAmount: typeof i?.taxableAmount === "number" ? i.taxableAmount : undefined,
+            gstAmount: typeof i?.gstAmount === "number" ? i.gstAmount : undefined,
+            gstRate: typeof i?.gstRate === "number" ? i.gstRate : baseProd.gstRate,
+          };
+        })
+      : [],
+    subtotal: typeof o?.subtotal === "number" ? o.subtotal : undefined,
+    shipping: typeof o?.shipping === "number" ? o.shipping : undefined,
+    packagingFee: typeof o?.packagingFee === "number" ? o.packagingFee : undefined,
+    discount: typeof o?.discount === "number" ? o.discount : undefined,
+    taxableAmount: typeof o?.taxableAmount === "number" ? o.taxableAmount : undefined,
+    cgst: typeof o?.cgst === "number" ? o.cgst : undefined,
+    sgst: typeof o?.sgst === "number" ? o.sgst : undefined,
+    igst: typeof o?.igst === "number" ? o.igst : undefined,
+    gstTotal: typeof o?.gstTotal === "number" ? o.gstTotal : undefined,
+    total: Number(o?.total) || 0,
+    alternatePhone: o?.alternatePhone ?? safeAddress.alternatePhone,
+    needsGstInvoice: Boolean(o?.needsGstInvoice),
+    businessName: String(o?.businessName || ""),
+    gstin: String(o?.gstin || ""),
+    address: safeAddress,
+    payment: safePayment,
+    status: o?.status ?? "Placed",
+    createdAt: o?.createdAt ? new Date(o.createdAt).getTime() : Date.now(),
+  };
+};
+
+export const displayOrderNumber = (order?: Pick<Order, "id" | "orderNo"> | null) => {
+  if (!order) return "0000";
+  if (typeof order.orderNo === "number") return String(order.orderNo).padStart(4, "0");
+  const idStr = String(order.id || "0");
+  const hash = idStr.split("").reduce((sum, char) => sum + char.charCodeAt(0), 0);
   return String(5000 + (hash % 5000)).padStart(4, "0");
 };
 
@@ -423,7 +510,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     setCategories(load("categories", DEFAULT_CATEGORIES));
     setCategoryDetails(load("categoryDetails", DEFAULT_CATEGORY_DETAILS));
     setBlogs(load("blogs", []));
-    setOrders(load("orders", []));
+    setOrders((load("orders", []) || []).map((o: any) => mapOrder(o, new Map())));
     setSettings({ ...DEFAULT_SETTINGS, ...load("settings", {}) });
     if (!apiEnabled) return;
 
@@ -493,7 +580,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
           );
           const currentProducts = await prodPromise;
           const lookup = new Map(currentProducts.map((p) => [p.id, p]));
-          setOrders(ord.orders.map((o) => mapOrder(o, lookup)));
+          setOrders((ord?.orders || []).map((o) => mapOrder(o, lookup)));
         } catch {
           setToken(null);
           setUser(null);
@@ -521,7 +608,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       try {
         const ord = await api<{ orders: any[] }>(asAdmin ? "/admin/orders" : "/orders");
         const lookup = new Map(adminProducts.map((p) => [p.id, p]));
-        setOrders(ord.orders.map((o) => mapOrder(o, lookup)));
+        setOrders((ord?.orders || []).map((o) => mapOrder(o, lookup)));
       } catch {
         /* ignore */
       }
@@ -534,31 +621,54 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       string,
       { name: string; email: string; phone: string; orders: number; spent: number }
     >();
+    if (!Array.isArray(orders)) return [];
     for (const o of orders) {
-      const key = o.address.phone || o.address.name;
+      if (!o) continue;
+      const phone = o.address?.phone || "";
+      const name = o.address?.name || "Customer";
+      const key = phone || name || o.id;
+      if (!key) continue;
       const e = map.get(key);
       if (e) {
         e.orders++;
-        e.spent += o.total;
-      } else
+        e.spent += Number(o.total) || 0;
+      } else {
         map.set(key, {
-          name: o.address.name,
-          email: "-",
-          phone: o.address.phone,
+          name,
+          email: o.customerEmail || "-",
+          phone: phone || "-",
           orders: 1,
-          spent: o.total,
+          spent: Number(o.total) || 0,
         });
+      }
     }
     return Array.from(map.values()).sort((a, b) => b.spent - a.spent);
   }, [orders]);
 
+  // Admin full category tree (all categories including hidden ones, preserving hierarchy)
+  const adminCategoryTree = useMemo(() => {
+    const all = [...categoryDetails].sort(
+      (a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0) || a.name.localeCompare(b.name)
+    );
+    const allIds = new Set(all.map((c) => c.id));
+    const roots = all.filter((c) => !c.parentId || !allIds.has(c.parentId));
+    return roots.map((parent) => ({
+      ...parent,
+      children: all.filter((c) => c.parentId === parent.id),
+    }));
+  }, [categoryDetails]);
+
+  // Storefront active category tree (active root categories and active subcategories only)
   const categoryTree = useMemo(() => {
-    const active = categoryDetails
-      .filter((c) => c.isActive)
-      .sort((a, b) => a.sortOrder - b.sortOrder || a.name.localeCompare(b.name));
-    return active
-      .filter((c) => !c.parentId)
-      .map((parent) => ({ ...parent, children: active.filter((c) => c.parentId === parent.id) }));
+    const all = [...categoryDetails].sort(
+      (a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0) || a.name.localeCompare(b.name)
+    );
+    const allIds = new Set(all.map((c) => c.id));
+    const activeRoots = all.filter((c) => c.isActive && (!c.parentId || !allIds.has(c.parentId)));
+    return activeRoots.map((parent) => ({
+      ...parent,
+      children: all.filter((c) => c.parentId === parent.id && c.isActive),
+    }));
   }, [categoryDetails]);
 
   // ---- auth ----
@@ -763,6 +873,12 @@ export function StoreProvider({ children }: { children: ReactNode }) {
           reviews: Number(p.reviews ?? 0),
           details: p.details ?? [],
           slug: p.slug || slugify(p.name),
+          hsnCode: p.hsnCode ?? "",
+          gstRate: Number(p.gstRate ?? 0),
+          gstInclusive: p.gstInclusive !== undefined ? Boolean(p.gstInclusive) : true,
+          isTaxable: p.isTaxable !== undefined ? Boolean(p.isTaxable) : true,
+          metaTitle: p.metaTitle ?? "",
+          metaDescription: p.metaDescription ?? "",
         };
         const isExisting = !!previousProduct;
         const r = isExisting
@@ -876,7 +992,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
           },
         });
         if (r.token && r.user && !getToken()) {
-          setAuth(r.token, r.user);
+          setToken(r.token);
+          setUser(r.user);
         }
         const lookup = new Map(adminProducts.map((p) => [p.id, p]));
         const placed = mapOrder(r.order, lookup);
@@ -1383,6 +1500,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     categories,
     categoryDetails,
     categoryTree,
+    adminCategoryTree,
     addCategory,
     saveCategory,
     renameCategory,
@@ -1412,9 +1530,11 @@ export const useStore = () => {
   return v;
 };
 
-export const formatINR = (n: number) =>
-  new Intl.NumberFormat("en-IN", {
+export const formatINR = (n?: number | null) => {
+  const num = typeof n === "number" && !isNaN(n) ? n : Number(n) || 0;
+  return new Intl.NumberFormat("en-IN", {
     style: "currency",
     currency: "INR",
     maximumFractionDigits: 0,
-  }).format(n);
+  }).format(num);
+};

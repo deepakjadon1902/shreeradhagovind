@@ -27,13 +27,18 @@ function NotFoundComponent() {
 }
 
 function ErrorComponent({ error, reset }: { error: Error; reset: () => void }) {
-  console.error(error);
+  console.error("[Route Error]", error);
   const router = useRouter();
   return (
     <div className="flex min-h-screen items-center justify-center bg-background px-4">
-      <div className="max-w-md text-center">
+      <div className="max-w-2xl text-center">
         <h1 className="text-xl font-display">This page didn't load</h1>
-        <p className="mt-2 text-sm text-muted-foreground">Something went wrong.</p>
+        <p className="mt-2 text-sm text-destructive font-medium">{error?.message || "Something went wrong."}</p>
+        {error?.stack && (
+          <pre className="mt-4 p-4 bg-red-50 text-red-900 text-xs text-left rounded-lg overflow-auto max-h-72 font-mono border border-red-200 whitespace-pre-wrap break-all">
+            {error.stack}
+          </pre>
+        )}
         <div className="mt-6 flex justify-center gap-2">
           <button onClick={() => { router.invalidate(); reset(); }} className="h-10 px-4 rounded-full bg-primary text-primary-foreground text-sm">Try again</button>
           <a href="/" className="h-10 px-4 rounded-full border text-sm grid place-items-center">Go home</a>
@@ -70,7 +75,7 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       { rel: "manifest", href: "/site.webmanifest" },
       { rel: "preconnect", href: "https://fonts.googleapis.com" },
       { rel: "preconnect", href: "https://fonts.gstatic.com", crossOrigin: "anonymous" },
-      { rel: "stylesheet", href: "https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@400;500;600;700&family=Inter:wght@300;400;500;600;700&display=swap" },
+      { rel: "stylesheet", href: "https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,500;0,600;0,700;1,400;1,600&family=Inter:wght@300;400;500;600;700&family=Noto+Sans+Devanagari:wght@400;500;600;700&family=Noto+Serif+Devanagari:wght@400;600;700&display=swap" },
     ],
   }),
   shellComponent: RootShell,

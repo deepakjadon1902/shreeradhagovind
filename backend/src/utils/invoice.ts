@@ -1,8 +1,10 @@
 import PDFDocument from "pdfkit";
 import fs from "fs";
 import path from "path";
+import { Product } from "../models/Product";
 
 export type InvoiceItem = {
+  productId?: string | any;
   name?: string;
   qty: number;
   price?: number;
@@ -131,8 +133,16 @@ export function computeOrderTaxDetails(
 
     let taxableUnit = unitPrice;
     let unitTax = 0;
+    let taxableValue = round2(unitPrice * qty);
+    let taxAmount = 0;
 
-    if (gstRate > 0) {
+    // Strict priority: Use stored snapshot taxable/gst amounts if present on the historical order
+    if (typeof it.taxableAmount === "number" && typeof it.gstAmount === "number" && (it.taxableAmount > 0 || it.gstAmount > 0)) {
+      taxableValue = round2(it.taxableAmount);
+      taxAmount = round2(it.gstAmount);
+      taxableUnit = round2(taxableValue / qty);
+      unitTax = round2(taxAmount / qty);
+    } else if (gstRate > 0) {
       if (gstInclusive) {
         taxableUnit = round2(unitPrice / (1 + gstRate / 100));
         unitTax = round2(unitPrice - taxableUnit);
@@ -140,17 +150,17 @@ export function computeOrderTaxDetails(
         taxableUnit = unitPrice;
         unitTax = round2(unitPrice * (gstRate / 100));
       }
+      taxableValue = round2(taxableUnit * qty);
+      taxAmount = round2(unitTax * qty);
     }
 
-    const taxableValue = round2(taxableUnit * qty);
-    const taxAmount = round2(unitTax * qty);
     const lineTotal = gstInclusive ? round2(unitPrice * qty) : round2((unitPrice + unitTax) * qty);
 
     let cgst = 0;
     let sgst = 0;
     let igst = 0;
 
-    if (gstRate > 0) {
+    if (taxAmount > 0 || gstRate > 0) {
       if (isIntraState) {
         cgst = round2(taxAmount / 2);
         sgst = round2(taxAmount - cgst);
@@ -196,29 +206,98 @@ export function computeOrderTaxDetails(
 
 function findLogoPath(): string | null {
   const candidates = [
-    path.join(__dirname, "../assets/1080X1080Retina Llogo.png"),
-    path.join(__dirname, "../assets/logo.png"),
-    path.join(__dirname, "../../assets/logo.png"),
-    path.join(process.cwd(), "src/assets/1080X1080Retina Llogo.png"),
-    path.join(process.cwd(), "src/assets/logo.png"),
-    path.join(process.cwd(), "assets/logo.png"),
-    path.join(process.cwd(), "../frontend/public/brand-logo-large.png"),
-    path.join(process.cwd(), "../frontend/public/brand-logo-retina.png"),
+    path.join(__dirname, "../../../frontend/public/logo.png"),
+    path.join(process.cwd(), "frontend/public/logo.png"),
+    path.join(process.cwd(), "../frontend/public/logo.png"),
+    path.join(process.cwd(), "public/logo.png"),
   ];
   for (const c of candidates) {
-    try {
-      if (fs.existsSync(c)) return c;
-    } catch {
-      // ignore
+    if (fs.existsSync(c)) {
+      return c;
     }
   }
   return null;
 }
 
+export async function enrichInvoiceItems(items: InvoiceItem[]): Promise<InvoiceItem[]> {
+  if (!Array.isArray(items) || items.length === 0) return [];
+
+  // Identify items that lack historical GST snapshot
+  const missingSnapshotItems = items.filter((it: any) => {
+    const hasHsn = Boolean(it.hsnCode && String(it.hsnCode).trim());
+    const hasGstRate = typeof it.gstRate === "number" && it.gstRate > 0;
+    const hasTaxable = typeof it.taxableAmount === "number" && it.taxableAmount > 0;
+    return !hasHsn && !hasGstRate && !hasTaxable;
+  });
+
+  let prodMap = new Map<string, any>();
+  if (missingSnapshotItems.length > 0) {
+    const productIds = missingSnapshotItems
+      .map((i: any) => i.productId || i.product?.id || i.product?._id || i._id)
+      .filter(Boolean);
+
+    if (productIds.length > 0) {
+      try {
+        const prods = await Product.find({ _id: { $in: productIds } }).lean();
+        prodMap = new Map(prods.map((p) => [String(p._id), p]));
+      } catch {
+        // ignore
+      }
+    }
+  }
+
+  return items.map((it: any) => {
+    const hasHsn = Boolean(it.hsnCode && String(it.hsnCode).trim());
+    const hasGstRate = typeof it.gstRate === "number" && it.gstRate > 0;
+    const hasTaxable = typeof it.taxableAmount === "number" && it.taxableAmount > 0;
+    const hasSnapshot = hasHsn || hasGstRate || hasTaxable;
+
+    // Only lookup current Product collection as a fallback when the item genuinely lacks historical snapshot
+    const prod = hasSnapshot ? null : prodMap.get(String(it.productId || it.product?.id || it.product?._id || it._id));
+
+    const name = it.name || it.product?.name || prod?.name || "Sacred Item";
+    const qty = Math.max(1, Number(it.qty) || 1);
+    const price =
+      typeof it.price === "number"
+        ? it.price
+        : typeof it.product?.price === "number"
+          ? it.product.price
+          : (prod?.price || 0);
+
+    // Prioritize historical snapshot values
+    const hsnCode = hasHsn
+      ? String(it.hsnCode).trim()
+      : (it.product?.hsnCode || prod?.hsnCode || "").trim();
+
+    const gstRate = hasGstRate
+      ? it.gstRate
+      : Number(it.product?.gstRate ?? prod?.gstRate ?? 0);
+
+    const gstInclusive =
+      it.gstInclusive !== undefined
+        ? it.gstInclusive
+        : it.product?.gstInclusive !== undefined
+          ? it.product.gstInclusive
+          : (prod?.gstInclusive !== false);
+
+    return {
+      name,
+      qty,
+      price,
+      hsnCode,
+      gstRate,
+      gstInclusive,
+      taxableAmount: it.taxableAmount,
+      gstAmount: it.gstAmount,
+    };
+  });
+}
+
 /**
  * Generates a clean, professional A4 commercial tax invoice PDF matching the WordPress reference.
  */
-export function generateInvoicePDF(data: InvoiceData): Promise<Buffer> {
+export async function generateInvoicePDF(data: InvoiceData): Promise<Buffer> {
+  const enrichedItems = await enrichInvoiceItems(data.items);
   return new Promise((resolve, reject) => {
     try {
       const doc = new PDFDocument({
@@ -250,7 +329,7 @@ export function generateInvoicePDF(data: InvoiceData): Promise<Buffer> {
       });
 
       // Compute GST Breakdown
-      const taxSummary = computeOrderTaxDetails(data.items, data.address);
+      const taxSummary = computeOrderTaxDetails(enrichedItems, data.address);
       const hasTaxBreakup = taxSummary.lines.some((l) => l.gstRate > 0);
 
       // ==========================================

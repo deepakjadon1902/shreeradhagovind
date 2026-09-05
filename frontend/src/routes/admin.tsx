@@ -1,5 +1,5 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   useStore,
   displayOrderNumber,
@@ -14,8 +14,10 @@ import {
   COURIERS,
 } from "@/lib/store";
 import { type Product } from "@/lib/products";
-import { api, isApiEnabled } from "@/lib/api";
+import { api, isApiEnabled, API_URL, getToken } from "@/lib/api";
 import { getCourierTrackingUrl } from "@/lib/courier";
+import { SimpleRichEditor, FormattedText } from "@/components/SimpleRichEditor";
+import { slugify } from "@/lib/seo";
 import { toast } from "sonner";
 import {
   Lock,
@@ -47,6 +49,13 @@ import {
   ExternalLink,
   MapPin,
   Calendar,
+  Eye,
+  EyeOff,
+  Copy,
+  Download,
+  ArrowLeft,
+  BookmarkCheck,
+  Globe,
 } from "lucide-react";
 
 export const Route = createFileRoute("/admin")({
@@ -72,12 +81,114 @@ type Tab =
 function errorMessage(error: unknown, fallback: string) {
   return error instanceof Error ? error.message : fallback;
 }
+const getErrorMessage = errorMessage;
 
 function paymentBadgeClass(status: Order["payment"]["status"]) {
   if (status === "paid") return "bg-green-600/10 text-green-700";
   if (status === "failed") return "bg-destructive/10 text-destructive";
   if (status === "refunded") return "bg-[var(--primary)]/10 text-[var(--primary)]";
   return "bg-amber-500/10 text-amber-700";
+}
+
+function formatOrderPrintDate(createdAt: string | number) {
+  try {
+    const d = new Date(createdAt);
+    const datePart = d.toLocaleDateString("en-IN", {
+      day: "numeric",
+      month: "short",
+      year: "numeric",
+    });
+    const timePart = d.toLocaleTimeString("en-IN", {
+      hour: "numeric",
+      minute: "2-digit",
+      hour12: true,
+    });
+    return `${datePart}, ${timePart}`;
+  } catch {
+    return String(createdAt);
+  }
+}
+
+async function downloadOrderInvoicePdf(order: Order) {
+  try {
+    const token = getToken();
+    const orderNum = displayOrderNumber(order);
+    const headers: Record<string, string> = {};
+    if (token) headers.Authorization = `Bearer ${token}`;
+    const res = await fetch(`${API_URL}/admin/orders/${order.id}/invoice`, { headers });
+    if (!res.ok) {
+      throw new Error(`Failed to download invoice (${res.status})`);
+    }
+    const blob = await res.blob();
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `Invoice-${orderNum}.pdf`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    window.URL.revokeObjectURL(url);
+    toast.success(`Invoice for Order #${orderNum} downloaded`);
+  } catch (err: any) {
+    toast.error(err?.message || "Failed to download invoice");
+  }
+}
+
+function generateOrderShippingPlainText(order: Order): string {
+  const lines: string[] = [];
+  const name = (order.address?.name || "").trim() || "Customer";
+  lines.push(name);
+
+  if (order.address?.line1?.trim()) {
+    lines.push(order.address.line1.trim());
+  }
+  if (order.address?.line2?.trim()) {
+    lines.push(order.address.line2.trim());
+  }
+  if (order.address?.postOffice?.trim()) {
+    lines.push(order.address.postOffice.trim());
+  }
+
+  const city = (order.address?.city || "").trim();
+  const pincode = (order.address?.pincode || "").trim();
+  if (city && pincode) {
+    lines.push(`${city} - ${pincode}`);
+  } else if (city) {
+    lines.push(city);
+  } else if (pincode) {
+    lines.push(pincode);
+  }
+
+  if (order.address?.state?.trim()) {
+    lines.push(order.address.state.trim());
+  }
+
+  const phone = (order.address?.phone || "").trim();
+  if (phone) {
+    lines.push(`Phone: ${phone}`);
+  }
+
+  const altPhone = (order.address?.alternatePhone || order.alternatePhone || "").trim();
+  if (altPhone && altPhone !== phone) {
+    lines.push(`Alt No.: ${altPhone}`);
+  }
+
+  const num = displayOrderNumber(order);
+  lines.push(`Order No. #${num}`);
+
+  return lines.join("\n");
+}
+
+function formatOrderPaymentMethod(method?: string, status?: string) {
+  const m = method
+    ? method.toLowerCase() === "razorpay"
+      ? "Razorpay"
+      : method.toUpperCase()
+    : "COD";
+  const s = status
+    ? status.charAt(0).toUpperCase() + status.slice(1).toLowerCase()
+    : "Pending";
+  return `${m} — ${s}`;
 }
 
 function AdminRoot() {
@@ -95,6 +206,7 @@ function AdminRoot() {
     categories,
     categoryDetails,
     categoryTree,
+    adminCategoryTree,
     saveCategory,
     deleteCategory,
     reorderCategories,
@@ -192,8 +304,8 @@ function AdminRoot() {
     );
   }
 
-  const revenue = orders.reduce((s, o) => s + o.total, 0);
-  const pending = orders.filter((o) => o.status !== "Delivered").length;
+  const revenue = (orders || []).reduce((s, o) => s + (Number(o?.total) || 0), 0);
+  const pending = (orders || []).filter((o) => o?.status !== "Delivered").length;
 
   const openNewProduct = () => setPickCat("");
 
@@ -205,14 +317,20 @@ function AdminRoot() {
       category,
       price: 0,
       mrp: 0,
-      rating: 0,
-      reviews: 0,
+      rating: 5,
+      reviews: 1,
       image: "",
       images: [],
       featuredDeal: false,
       description: "",
       details: [],
-      stock: 0,
+      stock: 100,
+      hsnCode: "",
+      gstRate: 0,
+      gstInclusive: true,
+      isTaxable: true,
+      metaTitle: "",
+      metaDescription: "",
     });
   };
 
@@ -232,35 +350,66 @@ function AdminRoot() {
             </span>
           </div>
         </div>
-        <nav className="flex gap-1 overflow-x-auto pb-2 md:block md:space-y-1 md:overflow-visible md:pb-0 md:flex-1">
-          <NavBtn active={tab === "dash"} onClick={() => setTab("dash")} icon={LayoutDashboard}>
-            Dashboard
-          </NavBtn>
-          <NavBtn active={tab === "categories"} onClick={() => setTab("categories")} icon={Tag}>
-            Categories
-          </NavBtn>
-          <NavBtn active={tab === "blogs"} onClick={() => setTab("blogs")} icon={FileText}>
-            Blogs
-          </NavBtn>
-          <NavBtn active={tab === "products"} onClick={() => setTab("products")} icon={Package}>
-            Products
-          </NavBtn>
-          <NavBtn active={tab === "orders"} onClick={() => setTab("orders")} icon={ShoppingCart}>
-            Orders
-          </NavBtn>
-          <NavBtn active={tab === "payments"} onClick={() => setTab("payments")} icon={CreditCard}>
-            Payments
-          </NavBtn>
-          <NavBtn active={tab === "users"} onClick={() => setTab("users")} icon={Users}>
-            Users
-          </NavBtn>
-          <NavBtn
-            active={tab === "settings"}
-            onClick={() => setTab("settings")}
-            icon={SettingsIcon}
-          >
-            Settings
-          </NavBtn>
+        <nav className="flex gap-1 overflow-x-auto pb-2 md:block md:space-y-4 md:overflow-visible md:pb-0 md:flex-1">
+          <div>
+            <span className="hidden md:block px-3 mb-1 text-[10px] font-bold uppercase tracking-[0.16em] text-white/40">
+              STORE
+            </span>
+            <div className="flex md:block space-x-1 md:space-x-0 md:space-y-1">
+              <NavBtn active={tab === "dash"} onClick={() => setTab("dash")} icon={LayoutDashboard}>
+                Dashboard
+              </NavBtn>
+              <NavBtn active={tab === "products"} onClick={() => setTab("products")} icon={Package}>
+                Products
+              </NavBtn>
+              <NavBtn active={tab === "categories"} onClick={() => setTab("categories")} icon={Tag}>
+                Categories
+              </NavBtn>
+              <NavBtn active={tab === "orders"} onClick={() => setTab("orders")} icon={ShoppingCart}>
+                Orders
+              </NavBtn>
+              <NavBtn active={tab === "users"} onClick={() => setTab("users")} icon={Users}>
+                Customers
+              </NavBtn>
+            </div>
+          </div>
+
+          <div>
+            <span className="hidden md:block px-3 mb-1 text-[10px] font-bold uppercase tracking-[0.16em] text-white/40">
+              CONTENT
+            </span>
+            <div className="flex md:block space-x-1 md:space-x-0 md:space-y-1">
+              <NavBtn active={tab === "blogs"} onClick={() => setTab("blogs")} icon={FileText}>
+                Blog
+              </NavBtn>
+            </div>
+          </div>
+
+          <div>
+            <span className="hidden md:block px-3 mb-1 text-[10px] font-bold uppercase tracking-[0.16em] text-white/40">
+              FINANCE
+            </span>
+            <div className="flex md:block space-x-1 md:space-x-0 md:space-y-1">
+              <NavBtn active={tab === "payments"} onClick={() => setTab("payments")} icon={CreditCard}>
+                Payments
+              </NavBtn>
+            </div>
+          </div>
+
+          <div>
+            <span className="hidden md:block px-3 mb-1 text-[10px] font-bold uppercase tracking-[0.16em] text-white/40">
+              STORE SETTINGS
+            </span>
+            <div className="flex md:block space-x-1 md:space-x-0 md:space-y-1">
+              <NavBtn
+                active={tab === "settings"}
+                onClick={() => setTab("settings")}
+                icon={SettingsIcon}
+              >
+                Settings
+              </NavBtn>
+            </div>
+          </div>
         </nav>
         <div className="mt-3 flex items-center gap-4 border-t border-primary-foreground/15 pt-3 md:block">
           <button
@@ -287,23 +436,23 @@ function AdminRoot() {
               </p>
               <div className="mt-2 flex flex-wrap items-end justify-between gap-4">
                 <div>
-                  <h1 className="font-display text-4xl">Dashboard</h1>
-                  <p className="mt-1 text-sm text-white/65">
-                    Track revenue, orders, products, payments, and customer activity.
+                  <h1 className="font-display text-4xl">Store Overview</h1>
+                  <p className="mt-1 text-sm text-white/75">
+                    Manage your store, orders, products and customers.
                   </p>
                 </div>
                 <Link
                   to="/"
-                  className="inline-flex h-10 items-center rounded-md border border-white/20 px-4 text-sm font-semibold text-white hover:bg-white/10"
+                  className="inline-flex h-10 items-center rounded-md border border-white/20 px-4 text-sm font-semibold text-white hover:bg-white/10 transition"
                 >
                   View storefront
                 </Link>
               </div>
             </section>
             <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4 mt-6">
-              <Stat icon={IndianRupee} label="Revenue" value={formatINR(revenue)} />
-              <Stat icon={ShoppingCart} label="Total Orders" value={String(orders.length)} />
-              <Stat icon={TrendingUp} label="Pending" value={String(pending)} />
+              <Stat icon={IndianRupee} label="Total Sales" value={formatINR(revenue)} />
+              <Stat icon={ShoppingCart} label="Orders" value={String(orders.length)} />
+              <Stat icon={TrendingUp} label="Pending Orders" value={String(pending)} />
               <Stat icon={Package} label="Products" value={String(adminProducts.length)} />
             </div>
             <div className="mt-8 bg-white rounded-lg border border-border p-6 premium-shadow">
@@ -337,11 +486,11 @@ function AdminRoot() {
                     {orders.slice(0, 5).map((o) => (
                       <tr key={o.id} className="border-t">
                         <td className="py-3">#{displayOrderNumber(o)}</td>
-                        <td>{o.address.name}</td>
+                        <td>{o.address?.name || "Customer"}</td>
                         <td>{formatINR(o.total)}</td>
                         <td>
-                          <span className="px-2 py-0.5 rounded-full bg-primary/10 text-primary text-xs">
-                            {o.status}
+                          <span className="px-2 py-0.5 rounded-full bg-primary/10 text-primary text-xs font-medium">
+                            {o.status || "Placed"}
                           </span>
                         </td>
                       </tr>
@@ -356,7 +505,7 @@ function AdminRoot() {
         {tab === "categories" && (
           <CategoryManager
             categories={categoryDetails}
-            tree={categoryTree}
+            tree={adminCategoryTree}
             products={adminProducts}
             onSave={saveCategory}
             onDelete={deleteCategory}
@@ -399,10 +548,14 @@ function AdminRoot() {
                       <td>{pr.category}</td>
                       <td className="font-medium">{formatINR(pr.price)}</td>
                       <td className="text-xs">
-                        <span className="font-mono text-muted-foreground">{pr.hsnCode || "-"}</span>
-                        <span className="ml-1.5 px-1.5 py-0.5 rounded bg-teal-50 border border-teal-200 text-teal-800 text-[10px] font-semibold">
-                          {pr.gstRate ? `${pr.gstRate}%` : "0%"}
-                        </span>
+                        <div className="flex items-center gap-1.5 font-mono">
+                          <span className="text-muted-foreground font-medium">
+                            {pr.hsnCode ? pr.hsnCode : "-"}
+                          </span>
+                          <span className="px-1.5 py-0.5 rounded bg-teal-50 border border-teal-200 text-teal-800 text-[10px] font-semibold">
+                            {pr.gstRate !== undefined && pr.gstRate !== null ? `${pr.gstRate}%` : "0%"}
+                          </span>
+                        </div>
                       </td>
                       <td>{pr.stock}</td>
                       <td className="p-4">
@@ -410,6 +563,7 @@ function AdminRoot() {
                           <button
                             onClick={() => setEditing(pr)}
                             className="p-2 hover:bg-muted rounded-lg"
+                            title="Edit product"
                           >
                             <Pencil className="h-4 w-4" />
                           </button>
@@ -418,6 +572,7 @@ function AdminRoot() {
                               if (confirm("Delete this product?")) deleteProduct(pr.id);
                             }}
                             className="p-2 hover:bg-destructive/10 hover:text-destructive rounded-lg"
+                            title="Delete product"
                           >
                             <Trash2 className="h-4 w-4" />
                           </button>
@@ -430,6 +585,7 @@ function AdminRoot() {
             </div>
             {pickCat !== null && (
               <CategoryPicker
+                tree={adminCategoryTree}
                 categories={categories}
                 onPick={createWithCategory}
                 onClose={() => setPickCat(null)}
@@ -438,6 +594,7 @@ function AdminRoot() {
             {editing && (
               <ProductEditor
                 product={editing}
+                tree={adminCategoryTree}
                 categories={categories}
                 onClose={() => setEditing(null)}
                 onSave={(p) => {
@@ -510,12 +667,12 @@ function AdminRoot() {
             <div className="mt-6 space-y-4">
               {(() => {
                 const q = orderSearch.trim().toLowerCase().replace(/^#/, "");
-                const filtered = orders.filter((o) => {
+                const filtered = (orders || []).filter((o) => {
                   if (orderStatusFilter !== "all" && o.status !== orderStatusFilter) return false;
                   if (!q) return true;
                   const numStr = displayOrderNumber(o).toLowerCase();
-                  const nameStr = (o.address.name || "").toLowerCase();
-                  const phoneStr = (o.address.phone || "").toLowerCase();
+                  const nameStr = (o.address?.name || "").toLowerCase();
+                  const phoneStr = (o.address?.phone || "").toLowerCase();
                   const trackingStr = (o.trackingId || "").toLowerCase();
                   const courierStr = (o.courier || "").toLowerCase();
                   return (
@@ -538,18 +695,20 @@ function AdminRoot() {
                 }
 
                 return filtered.map((o) => {
-                  const trackingUrl = o.courierTrackingUrl || getCourierTrackingUrl(o.courier, o.trackingId);
-                  const isPaid = o.payment.status === "paid";
-                  const isFailed = o.payment.status === "failed";
+                  const customerName = o.address?.name || "Customer";
+                  const dateStr = formatOrderPrintDate(o.createdAt);
+                  const paymentMethodStr = o.payment?.method === "razorpay" ? "Online (Razorpay)" : "Cash on Delivery (COD)";
+                  const paymentStatusStr = (o.payment?.status || "pending").toUpperCase();
+                  const grandTotalStr = formatINR(o.total);
+
                   return (
                     <div
                       key={o.id}
-                      className="bg-white rounded-xl border border-border p-5 premium-shadow hover:border-primary/40 transition flex flex-col md:flex-row items-start md:items-center justify-between gap-5"
+                      className="bg-white rounded-xl border border-border p-4 sm:p-5 shadow-sm hover:border-primary/40 transition flex flex-col sm:flex-row sm:items-center justify-between gap-4 font-sans select-text"
                     >
-                      {/* Left Block: Order ID, Date, Items, Customer & Address */}
-                      <div className="flex-1 min-w-0 space-y-2">
+                      <div className="space-y-1.5 min-w-0">
                         <div className="flex flex-wrap items-center gap-2.5">
-                          <span className="font-display text-lg font-bold text-primary tracking-tight">
+                          <span className="font-bold text-base sm:text-lg text-foreground">
                             Order #{displayOrderNumber(o)}
                           </span>
                           <span
@@ -558,95 +717,66 @@ function AdminRoot() {
                                 ? "bg-green-600/10 text-green-700"
                                 : o.status === "Cancelled"
                                   ? "bg-destructive/10 text-destructive"
-                                  : o.status === "Shipped" || o.status === "Out for delivery"
-                                    ? "bg-amber-500/10 text-amber-700"
-                                    : "bg-primary/10 text-primary"
+                                  : "bg-primary/10 text-primary"
                             }`}
                           >
-                            {o.status}
+                            {o.status || "Placed"}
                           </span>
-                          <span className="text-xs text-muted-foreground flex items-center gap-1">
-                            <Calendar className="h-3 w-3" />
-                            {new Date(o.createdAt).toLocaleString("en-IN", {
-                              dateStyle: "medium",
-                              timeStyle: "short",
-                            })}
-                          </span>
-                        </div>
-
-                        {/* Customer & Address Details */}
-                        <div className="text-xs text-foreground/85 leading-relaxed">
-                          <p className="font-semibold text-foreground">
-                            {o.address.name}{" "}
-                            {o.address.phone && (
-                              <a
-                                href={`tel:${o.address.phone}`}
-                                className="font-normal text-muted-foreground hover:text-primary ml-1"
-                              >
-                                (📞 {o.address.phone})
-                              </a>
-                            )}
-                          </p>
-                          <p className="text-muted-foreground truncate">
-                            📍 {o.address.line1 ? `${o.address.line1}, ` : ""}
-                            {[o.address.city, o.address.state, o.address.pincode].filter(Boolean).join(", ")}
-                          </p>
-                        </div>
-
-                        {/* Tracking Details Badge */}
-                        <div className="flex flex-wrap items-center gap-2 pt-1">
-                          {o.trackingId ? (
-                            <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-teal-50 border border-teal-200 text-teal-900 text-xs font-mono">
-                              <span className="text-[10px] font-sans font-bold uppercase text-teal-700">AWB:</span>
-                              <span className="font-bold">{o.trackingId}</span>
-                              {o.courier && <span className="font-sans text-teal-700 font-semibold">• {o.courier}</span>}
-                              {trackingUrl && (
-                                <a
-                                  href={trackingUrl}
-                                  target="_blank"
-                                  rel="noreferrer"
-                                  title="Open courier tracking page"
-                                  className="text-primary hover:underline ml-1"
-                                >
-                                  <ExternalLink className="h-3 w-3 inline" />
-                                </a>
-                              )}
-                            </div>
-                          ) : (
-                            <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-md bg-muted text-muted-foreground text-xs">
-                              <Truck className="h-3 w-3" /> Tracking ID not assigned
-                            </span>
-                          )}
                           <span className="text-xs text-muted-foreground">
-                            • {o.items.length} {o.items.length === 1 ? "item" : "items"}
+                            • Placed on {dateStr}
                           </span>
+                        </div>
+
+                        <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted-foreground">
+                          <div>
+                            <span className="text-muted-foreground">Customer: </span>
+                            <span className="font-semibold text-foreground">{customerName}</span>
+                            {o.address?.phone && <span className="text-muted-foreground ml-1">({o.address.phone})</span>}
+                          </div>
+                          <div>
+                            <span className="text-muted-foreground">Payment: </span>
+                            <span className="font-medium text-foreground">{paymentMethodStr}</span>
+                            <span className={`ml-1.5 px-1.5 py-0.5 rounded text-[11px] font-semibold ${paymentBadgeClass(o.payment?.status)}`}>
+                              {paymentStatusStr}
+                            </span>
+                          </div>
                         </div>
                       </div>
 
-                      {/* Right Block: Total, Payment, Actions */}
-                      <div className="flex items-center md:flex-col md:items-end justify-between w-full md:w-auto gap-3 pt-3 md:pt-0 border-t md:border-t-0">
-                        <div className="text-left md:text-right">
-                          <p className="font-display text-lg font-bold text-foreground">{formatINR(o.total)}</p>
-                          <span
-                            className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-semibold uppercase tracking-wider ${
-                              isPaid
-                                ? "bg-green-600/10 text-green-700"
-                                : isFailed
-                                  ? "bg-destructive/10 text-destructive"
-                                  : "bg-amber-500/10 text-amber-700"
-                            }`}
-                          >
-                            <CreditCard className="h-3 w-3" />
-                            {o.payment.method} • {o.payment.status}
-                          </span>
+                      <div className="flex flex-wrap items-center justify-between sm:justify-end gap-4 shrink-0 pt-2 sm:pt-0 border-t sm:border-t-0 border-border/50">
+                        <div className="text-left sm:text-right">
+                          <div className="text-[11px] text-muted-foreground uppercase tracking-wider font-semibold">Grand Total</div>
+                          <div className="font-display font-bold text-base sm:text-xl text-primary">
+                            {grandTotalStr}
+                          </div>
                         </div>
 
-                        <button
-                          onClick={() => setEditingOrder(o)}
-                          className="h-10 px-5 rounded-lg bg-primary text-primary-foreground text-sm font-semibold inline-flex items-center gap-2 hover:bg-primary/90 transition shadow-sm shrink-0"
-                        >
-                          <Truck className="h-4 w-4" /> Manage Order
-                        </button>
+                        <div className="flex items-center gap-2">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              try {
+                                const txt = generateOrderShippingPlainText(o);
+                                navigator.clipboard.writeText(txt);
+                                toast.success(`Order #${displayOrderNumber(o)} shipping details copied`);
+                              } catch {
+                                toast.error("Failed to copy order details");
+                              }
+                            }}
+                            className="h-9 px-3 rounded-lg border border-border bg-card text-xs font-semibold hover:bg-muted text-foreground transition inline-flex items-center gap-1.5 shadow-sm"
+                            title="Copy minimal shipping address & order label to clipboard"
+                          >
+                            <Copy className="h-3.5 w-3.5 text-muted-foreground" />
+                            <span>Copy Order Details</span>
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setEditingOrder(o)}
+                            className="h-9 px-4 rounded-lg bg-primary text-primary-foreground text-xs font-semibold hover:bg-primary/90 transition shadow-sm"
+                          >
+                            Manage Order
+                          </button>
+                        </div>
                       </div>
                     </div>
                   );
@@ -679,27 +809,27 @@ function AdminRoot() {
                 icon={IndianRupee}
                 label="Total Received"
                 value={formatINR(
-                  orders
-                    .filter((o) => o.payment.status === "paid")
-                    .reduce((s, o) => s + o.total, 0),
+                  (orders || [])
+                    .filter((o) => o?.payment?.status === "paid")
+                    .reduce((s, o) => s + (Number(o?.total) || 0), 0),
                 )}
               />
               <Stat
                 icon={IndianRupee}
                 label="Pending / Processing"
                 value={formatINR(
-                  orders
-                    .filter((o) => o.payment.status === "pending")
-                    .reduce((s, o) => s + o.total, 0),
+                  (orders || [])
+                    .filter((o) => o?.payment?.status === "pending")
+                    .reduce((s, o) => s + (Number(o?.total) || 0), 0),
                 )}
               />
               <Stat
                 icon={XIcon}
                 label="Failed"
                 value={formatINR(
-                  orders
-                    .filter((o) => o.payment.status === "failed")
-                    .reduce((s, o) => s + o.total, 0),
+                  (orders || [])
+                    .filter((o) => o?.payment?.status === "failed")
+                    .reduce((s, o) => s + (Number(o?.total) || 0), 0),
                 )}
               />
               <Stat icon={CreditCard} label="Transactions" value={String(orders.length)} />
@@ -730,16 +860,16 @@ function AdminRoot() {
                     <tr key={o.id} className="border-t">
                       <td className="p-4 font-mono text-xs">TXN{displayOrderNumber(o)}</td>
                       <td>#{displayOrderNumber(o)}</td>
-                      <td>{o.address.name}</td>
-                      <td className="uppercase text-xs">{o.payment.method}</td>
+                      <td>{o.address?.name || "Customer"}</td>
+                      <td className="uppercase text-xs">{o.payment?.method || "cod"}</td>
                       <td className="font-medium">{formatINR(o.total)}</td>
                       <td>
                         <span
-                          className={`px-2 py-0.5 rounded-full text-xs ${paymentBadgeClass(o.payment.status)}`}
+                          className={`px-2 py-0.5 rounded-full text-xs ${paymentBadgeClass(o.payment?.status || "pending")}`}
                         >
-                          {o.payment.status}
+                          {o.payment?.status || "pending"}
                         </span>
-                        {o.payment.failureReason && (
+                        {o.payment?.failureReason && (
                           <p className="mt-1 max-w-44 truncate text-[11px] text-muted-foreground">
                             {o.payment.failureReason}
                           </p>
@@ -752,7 +882,7 @@ function AdminRoot() {
                               if (confirm("Mark as PAID and send invoice email?"))
                                 verifyOrderPayment(o.id, "paid");
                             }}
-                            disabled={o.payment.status === "paid"}
+                            disabled={o.payment?.status === "paid"}
                             className="p-1.5 rounded-md bg-green-600/10 text-green-700 hover:bg-green-600/20 disabled:opacity-30"
                             title="Mark paid"
                           >
@@ -760,7 +890,7 @@ function AdminRoot() {
                           </button>
                           <button
                             onClick={() => verifyOrderPayment(o.id, "pending")}
-                            disabled={o.payment.status === "pending"}
+                            disabled={o.payment?.status === "pending"}
                             className="p-1.5 rounded-md bg-amber-500/10 text-amber-700 hover:bg-amber-500/20 disabled:opacity-30"
                             title="Mark pending"
                           >
@@ -771,7 +901,7 @@ function AdminRoot() {
                               if (confirm("Mark as FAILED, auto-cancel order, and email user?"))
                                 verifyOrderPayment(o.id, "failed");
                             }}
-                            disabled={o.payment.status === "failed"}
+                            disabled={o.payment?.status === "failed"}
                             className="p-1.5 rounded-md bg-destructive/10 text-destructive hover:bg-destructive/20 disabled:opacity-30"
                             title="Mark failed"
                           >
@@ -779,7 +909,7 @@ function AdminRoot() {
                           </button>
                           <button
                             onClick={() => verifyOrderPayment(o.id, "refunded")}
-                            disabled={o.payment.status === "refunded"}
+                            disabled={o.payment?.status === "refunded"}
                             className="p-1.5 rounded-md bg-[var(--primary)]/10 text-[var(--primary)] hover:bg-[var(--primary)]/20 disabled:opacity-30"
                             title="Mark refunded"
                           >
@@ -966,40 +1096,100 @@ function Stat({ icon: Icon, label, value }: { icon: typeof Users; label: string;
 }
 
 function CategoryPicker({
+  tree,
   categories,
   onPick,
   onClose,
 }: {
+  tree: (Category & { children: Category[] })[];
   categories: string[];
   onPick: (c: string) => void;
   onClose: () => void;
 }) {
+  const [selectedParent, setSelectedParent] = useState<(Category & { children: Category[] }) | null>(null);
+
   return (
     <div className="fixed inset-0 bg-black/50 z-50 grid place-items-center p-4" onClick={onClose}>
       <div
-        className="bg-white rounded-lg border border-border p-6 w-full max-w-md"
+        className="bg-white rounded-xl border border-border p-6 w-full max-w-lg shadow-2xl"
         onClick={(e) => e.stopPropagation()}
       >
-        <h2 className="font-display text-2xl mb-2">Select a category</h2>
-        <p className="text-sm text-muted-foreground mb-4">
-          Choose the category this new product belongs to.
-        </p>
-        {categories.length === 0 ? (
-          <p className="text-sm text-muted-foreground py-6 text-center">
-            No categories yet. Add one from the Categories tab first.
-          </p>
+        {!selectedParent ? (
+          <>
+            <h2 className="font-display text-2xl mb-1">Select Main Category</h2>
+            <p className="text-xs text-muted-foreground mb-4">
+              Choose the parent category for your new product.
+            </p>
+            {tree.length === 0 ? (
+              <div className="grid grid-cols-2 gap-2 max-h-80 overflow-y-auto">
+                {categories.map((c) => (
+                  <button
+                    key={c}
+                    onClick={() => onPick(c)}
+                    className="p-3.5 rounded-lg border-2 border-border hover:border-primary hover:bg-primary/5 text-sm font-medium text-left transition"
+                  >
+                    {c}
+                  </button>
+                ))}
+              </div>
+            ) : (
+              <div className="grid grid-cols-2 gap-2.5 max-h-80 overflow-y-auto">
+                {tree.map((parent) => (
+                  <button
+                    key={parent.id}
+                    onClick={() => {
+                      if (parent.children.length === 0) {
+                        onPick(parent.name);
+                      } else {
+                        setSelectedParent(parent);
+                      }
+                    }}
+                    className="p-3.5 rounded-lg border-2 border-border hover:border-primary hover:bg-primary/5 text-sm font-semibold text-left transition flex flex-col justify-between group"
+                  >
+                    <span>{parent.name}</span>
+                    <span className="text-[11px] text-muted-foreground mt-1 font-normal group-hover:text-primary">
+                      {parent.children.length > 0 ? `${parent.children.length} subcategories →` : "Direct category"}
+                    </span>
+                  </button>
+                ))}
+              </div>
+            )}
+          </>
         ) : (
-          <div className="grid grid-cols-2 gap-2 max-h-80 overflow-y-auto">
-            {categories.map((c) => (
+          <>
+            <div className="flex items-center gap-2 mb-1">
               <button
-                key={c}
-                onClick={() => onPick(c)}
-                className="p-4 rounded-lg border-2 border-border hover:border-primary hover:bg-primary/5 text-sm font-medium text-left transition"
+                type="button"
+                onClick={() => setSelectedParent(null)}
+                className="text-xs font-semibold text-primary hover:underline"
               >
-                {c}
+                ← Back to categories
               </button>
-            ))}
-          </div>
+            </div>
+            <h2 className="font-display text-2xl mb-1">Select Subcategory</h2>
+            <p className="text-xs text-muted-foreground mb-4">
+              Parent Category: <strong className="text-foreground">{selectedParent.name}</strong>
+            </p>
+            <div className="space-y-2 max-h-80 overflow-y-auto">
+              <button
+                onClick={() => onPick(selectedParent.name)}
+                className="w-full p-3 rounded-lg border-2 border-dashed border-border hover:border-primary hover:bg-primary/5 text-sm font-medium text-left transition"
+              >
+                <span className="font-semibold">{selectedParent.name}</span>
+                <span className="block text-xs text-muted-foreground">Directly in main category (No subcategory)</span>
+              </button>
+              {selectedParent.children.map((child) => (
+                <button
+                  key={child.id}
+                  onClick={() => onPick(child.name)}
+                  className="w-full p-3 rounded-lg border-2 border-border hover:border-primary hover:bg-primary/5 text-sm font-semibold text-left transition flex items-center justify-between"
+                >
+                  <span>{child.name}</span>
+                  <span className="text-xs text-primary font-medium">Select →</span>
+                </button>
+              ))}
+            </div>
+          </>
         )}
         <div className="flex justify-end mt-5">
           <button onClick={onClose} className="h-10 px-5 rounded-full border text-sm">
@@ -1013,21 +1203,73 @@ function CategoryPicker({
 
 function ProductEditor({
   product,
+  tree,
   categories,
   onClose,
   onSave,
 }: {
   product: Product;
+  tree: (Category & { children?: Category[] })[];
   categories: string[];
   onClose: () => void;
   onSave: (p: Product) => Promise<void> | void;
 }) {
-  const [p, setP] = useState<Product>(product);
+  const [p, setP] = useState<Product>(() => ({
+    id: product?.id ?? "",
+    slug: product?.slug ?? "",
+    name: product?.name ?? "",
+    category: product?.category ?? "",
+    price: Number(product?.price) || 0,
+    mrp: Number(product?.mrp) || 0,
+    stock: Number(product?.stock ?? 100),
+    rating: Number(product?.rating ?? 5),
+    reviews: Number(product?.reviews ?? 1),
+    image: product?.image ?? "",
+    images: Array.isArray(product?.images) ? product.images : [],
+    featuredDeal: Boolean(product?.featuredDeal),
+    description: product?.description ?? "",
+    details: Array.isArray(product?.details) ? product.details : [],
+    hsnCode: product?.hsnCode ?? "",
+    gstRate: product?.gstRate !== undefined && product?.gstRate !== null ? Number(product.gstRate) : 0,
+    gstInclusive: product?.gstInclusive !== false,
+    isTaxable: product?.isTaxable !== false,
+    metaTitle: product?.metaTitle ?? "",
+    metaDescription: product?.metaDescription ?? "",
+  }));
   const [saving, setSaving] = useState(false);
 
+  const safeTree: (Category & { children?: Category[] })[] = useMemo(
+    () => (Array.isArray(tree) ? tree : []),
+    [tree]
+  );
+
+  // Find parent category for current product
+  const initialParent = useMemo(() => {
+    return (
+      safeTree.find(
+        (parent: Category & { children?: Category[] }) =>
+          parent.name === p.category ||
+          (Array.isArray(parent.children) && parent.children.some((child: Category) => child?.name === p.category))
+      ) ||
+      safeTree[0] ||
+      null
+    );
+  }, [safeTree, p.category]);
+
+  const [selectedParentId, setSelectedParentId] = useState<string>(initialParent?.id || "");
+
+  const currentParent = useMemo(() => {
+    return (
+      safeTree.find((t: Category & { children?: Category[] }) => t.id === selectedParentId) ||
+      initialParent ||
+      safeTree[0] ||
+      null
+    );
+  }, [safeTree, selectedParentId, initialParent]);
+
   const submit = async () => {
-    const name = p.name.trim();
-    const category = p.category.trim();
+    const name = (p.name || "").trim();
+    const category = (p.category || "").trim();
     if (!name) return toast.error("Product name is required");
     if (!category) return toast.error("Please choose a category");
     if (p.price < 0 || p.mrp < 0 || p.stock < 0) {
@@ -1046,6 +1288,8 @@ function ProductEditor({
         gstRate: Number(p.gstRate) || 0,
         gstInclusive: p.gstInclusive !== false,
         isTaxable: p.isTaxable !== false,
+        metaTitle: (p.metaTitle || "").trim(),
+        metaDescription: (p.metaDescription || "").trim(),
         rating: Math.max(0, Math.min(5, Number(p.rating) || 0)),
         reviews: Math.max(0, Number(p.reviews) || 0),
       });
@@ -1072,67 +1316,160 @@ function ProductEditor({
   return (
     <div className="fixed inset-0 bg-black/50 z-50 grid place-items-center p-4" onClick={onClose}>
       <div
-        className="bg-white rounded-lg border border-border p-6 w-full max-w-lg max-h-[90vh] overflow-y-auto"
+        className="bg-white rounded-xl border border-border p-6 w-full max-w-xl max-h-[90vh] overflow-y-auto shadow-2xl"
         onClick={(e) => e.stopPropagation()}
       >
         <h2 className="font-display text-2xl mb-1">
-          {product.id ? "Edit Product" : "New Product"}
+          {product?.id ? "Edit Product" : "New Product"}
         </h2>
         <p className="text-xs text-muted-foreground mb-4">
-          Category: <span className="font-medium text-foreground">{p.category}</span>
+          Current Category: <span className="font-semibold text-foreground">{p.category || "None"}</span>
         </p>
-        <div className="space-y-3">
-          <In label="Name" value={p.name} onChange={(v) => setP({ ...p, name: v })} />
-          <div className="grid grid-cols-2 gap-3">
+
+        <div className="space-y-6">
+          {/* Section 1: Basic Information */}
+          <div className="rounded-xl border border-border bg-[#FDFBF7] p-4 space-y-3 shadow-sm">
+            <span className="text-xs font-bold uppercase tracking-wider text-[#166F77] block border-b border-border/60 pb-2">
+              1. Basic Information (बुनियादी जानकारी)
+            </span>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <label className="text-sm block">
+                <span className="text-muted-foreground text-xs font-medium">Main Category (मुख्य श्रेणी)</span>
+                <select
+                  value={selectedParentId || (currentParent?.id ?? "")}
+                  onChange={(e) => {
+                    const newParentId = e.target.value;
+                    setSelectedParentId(newParentId);
+                    const newParent = safeTree.find((t: Category & { children?: Category[] }) => t.id === newParentId);
+                    if (newParent) {
+                      const firstSub =
+                        newParent.children && newParent.children.length > 0
+                          ? newParent.children[0].name
+                          : newParent.name;
+                      setP((prev) => ({ ...prev, category: firstSub }));
+                    }
+                  }}
+                  className="mt-1 w-full h-11 rounded-lg border bg-white px-3 text-sm font-medium focus:outline-none focus:border-primary"
+                >
+                  {safeTree.length > 0 ? (
+                    safeTree.map((parent: Category & { children?: Category[] }) => (
+                      <option key={parent.id} value={parent.id}>
+                        {parent.name} {!parent.isActive ? "(Hidden)" : ""}
+                      </option>
+                    ))
+                  ) : (
+                    categories.map((c) => (
+                      <option key={c} value={c}>
+                        {c}
+                      </option>
+                    ))
+                  )}
+                </select>
+              </label>
+
+              <label className="text-sm block">
+                <span className="text-muted-foreground text-xs font-medium">Subcategory (उप श्रेणी)</span>
+                <select
+                  value={p.category}
+                  onChange={(e) => setP((prev) => ({ ...prev, category: e.target.value }))}
+                  className="mt-1 w-full h-11 rounded-lg border bg-white px-3 text-sm font-medium focus:outline-none focus:border-primary"
+                >
+                  {currentParent ? (
+                    <>
+                      <option value={currentParent.name}>
+                        {currentParent.name} (Direct / Main Category)
+                      </option>
+                      {(currentParent.children || []).map((child: Category) => (
+                        <option key={child.id} value={child.name}>
+                          {child.name} {!child.isActive ? "(Hidden)" : ""}
+                        </option>
+                      ))}
+                      {p.category &&
+                        p.category !== currentParent.name &&
+                        !(currentParent.children || []).some((c: Category) => c.name === p.category) && (
+                          <option value={p.category}>{p.category} (Current)</option>
+                        )}
+                    </>
+                  ) : (
+                    categories.map((c) => (
+                      <option key={c} value={c}>
+                        {c}
+                      </option>
+                    ))
+                  )}
+                </select>
+              </label>
+            </div>
+
             <In
-              label="Selling Price (Rs. )"
-              type="number"
-              value={String(p.price)}
-              onChange={(v) => setP({ ...p, price: +v })}
+              label="Product Title / Name (स्टोरफ़्रंट शीर्षक - ग्राहकों को दिखने वाला नाम)"
+              placeholder="e.g. Tulsi Kanthi Mala (3 Round) – Original Handmade"
+              value={p.name}
+              onChange={(v) => setP({ ...p, name: v })}
             />
-            <In
-              label="MRP (Rs. )"
-              type="number"
-              value={String(p.mrp)}
-              onChange={(v) => setP({ ...p, mrp: +v })}
-            />
-            <In
-              label="Stock"
-              type="number"
-              value={String(p.stock)}
-              onChange={(v) => setP({ ...p, stock: +v })}
-            />
-            <label className="text-sm">
-              <span className="text-muted-foreground text-xs">Category</span>
-              <select
-                value={p.category}
-                onChange={(e) => setP({ ...p, category: e.target.value })}
-                className="mt-1 w-full h-11 rounded-lg border px-3 bg-background"
-              >
-                {categories.map((c) => (
-                  <option key={c}>{c}</option>
-                ))}
-              </select>
+
+            <label className="flex items-start gap-3 rounded-lg border border-border bg-white p-3 text-sm cursor-pointer">
+              <input
+                type="checkbox"
+                checked={!!p.featuredDeal}
+                onChange={(event) => setP({ ...p, featuredDeal: event.target.checked })}
+                className="mt-1"
+              />
+              <span>
+                <span className="block font-semibold text-[var(--foreground)]">
+                  Mark as Best Seller
+                </span>
+                <span className="text-xs text-muted-foreground">
+                  Shows the Best Seller badge and gives this item priority inside category sliders.
+                </span>
+              </span>
             </label>
-            <In
-              label="Rating (0-5)"
-              type="number"
-              value={String(p.rating)}
-              onChange={(v) => setP({ ...p, rating: +v })}
-            />
-            <In
-              label="Reviews"
-              type="number"
-              value={String(p.reviews)}
-              onChange={(v) => setP({ ...p, reviews: +v })}
-            />
           </div>
 
-          {/* GST & HSN Configuration Section */}
-          <div className="rounded-xl border border-teal-200 bg-teal-50/60 p-4 space-y-3">
-            <div className="flex items-center justify-between">
+          {/* Section 2: Pricing & Inventory */}
+          <div className="rounded-xl border border-border bg-[#FDFBF7] p-4 space-y-3 shadow-sm">
+            <span className="text-xs font-bold uppercase tracking-wider text-[#166F77] block border-b border-border/60 pb-2">
+              2. Pricing & Inventory (मूल्य एवं स्टॉक)
+            </span>
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+              <In
+                label="Selling Price (₹)"
+                type="number"
+                value={String(p.price ?? 0)}
+                onChange={(v) => setP({ ...p, price: +v })}
+              />
+              <In
+                label="MRP (₹)"
+                type="number"
+                value={String(p.mrp ?? 0)}
+                onChange={(v) => setP({ ...p, mrp: +v })}
+              />
+              <In
+                label="Stock Quantity"
+                type="number"
+                value={String(p.stock ?? 0)}
+                onChange={(v) => setP({ ...p, stock: +v })}
+              />
+              <In
+                label="Rating (0-5)"
+                type="number"
+                value={String(p.rating ?? 5)}
+                onChange={(v) => setP({ ...p, rating: +v })}
+              />
+              <In
+                label="Review Count"
+                type="number"
+                value={String(p.reviews ?? 0)}
+                onChange={(v) => setP({ ...p, reviews: +v })}
+              />
+            </div>
+          </div>
+
+          {/* Section 3: GST & Tax Configuration */}
+          <div className="rounded-xl border border-teal-200 bg-teal-50/60 p-4 space-y-3 shadow-sm">
+            <div className="flex items-center justify-between border-b border-teal-200/80 pb-2">
               <span className="text-xs font-bold uppercase tracking-wider text-teal-900 flex items-center gap-1.5">
-                GST & Tax Configuration
+                3. GST & Tax Configuration (कर विवरण)
               </span>
               <span className="text-[11px] text-teal-700 font-medium">Reused on Invoices</span>
             </div>
@@ -1148,14 +1485,14 @@ function ProductEditor({
                 <select
                   value={String(p.gstRate ?? 0)}
                   onChange={(e) => setP({ ...p, gstRate: Number(e.target.value) || 0 })}
-                  className="mt-1 w-full h-11 rounded-lg border bg-background px-3 text-sm focus:outline-none focus:border-primary"
+                  className="mt-1 w-full h-11 rounded-lg border bg-white px-3 text-sm focus:outline-none focus:border-primary"
                 >
                   <option value="0">0% (Nil / Exempt)</option>
                   <option value="3">3% (Precious beads / metals)</option>
                   <option value="5">5% (Essentials / Puja)</option>
-                  <option value="12">12% (Standard rate)</option>
+                  <option value="12">12% (Standard rate - 12%)</option>
                   <option value="18">18% (Standard rate - 18%)</option>
-                  <option value="28">28% (Luxury items)</option>
+                  <option value="28">28% (Luxury items - 28%)</option>
                 </select>
               </label>
             </div>
@@ -1171,7 +1508,7 @@ function ProductEditor({
             </label>
 
             {editPrice > 0 && editGstRate > 0 && (
-              <div className="pt-2 border-t border-teal-200/80 text-[11px] text-teal-950 flex flex-wrap justify-between font-mono bg-white/60 p-2 rounded">
+              <div className="pt-2 border-t border-teal-200/80 text-[11px] text-teal-950 flex flex-wrap justify-between font-mono bg-white/80 p-2.5 rounded">
                 <span>Taxable: ₹{taxablePreview.toFixed(2)}</span>
                 <span>GST ({editGstRate}%): ₹{gstPreview.toFixed(2)}</span>
                 <span className="font-bold">Final: ₹{(editGstInclusive ? editPrice : editPrice + gstPreview).toFixed(2)}</span>
@@ -1179,54 +1516,112 @@ function ProductEditor({
             )}
           </div>
 
-          <AdminImageUpload
-            label="Product image"
-            value={p.image}
-            onChange={(image) =>
-              setP((current) => ({
-                ...current,
-                image,
-                images: [image, ...(current.images ?? []).filter((item) => item !== image)],
-              }))
-            }
-          />
-          <AdminGalleryUpload
-            label="Product gallery photos"
-            images={p.images ?? []}
-            onChange={(images) =>
-              setP((current) => ({
-                ...current,
-                images,
-                image: images[0] || current.image || "",
-              }))
-            }
-          />
-          <label className="flex items-start gap-3 rounded-lg border border-border bg-[#f6f6f6] p-3 text-sm">
-            <input
-              type="checkbox"
-              checked={!!p.featuredDeal}
-              onChange={(event) => setP({ ...p, featuredDeal: event.target.checked })}
-              className="mt-1"
-            />
-            <span>
-              <span className="block font-semibold text-[var(--foreground)]">
-                Mark as Best Seller
-              </span>
-              <span className="text-xs text-muted-foreground">
-                Shows the Best Seller badge and gives this item priority inside category sliders.
-              </span>
+          {/* Section 4: Product Content */}
+          <div className="rounded-xl border border-border bg-[#FDFBF7] p-4 space-y-3 shadow-sm">
+            <span className="text-xs font-bold uppercase tracking-wider text-[#166F77] block border-b border-border/60 pb-2">
+              4. Product Content (उत्पाद विवरण)
             </span>
-          </label>
-          <label className="text-sm block">
-            <span className="text-muted-foreground text-xs">Description</span>
-            <textarea
-              value={p.description}
-              onChange={(e) => setP({ ...p, description: e.target.value })}
-              rows={3}
-              className="mt-1 w-full rounded-lg border p-3 bg-background focus:outline-none focus:border-primary"
+            <SimpleRichEditor
+              label="Product Description (विस्तृत विवरण - उत्पाद पेज पर दिखने वाला)"
+              value={p.description || ""}
+              onChange={(val) => setP({ ...p, description: val })}
+              placeholder="Detailed description of the product, its spiritual benefits, dimensions, authenticity..."
+              rows={6}
             />
-          </label>
+          </div>
+
+          {/* Section 5: SEO Configuration */}
+          <div className="rounded-xl border border-indigo-200 bg-indigo-50/50 p-4 space-y-3 shadow-sm">
+            <div className="flex items-center justify-between border-b border-indigo-200/80 pb-2">
+              <span className="text-xs font-bold uppercase tracking-wider text-indigo-900">
+                5. SEO Configuration (सर्च इंजन सेटिंग्स)
+              </span>
+              <span className="text-[11px] text-indigo-700">Google Search Optimization</span>
+            </div>
+
+            <div>
+              <div className="flex justify-between items-center mb-1">
+                <span className="text-xs font-medium text-muted-foreground">
+                  SEO Meta Title (Google Search Title)
+                </span>
+                <span className={`text-[11px] font-mono ${(p.metaTitle || "").length > 60 ? "text-amber-600 font-semibold" : "text-muted-foreground"}`}>
+                  {(p.metaTitle || "").length} / 60 chars
+                </span>
+              </div>
+              <input
+                type="text"
+                placeholder="e.g. Buy Original Tulsi Kanthi Mala Online | Shri Radha Govind Store"
+                value={p.metaTitle ?? ""}
+                onChange={(e) => setP({ ...p, metaTitle: e.target.value })}
+                className="w-full h-11 rounded-lg border bg-white px-3 text-sm focus:outline-none focus:border-primary"
+              />
+            </div>
+
+            <div>
+              <div className="flex justify-between items-center mb-1">
+                <span className="text-xs font-medium text-muted-foreground">
+                  SEO Meta Description (Google Search Snippet)
+                </span>
+                <span className={`text-[11px] font-mono ${(p.metaDescription || "").length > 160 ? "text-amber-600 font-semibold" : "text-muted-foreground"}`}>
+                  {(p.metaDescription || "").length} / 160 chars
+                </span>
+              </div>
+              <textarea
+                value={p.metaDescription || ""}
+                onChange={(e) => setP({ ...p, metaDescription: e.target.value })}
+                rows={2}
+                placeholder="Brief summary (up to 160 characters) displayed in Google search results."
+                className="w-full rounded-lg border bg-white p-3 text-sm focus:outline-none focus:border-primary"
+              />
+            </div>
+
+            {/* Google Search Snippet Preview */}
+            <div className="rounded-lg border border-indigo-100 bg-white p-3 space-y-1 mt-2">
+              <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground block">
+                Google Search Preview
+              </span>
+              <p className="text-blue-700 text-sm font-medium hover:underline truncate">
+                {p.metaTitle || p.name || "Product Title | Shri Radha Govind Store"}
+              </p>
+              <p className="text-emerald-700 text-[11px] truncate">
+                https://shriradhagovindstore.com/product/{p.slug || "product-url"}
+              </p>
+              <p className="text-xs text-muted-foreground line-clamp-2 leading-tight">
+                {p.metaDescription || p.description || "Authentic devotional products from Vrindavan Dham."}
+              </p>
+            </div>
+          </div>
+
+          {/* Section 6: Images & Gallery */}
+          <div className="rounded-xl border border-border bg-[#FDFBF7] p-4 space-y-3 shadow-sm">
+            <span className="text-xs font-bold uppercase tracking-wider text-[#166F77] block border-b border-border/60 pb-2">
+              6. Images & Gallery (उत्पाद चित्र)
+            </span>
+            <AdminImageUpload
+              label="Primary Product Image (मुख्य चित्र)"
+              value={p.image || ""}
+              onChange={(image) =>
+                setP((current) => ({
+                  ...current,
+                  image,
+                  images: [image, ...(current.images ?? []).filter((item) => item !== image)],
+                }))
+              }
+            />
+            <AdminGalleryUpload
+              label="Product Gallery Photos (अतिरिक्त चित्र)"
+              images={p.images ?? []}
+              onChange={(images) =>
+                setP((current) => ({
+                  ...current,
+                  images,
+                  image: images[0] || current.image || "",
+                }))
+              }
+            />
+          </div>
         </div>
+
         <div className="flex gap-3 mt-6 justify-end">
           <button onClick={onClose} className="h-10 px-5 rounded-full border text-sm">
             Cancel
@@ -1243,23 +1638,27 @@ function ProductEditor({
     </div>
   );
 }
+
 function In({
   label,
   value,
   onChange,
   type = "text",
+  placeholder,
 }: {
   label: string;
-  value: string;
+  value: string | number;
   onChange: (v: string) => void;
   type?: string;
+  placeholder?: string;
 }) {
   return (
     <label className="text-sm block">
       <span className="text-muted-foreground text-xs">{label}</span>
       <input
         type={type}
-        value={value}
+        value={value ?? ""}
+        placeholder={placeholder}
         onChange={(e) => onChange(e.target.value)}
         className="mt-1 w-full h-11 rounded-lg border px-3 bg-background focus:outline-none focus:border-primary"
       />
@@ -1504,73 +1903,148 @@ function SettingsPanel({
   const [s, setS] = useState<Settings>(settings);
   return (
     <div>
-      <h1 className="font-display text-3xl">Settings</h1>
+      <h1 className="font-display text-3xl">Store Settings & CMS</h1>
       <p className="text-sm text-muted-foreground">
-        Tune the storefront - changes reflect immediately across the app.
+        Configure store information, homepage banners, shipping thresholds, and payment methods.
       </p>
       <div className="grid lg:grid-cols-2 gap-6 mt-6">
-        <section className="bg-white rounded-lg border border-border p-6 premium-shadow space-y-3">
-          <h2 className="font-display text-xl">Brand</h2>
-          <In label="Site Name" value={s.siteName} onChange={(v) => setS({ ...s, siteName: v })} />
-          <In label="Tagline" value={s.tagline} onChange={(v) => setS({ ...s, tagline: v })} />
+        {/* Section 1: Store Info & Contact */}
+        <section className="bg-white rounded-xl border border-border p-6 shadow-sm space-y-3">
+          <div className="flex items-center justify-between border-b border-border/70 pb-2">
+            <h2 className="font-display text-xl text-[#166F77]">Store & Contact Info</h2>
+            <span className="text-[11px] text-muted-foreground">Customer-facing details</span>
+          </div>
+          <In label="Store Name" value={s.siteName} onChange={(v) => setS({ ...s, siteName: v })} placeholder="Shri Radha Govind Store" />
+          <In label="Tagline / Slogan" value={s.tagline} onChange={(v) => setS({ ...s, tagline: v })} placeholder="Made With Love From The Heart Of Vrindavan" />
+          <div className="grid sm:grid-cols-2 gap-3">
+            <In
+              label="Support Email"
+              value={s.supportEmail}
+              onChange={(v) => setS({ ...s, supportEmail: v })}
+              placeholder="support@shriradhagovindstore.com"
+            />
+            <In
+              label="Support Phone"
+              value={s.supportPhone}
+              onChange={(v) => setS({ ...s, supportPhone: v })}
+              placeholder="+91 7500533505"
+            />
+          </div>
+          <div className="grid sm:grid-cols-2 gap-3">
+            <In
+              label="WhatsApp Phone"
+              value={s.whatsappPhone ?? ""}
+              onChange={(v) => setS({ ...s, whatsappPhone: v })}
+              placeholder="+91 7500533505"
+            />
+            <In
+              label="GSTIN Number (optional)"
+              value={s.gstin ?? ""}
+              onChange={(v) => setS({ ...s, gstin: v })}
+              placeholder="09AAAAA0000A1Z5"
+            />
+          </div>
+          <label className="block text-sm">
+            <span className="text-xs font-medium text-muted-foreground">Store Address</span>
+            <textarea
+              value={s.storeAddress ?? ""}
+              onChange={(e) => setS({ ...s, storeAddress: e.target.value })}
+              rows={2}
+              placeholder="Vrindavan, Mathura, Uttar Pradesh, India - 281121"
+              className="mt-1 w-full rounded-lg border bg-background p-3 text-sm focus:outline-none focus:border-primary"
+            />
+          </label>
+        </section>
+
+        {/* Section 2: Homepage & CMS */}
+        <section className="bg-white rounded-xl border border-border p-6 shadow-sm space-y-3">
+          <div className="flex items-center justify-between border-b border-border/70 pb-2">
+            <h2 className="font-display text-xl text-[#166F77]">Homepage & CMS Content</h2>
+            <span className="text-[11px] text-muted-foreground">Banner & footer text</span>
+          </div>
           <In
-            label="Announcement Bar"
+            label="Announcement Bar (Top Header)"
             value={s.announcement}
             onChange={(v) => setS({ ...s, announcement: v })}
+            placeholder="॥ Radhe Radhe ॥  -  Free shipping above Rs. 999"
           />
+          <In
+            label="Hero Banner Title"
+            value={s.heroTitle ?? ""}
+            onChange={(v) => setS({ ...s, heroTitle: v })}
+            placeholder="Sacred Treasures From Vrindavan"
+          />
+          <label className="block text-sm">
+            <span className="text-xs font-medium text-muted-foreground">Hero Banner Subtitle</span>
+            <textarea
+              value={s.heroSubtitle ?? ""}
+              onChange={(e) => setS({ ...s, heroSubtitle: e.target.value })}
+              rows={2}
+              placeholder="Handcrafted Japa malas, authentic Tulsi, sacred idols..."
+              className="mt-1 w-full rounded-lg border bg-background p-3 text-sm focus:outline-none focus:border-primary"
+            />
+          </label>
+          <label className="block text-sm">
+            <span className="text-xs font-medium text-muted-foreground">Footer Brand Description</span>
+            <textarea
+              value={s.footerDescription ?? ""}
+              onChange={(e) => setS({ ...s, footerDescription: e.target.value })}
+              rows={2}
+              placeholder="Shri Radha Govind Store brings authentic devotional items..."
+              className="mt-1 w-full rounded-lg border bg-background p-3 text-sm focus:outline-none focus:border-primary"
+            />
+          </label>
         </section>
-        <section className="bg-white rounded-lg border border-border p-6 premium-shadow space-y-3">
-          <h2 className="font-display text-xl">Contact</h2>
+
+        {/* Section 3: Shipping & Delivery */}
+        <section className="bg-white rounded-xl border border-border p-6 shadow-sm space-y-3">
+          <div className="flex items-center justify-between border-b border-border/70 pb-2">
+            <h2 className="font-display text-xl text-[#166F77]">Shipping & Delivery</h2>
+            <span className="text-[11px] text-muted-foreground">Courier thresholds</span>
+          </div>
           <In
-            label="Support Email"
-            value={s.supportEmail}
-            onChange={(v) => setS({ ...s, supportEmail: v })}
-          />
-          <In
-            label="Support Phone"
-            value={s.supportPhone}
-            onChange={(v) => setS({ ...s, supportPhone: v })}
-          />
-        </section>
-        <section className="bg-white rounded-lg border border-border p-6 premium-shadow space-y-3">
-          <h2 className="font-display text-xl">Shipping</h2>
-          <In
-            label="Free Shipping Above (Rs. )"
+            label="Free Shipping Above (₹)"
             type="number"
             value={String(s.freeShipThreshold)}
             onChange={(v) => setS({ ...s, freeShipThreshold: +v })}
           />
           <In
-            label="Default Shipping Fee (Rs. )"
+            label="Default Shipping Fee (₹)"
             type="number"
             value={String(s.shippingFee)}
             onChange={(v) => setS({ ...s, shippingFee: +v })}
           />
         </section>
-        <section className="bg-white rounded-lg border border-border p-6 premium-shadow space-y-3">
-          <h2 className="font-display text-xl">Payments</h2>
+
+        {/* Section 4: Payments */}
+        <section className="bg-white rounded-xl border border-border p-6 shadow-sm space-y-3">
+          <div className="flex items-center justify-between border-b border-border/70 pb-2">
+            <h2 className="font-display text-xl text-[#166F77]">Payments & Gateway</h2>
+            <span className="text-[11px] text-muted-foreground">Razorpay & COD</span>
+          </div>
           <In
             label="Razorpay Key ID"
             value={s.razorpayKeyId}
             onChange={(v) => setS({ ...s, razorpayKeyId: v })}
+            placeholder="rzp_live_... or rzp_test_..."
           />
-          <label className="flex items-center gap-3 text-sm pt-2">
+          <label className="flex items-center gap-3 text-sm pt-2 cursor-pointer">
             <input
               type="checkbox"
               checked={s.codEnabled}
               onChange={(e) => setS({ ...s, codEnabled: e.target.checked })}
-              className="h-4 w-4 accent-primary"
+              className="h-4 w-4 rounded border-border text-primary"
             />
-            Enable Cash on Delivery
+            <span className="font-medium">Enable Cash on Delivery (COD)</span>
           </label>
         </section>
       </div>
       <div className="flex justify-end mt-6">
         <button
           onClick={() => onSave(s)}
-          className="h-11 px-6 rounded-full bg-primary text-primary-foreground font-medium"
+          className="h-11 px-8 rounded-full bg-primary text-primary-foreground font-medium shadow hover:bg-primary/90 transition"
         >
-          Save Settings
+          Save All Settings
         </button>
       </div>
     </div>
@@ -1672,23 +2146,89 @@ function OrderManager({
   const isCancelled = order.status === "Cancelled";
   const currentIdx = isCancelled ? -1 : Math.max(0, TIMELINE.indexOf(order.status));
   const fmt = (ts: number | string) =>
-    new Date(ts).toLocaleString("en-IN", { dateStyle: "medium", timeStyle: "short" });
+    new Date(ts).toLocaleString("en-IN", {
+      day: "numeric",
+      month: "short",
+      year: "numeric",
+      hour: "numeric",
+      minute: "2-digit",
+      hour12: true,
+    });
 
   const payBadge =
-    order.payment.status === "paid"
+    order.payment?.status === "paid"
       ? "bg-green-600/10 text-green-700 border-green-600/20"
-      : order.payment.status === "failed"
+      : order.payment?.status === "failed"
         ? "bg-destructive/10 text-destructive border-destructive/20"
         : "bg-amber-500/10 text-amber-700 border-amber-500/20";
+
+  // Itemized calculations for table
+  const enrichedItems = (order.items || []).map((item, idx) => {
+    const pName = item.product?.name || "Product";
+    const unitPrice = item.price ?? item.product?.price ?? 0;
+    const qty = item.qty || 1;
+    const itemTotal = unitPrice * qty;
+    const hsn = item.hsnCode || item.product?.hsnCode || "-";
+    const gstRate = typeof item.gstRate === "number" && item.gstRate > 0
+      ? item.gstRate
+      : (typeof item.product?.gstRate === "number" ? item.product.gstRate : 0);
+    const isInclusive = item.product?.gstInclusive !== false;
+
+    let taxable = item.taxableAmount;
+    let gstAmt = item.gstAmount;
+
+    if (taxable === undefined || gstAmt === undefined) {
+      if (gstRate > 0) {
+        if (isInclusive) {
+          taxable = +(itemTotal / (1 + gstRate / 100)).toFixed(2);
+          gstAmt = +(itemTotal - taxable).toFixed(2);
+        } else {
+          taxable = itemTotal;
+          gstAmt = +((itemTotal * gstRate) / 100).toFixed(2);
+        }
+      } else {
+        taxable = itemTotal;
+        gstAmt = 0;
+      }
+    }
+
+    return {
+      idx: idx + 1,
+      name: pName,
+      image: item.product?.image,
+      qty,
+      unitPrice,
+      hsn,
+      gstRate,
+      taxable,
+      gstAmt,
+      itemTotal,
+    };
+  });
+
+  const computedSubtotal =
+    order.subtotal ?? enrichedItems.reduce((sum, i) => sum + i.itemTotal, 0);
+  const computedTaxableSubtotal =
+    order.taxableAmount ?? enrichedItems.reduce((sum, i) => sum + i.taxable, 0);
+  const computedGstTotal =
+    order.gstTotal ?? enrichedItems.reduce((sum, i) => sum + i.gstAmt, 0);
+
+  const customerState = (order.address?.state || "").trim().toLowerCase();
+  const isIntraState =
+    customerState.includes("uttar") || customerState === "up";
+
+  const cgstVal = order.cgst !== undefined ? order.cgst : isIntraState ? +(computedGstTotal / 2).toFixed(2) : 0;
+  const sgstVal = order.sgst !== undefined ? order.sgst : isIntraState ? +(computedGstTotal / 2).toFixed(2) : 0;
+  const igstVal = order.igst !== undefined ? order.igst : !isIntraState ? computedGstTotal : 0;
 
   return (
     <div className="fixed inset-0 bg-black/60 z-50 grid place-items-center p-3 sm:p-5 overflow-y-auto" onClick={onClose}>
       <div
-        className="bg-white text-foreground rounded-2xl border border-border p-6 sm:p-7 w-full max-w-3xl max-h-[92vh] overflow-y-auto shadow-2xl space-y-6 my-auto"
+        className="bg-white text-foreground rounded-2xl border border-border p-5 sm:p-7 w-full max-w-4xl max-h-[92vh] overflow-y-auto shadow-2xl space-y-6 my-auto"
         onClick={(e) => e.stopPropagation()}
       >
-        {/* ---- Header ---- */}
-        <div className="flex items-start justify-between gap-3 border-b pb-4">
+        {/* ---- Top Modal Header ---- */}
+        <div className="flex flex-wrap items-start justify-between gap-3 border-b pb-4">
           <div>
             <div className="flex items-center gap-2.5">
               <h2 className="font-display text-2xl font-bold text-primary">
@@ -1703,17 +2243,27 @@ function OrderManager({
                       : "bg-primary/10 text-primary"
                 }`}
               >
-                {order.status}
+                {order.status || "Placed"}
               </span>
             </div>
-            <p className="text-xs text-muted-foreground mt-1 flex items-center gap-2">
-              <span>📅 Placed on {fmt(order.createdAt)}</span>
+            <p className="text-xs text-muted-foreground mt-1 flex flex-wrap items-center gap-x-2 gap-y-1">
+              <span>Placed on {fmt(order.createdAt)}</span>
               <span>•</span>
-              <span>💰 Total: {formatINR(order.total)}</span>
+              <span className="font-semibold text-foreground">Grand Total: {formatINR(order.total)}</span>
             </p>
           </div>
 
           <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => downloadOrderInvoicePdf(order)}
+              className="h-9 px-3 rounded-lg border border-border bg-card text-xs font-semibold hover:bg-muted text-foreground transition inline-flex items-center gap-1.5 shadow-sm"
+              title="Download Tax Invoice PDF"
+            >
+              <Download className="h-3.5 w-3.5 text-primary" />
+              <span>Download Invoice (PDF)</span>
+            </button>
+
             {fetchEvents && (
               <div
                 className="hidden sm:flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-green-600/10 text-green-700 text-[11px] font-medium"
@@ -1743,7 +2293,7 @@ function OrderManager({
             )}
             <button
               onClick={onClose}
-              className="p-2 rounded-lg hover:bg-muted border"
+              className="p-2 rounded-lg hover:bg-muted border text-muted-foreground hover:text-foreground"
               aria-label="Close"
             >
               <XIcon className="h-4 w-4" />
@@ -1751,117 +2301,251 @@ function OrderManager({
           </div>
         </div>
 
-        {/* ---- 2-Column Info Grid: Customer & Delivery | Payment ---- */}
-        <div className="grid md:grid-cols-2 gap-4">
-          {/* Customer & Delivery Card */}
-          <div className="rounded-xl border bg-muted/20 p-4 space-y-2 text-sm">
-            <p className="text-xs font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
-              <MapPin className="h-3.5 w-3.5 text-primary" /> Delivery & Customer
+        {/* ---- 2-Column Info Grid: Customer Information & Delivery Address ---- */}
+        <div className="grid md:grid-cols-2 gap-4 text-xs">
+          {/* Customer Information Card */}
+          <div className="rounded-xl border bg-muted/20 p-4 space-y-2.5">
+            <p className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground border-b pb-1.5">
+              Customer Information
             </p>
-            <p className="font-semibold text-foreground text-base">{order.address.name}</p>
-            {order.address.phone && (
-              <p className="text-xs text-muted-foreground flex items-center gap-1.5">
-                <Phone className="h-3.5 w-3.5 text-primary" />
-                <span>Phone:</span>
-                <a href={`tel:${order.address.phone}`} className="hover:text-primary font-medium">
-                  {order.address.phone}
-                </a>
-              </p>
-            )}
-            {(order.address.alternatePhone || order.alternatePhone) && (
-              <p className="text-xs text-muted-foreground flex items-center gap-1.5">
-                <Phone className="h-3.5 w-3.5 text-emerald-600" />
-                <span>Alt Phone:</span>
-                <a
-                  href={`tel:${order.address.alternatePhone || order.alternatePhone}`}
-                  className="hover:text-primary font-medium"
-                >
-                  {order.address.alternatePhone || order.alternatePhone}
-                </a>
-              </p>
-            )}
-            {order.customerEmail && (
-              <p className="text-xs text-muted-foreground flex items-center gap-1.5">
-                <Mail className="h-3.5 w-3.5 text-primary" />
-                <span>Email:</span>
-                <a href={`mailto:${order.customerEmail}`} className="hover:text-primary font-medium">
-                  {order.customerEmail}
-                </a>
-              </p>
-            )}
-            {order.businessName && (
-              <p className="text-xs font-semibold text-foreground pt-1 border-t">
-                Business: {order.businessName}
-              </p>
-            )}
-            {order.gstin && (
-              <p className="text-xs font-mono text-muted-foreground">
-                GSTIN: {order.gstin}
-              </p>
-            )}
-            <div className="text-xs text-muted-foreground leading-relaxed pt-1 border-t">
-              <p>{order.address.line1}</p>
-              {order.address.line2 && <p>{order.address.line2}</p>}
-              {order.address.postOffice && <p>PO: {order.address.postOffice}</p>}
-              <p className="font-medium text-foreground">
-                {[order.address.city, order.address.state, order.address.pincode].filter(Boolean).join(", ")}
-              </p>
-            </div>
-          </div>
-
-          {/* Payment & Financials Card */}
-          <div className="rounded-xl border bg-muted/20 p-4 space-y-2 text-sm">
-            <p className="text-xs font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
-              <CreditCard className="h-3.5 w-3.5 text-primary" /> Payment Summary
-            </p>
-            <div className="flex items-baseline justify-between">
-              <span className="font-display text-2xl font-bold text-foreground">{formatINR(order.total)}</span>
-              <span className={`px-2.5 py-0.5 rounded-full text-xs font-semibold uppercase ${payBadge}`}>
-                {order.payment.status}
-              </span>
-            </div>
-            <p className="text-xs text-muted-foreground">
-              Method: <span className="font-semibold text-foreground capitalize">{order.payment.method === "cod" ? "Cash on Delivery (COD)" : "Online / Razorpay"}</span>
-            </p>
-            {order.payment.razorpayPaymentId && (
-              <p className="text-[11px] font-mono text-muted-foreground truncate">
-                Txn ID: {order.payment.razorpayPaymentId}
-              </p>
-            )}
-            <div className="text-xs text-muted-foreground pt-1 border-t flex justify-between">
-              <span>Subtotal: {formatINR(order.subtotal)}</span>
-              <span>Shipping: {order.shipping === 0 ? "FREE" : formatINR(order.shipping)}</span>
-            </div>
-          </div>
-        </div>
-
-        {/* ---- Ordered Items Card ---- */}
-        <div className="rounded-xl border bg-card p-4 space-y-3">
-          <p className="text-xs font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
-            <Package className="h-3.5 w-3.5 text-primary" /> Ordered Items ({order.items.length})
-          </p>
-          <div className="space-y-2.5 max-h-48 overflow-y-auto pr-1">
-            {order.items.map((i, idx) => (
-              <div key={idx} className="flex items-center justify-between gap-3 text-xs border-b last:border-0 pb-2 last:pb-0">
-                <div className="flex items-center gap-2.5 min-w-0">
-                  {i.product.image && (
-                    <img src={i.product.image} alt="" className="h-9 w-9 rounded-md object-cover bg-muted shrink-0" />
-                  )}
-                  <div className="min-w-0">
-                    <p className="font-medium text-foreground truncate">{i.product.name}</p>
-                    <p className="text-muted-foreground">Qty: {i.qty} × {formatINR(i.product.price)}</p>
-                  </div>
-                </div>
-                <span className="font-semibold text-foreground shrink-0">{formatINR(i.product.price * i.qty)}</span>
+            <div className="space-y-1.5">
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">Customer Name:</span>
+                <span className="font-bold text-foreground text-sm">{order.address?.name || "Customer"}</span>
               </div>
-            ))}
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">Primary Phone:</span>
+                <span className="font-semibold text-foreground font-mono">{order.address?.phone || "-"}</span>
+              </div>
+              {(order.address?.alternatePhone || order.alternatePhone) && (
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">Alternate Phone:</span>
+                  <span className="font-semibold text-foreground font-mono">{order.address?.alternatePhone || order.alternatePhone}</span>
+                </div>
+              )}
+              {order.customerEmail && (
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">Email Address:</span>
+                  <span className="font-medium text-foreground">{order.customerEmail}</span>
+                </div>
+              )}
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">Placed Date & Time:</span>
+                <span className="text-foreground">{fmt(order.createdAt)}</span>
+              </div>
+            </div>
+          </div>
+
+          {/* Shipping & Delivery Address Card */}
+          <div className="rounded-xl border bg-muted/20 p-4 space-y-2.5">
+            <div className="flex items-center justify-between border-b pb-1.5">
+              <p className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">
+                Shipping & Delivery Address
+              </p>
+              <button
+                type="button"
+                onClick={() => {
+                  try {
+                    const txt = generateOrderShippingPlainText(order);
+                    navigator.clipboard.writeText(txt);
+                    toast.success(`Order #${displayOrderNumber(order)} shipping details copied`);
+                  } catch {
+                    toast.error("Failed to copy address");
+                  }
+                }}
+                className="text-[11px] font-semibold text-primary hover:underline inline-flex items-center gap-1"
+                title="Copy minimal shipping address label"
+              >
+                <Copy className="h-3 w-3" />
+                <span>Copy</span>
+              </button>
+            </div>
+            <div className="space-y-1 leading-relaxed text-foreground">
+              {order.address?.line1 && <div>{order.address.line1}</div>}
+              {order.address?.line2 && <div className="text-muted-foreground">{order.address.line2}</div>}
+              {order.address?.postOffice && <div>Post Office (PO): {order.address.postOffice}</div>}
+              <div className="font-semibold pt-0.5">
+                {[order.address?.city, order.address?.state].filter(Boolean).join(", ")}
+                {order.address?.pincode ? ` - ${order.address.pincode}` : ""}
+              </div>
+            </div>
+            {(order.businessName || order.gstin) && (
+              <div className="pt-2 border-t border-border/60 text-[11px] space-y-1">
+                {order.businessName && (
+                  <div>
+                    <span className="text-muted-foreground">Business: </span>
+                    <span className="font-semibold text-foreground">{order.businessName}</span>
+                  </div>
+                )}
+                {order.gstin && (
+                  <div>
+                    <span className="text-muted-foreground">Customer GSTIN: </span>
+                    <span className="font-mono font-semibold text-foreground">{order.gstin}</span>
+                  </div>
+                )}
+              </div>
+            )}
           </div>
         </div>
 
-        {/* ---- Shipment & Tracking Management (Interactive Editor) ---- */}
+        {/* ---- Itemized Products Table with GST & HSN ---- */}
+        <div className="rounded-xl border bg-card overflow-hidden">
+          <div className="bg-muted/40 px-4 py-2.5 border-b flex items-center justify-between text-xs font-bold text-foreground">
+            <span>Itemized Products & Tax Details ({enrichedItems.length})</span>
+            <span className="text-muted-foreground font-normal">Seller GSTIN: 09CHYPN5573J1Z9</span>
+          </div>
+          <div className="overflow-x-auto">
+            <table className="w-full text-xs text-left">
+              <thead className="bg-muted/20 border-b text-[11px] uppercase tracking-wider text-muted-foreground">
+                <tr>
+                  <th className="p-3">#</th>
+                  <th className="p-3">Product Name</th>
+                  <th className="p-3">HSN Code</th>
+                  <th className="p-3 text-center">GST Rate</th>
+                  <th className="p-3 text-center">Qty</th>
+                  <th className="p-3 text-right">Unit Price</th>
+                  <th className="p-3 text-right">Taxable Amt</th>
+                  <th className="p-3 text-right">GST Amt</th>
+                  <th className="p-3 text-right">Total</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-border/60">
+                {enrichedItems.map((item) => (
+                  <tr key={item.idx} className="hover:bg-muted/10">
+                    <td className="p-3 text-muted-foreground">{item.idx}</td>
+                    <td className="p-3 font-medium text-foreground">
+                      <div className="flex items-center gap-2">
+                        {item.image && (
+                          <img
+                            src={item.image}
+                            alt=""
+                            className="h-8 w-8 rounded object-cover bg-muted border shrink-0"
+                          />
+                        )}
+                        <span className="max-w-xs truncate">{item.name}</span>
+                      </div>
+                    </td>
+                    <td className="p-3 font-mono text-muted-foreground">{item.hsn}</td>
+                    <td className="p-3 text-center font-medium">{item.gstRate}%</td>
+                    <td className="p-3 text-center font-bold">{item.qty}</td>
+                    <td className="p-3 text-right">{formatINR(item.unitPrice)}</td>
+                    <td className="p-3 text-right">{formatINR(item.taxable)}</td>
+                    <td className="p-3 text-right">{formatINR(item.gstAmt)}</td>
+                    <td className="p-3 text-right font-bold text-foreground">{formatINR(item.itemTotal)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        {/* ---- 2-Column Info Grid: Amount Breakdown & Payment Details ---- */}
+        <div className="grid md:grid-cols-2 gap-4 text-xs">
+          {/* Financial & Tax Breakdown Card */}
+          <div className="rounded-xl border bg-muted/20 p-4 space-y-2">
+            <p className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground border-b pb-1.5">
+              Financial & GST Tax Breakdown
+            </p>
+            <div className="space-y-1.5">
+              <div className="flex justify-between text-muted-foreground">
+                <span>Items Subtotal:</span>
+                <span className="font-medium text-foreground">{formatINR(computedSubtotal)}</span>
+              </div>
+              <div className="flex justify-between text-muted-foreground">
+                <span>Shipping Fee:</span>
+                <span className="font-medium text-foreground">
+                  {order.shipping === 0 ? "FREE" : order.shipping ? formatINR(order.shipping) : "FREE"}
+                </span>
+              </div>
+              {order.packagingFee !== undefined && order.packagingFee > 0 && (
+                <div className="flex justify-between text-muted-foreground">
+                  <span>Packaging Fee:</span>
+                  <span className="font-medium text-foreground">{formatINR(order.packagingFee)}</span>
+                </div>
+              )}
+              {order.discount !== undefined && order.discount > 0 && (
+                <div className="flex justify-between text-emerald-600">
+                  <span>Discount:</span>
+                  <span className="font-medium">-{formatINR(order.discount)}</span>
+                </div>
+              )}
+              <div className="pt-1.5 border-t border-border/60 flex justify-between text-muted-foreground">
+                <span>Taxable Amount (Base Value):</span>
+                <span className="font-semibold text-foreground">{formatINR(computedTaxableSubtotal)}</span>
+              </div>
+              {igstVal > 0 && (
+                <div className="flex justify-between text-muted-foreground">
+                  <span>IGST (Integrated Tax - Inter-State):</span>
+                  <span className="font-semibold text-foreground">{formatINR(igstVal)}</span>
+                </div>
+              )}
+              {cgstVal > 0 && (
+                <div className="flex justify-between text-muted-foreground">
+                  <span>CGST (Central Tax - Intra-State):</span>
+                  <span className="font-semibold text-foreground">{formatINR(cgstVal)}</span>
+                </div>
+              )}
+              {sgstVal > 0 && (
+                <div className="flex justify-between text-muted-foreground">
+                  <span>SGST (State Tax - Intra-State):</span>
+                  <span className="font-semibold text-foreground">{formatINR(sgstVal)}</span>
+                </div>
+              )}
+              <div className="flex justify-between text-muted-foreground">
+                <span>Total GST (12%):</span>
+                <span className="font-semibold text-foreground">{formatINR(computedGstTotal)}</span>
+              </div>
+              <div className="pt-2 border-t border-border flex items-baseline justify-between">
+                <span className="font-bold text-sm text-foreground">Grand Total:</span>
+                <span className="font-display font-bold text-lg text-primary">{formatINR(order.total)}</span>
+              </div>
+            </div>
+          </div>
+
+          {/* Payment & Transaction Details Card */}
+          <div className="rounded-xl border bg-muted/20 p-4 space-y-2">
+            <p className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground border-b pb-1.5">
+              Payment & Transaction Details
+            </p>
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <span className="text-muted-foreground">Payment Method:</span>
+                <span className="font-bold text-foreground capitalize">
+                  {order.payment?.method === "razorpay" ? "Online (Razorpay)" : "Cash on Delivery (COD)"}
+                </span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-muted-foreground">Payment Status:</span>
+                <span className={`px-2.5 py-0.5 rounded-full text-xs font-semibold uppercase ${payBadge}`}>
+                  {order.payment?.status || "pending"}
+                </span>
+              </div>
+              {order.payment?.razorpayOrderId && (
+                <div className="flex justify-between text-[11px]">
+                  <span className="text-muted-foreground">Razorpay Order ID:</span>
+                  <span className="font-mono text-foreground">{order.payment.razorpayOrderId}</span>
+                </div>
+              )}
+              {order.payment?.razorpayPaymentId && (
+                <div className="flex justify-between text-[11px]">
+                  <span className="text-muted-foreground">Razorpay Payment ID:</span>
+                  <span className="font-mono font-semibold text-foreground">{order.payment.razorpayPaymentId}</span>
+                </div>
+              )}
+              {order.payment?.failureReason && (
+                <div className="p-2 rounded bg-destructive/10 text-destructive text-[11px]">
+                  <span className="font-semibold">Failure Reason: </span>
+                  <span>{order.payment.failureReason}</span>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+
+        {/* ---- Shipment & Tracking Management ---- */}
         <div className="rounded-xl border border-teal-200 bg-teal-50/50 p-5 space-y-4">
           <div className="flex items-center justify-between">
-            <p className="text-xs font-bold uppercase tracking-wider text-teal-800 flex items-center gap-1.5">
+            <p className="text-xs font-bold uppercase tracking-wider text-teal-900 flex items-center gap-1.5">
               <Truck className="h-4 w-4 text-teal-700" /> Shipment & Tracking Setup
             </p>
             {derivedUrl && (
@@ -2004,22 +2688,33 @@ function OrderManager({
         {/* ---- Notice & Action Buttons ---- */}
         <div className="border-t pt-4 space-y-3">
           <p className="text-xs text-muted-foreground text-center sm:text-left">
-            ℹ️ Saving saves the Tracking ID and updates the order status. A transactional notification email with the updated PDF invoice will be automatically sent to the customer.
+            Saving updates the Tracking ID and order status. A transactional notification email with the updated PDF invoice will be automatically sent to the customer.
           </p>
 
-          <div className="flex flex-wrap gap-3 justify-end">
+          <div className="flex flex-wrap gap-3 justify-between items-center">
             <button
-              onClick={onClose}
-              className="h-11 px-6 rounded-xl border border-border text-sm font-semibold hover:bg-muted transition"
+              type="button"
+              onClick={() => downloadOrderInvoicePdf(order)}
+              className="h-11 px-5 rounded-xl border border-border text-xs font-semibold hover:bg-muted text-foreground transition inline-flex items-center gap-2"
             >
-              Cancel
+              <Download className="h-4 w-4 text-primary" />
+              <span>Download Invoice (PDF)</span>
             </button>
-            <button
-              onClick={submit}
-              className="h-11 px-7 rounded-xl bg-primary text-primary-foreground text-sm font-semibold inline-flex items-center gap-2 hover:bg-primary/90 transition shadow-md"
-            >
-              <Truck className="h-4 w-4" /> Save & Notify Customer
-            </button>
+
+            <div className="flex items-center gap-3">
+              <button
+                onClick={onClose}
+                className="h-11 px-6 rounded-xl border border-border text-sm font-semibold hover:bg-muted transition"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={submit}
+                className="h-11 px-7 rounded-xl bg-primary text-primary-foreground text-sm font-semibold inline-flex items-center gap-2 hover:bg-primary/90 transition shadow-md"
+              >
+                <Truck className="h-4 w-4" /> Save & Notify Customer
+              </button>
+            </div>
           </div>
         </div>
       </div>
@@ -2194,20 +2889,36 @@ function CategoryManager({
     setDragging(null);
   };
 
+  const handleToggleVisibility = async (category: Category) => {
+    await onSave({
+      id: category.id,
+      name: category.name,
+      isActive: !category.isActive,
+    });
+    toast.success(`${category.name} is now ${!category.isActive ? "Visible" : "Hidden"}`);
+  };
+
+  const handleAddSubcategory = (parentId: string) => {
+    setEditing({
+      ...empty(),
+      parentId,
+    });
+  };
+
   return (
     <div>
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h1 className="font-display text-3xl">Categories</h1>
+          <h1 className="font-display text-3xl">Categories & Subcategories</h1>
           <p className="text-sm text-muted-foreground">
-            Manage the navigation structure used by the storefront.
+            Manage your store hierarchy. Subcategories remain under their parents even when hidden.
           </p>
         </div>
         <button
           onClick={() => setEditing(empty())}
-          className="inline-flex h-10 items-center gap-2 rounded-full bg-primary px-5 text-sm font-medium text-primary-foreground"
+          className="inline-flex h-10 items-center gap-2 rounded-full bg-primary px-5 text-sm font-medium text-primary-foreground shadow-sm hover:bg-primary/90"
         >
-          <Plus className="h-4 w-4" /> Add Category
+          <Plus className="h-4 w-4" /> Add Main Category
         </button>
       </div>
       <div className="mt-6 space-y-4">
@@ -2217,18 +2928,20 @@ function CategoryManager({
           </div>
         )}
         {tree.map((parent) => (
-          <section key={parent.id} className="overflow-hidden rounded-lg bg-card premium-shadow">
+          <section key={parent.id} className="overflow-hidden rounded-xl border border-border bg-card shadow-sm">
             <CategoryRow
               category={parent}
               count={parent.productCount}
               onEdit={() => setEditing(parent)}
               onDelete={onDelete}
               onMove={move}
+              onToggleActive={() => handleToggleVisibility(parent)}
+              onAddSubcategory={() => handleAddSubcategory(parent.id)}
               onDragStart={setDragging}
               onDrop={dropBefore}
             />
             {parent.children.length > 0 && (
-              <div className="border-t bg-muted/20 pl-5 sm:pl-10">
+              <div className="border-t border-border/70 bg-muted/20 pl-4 sm:pl-10 divide-y divide-border/40">
                 {parent.children.map((child) => (
                   <CategoryRow
                     key={child.id}
@@ -2237,6 +2950,7 @@ function CategoryManager({
                     onEdit={() => setEditing(child)}
                     onDelete={onDelete}
                     onMove={move}
+                    onToggleActive={() => handleToggleVisibility(child)}
                     onDragStart={setDragging}
                     onDrop={dropBefore}
                     child
@@ -2268,6 +2982,8 @@ function CategoryRow({
   onEdit,
   onDelete,
   onMove,
+  onToggleActive,
+  onAddSubcategory,
   onDragStart,
   onDrop,
 }: {
@@ -2277,6 +2993,8 @@ function CategoryRow({
   onEdit: () => void;
   onDelete: (name: string) => Promise<void> | void;
   onMove: (category: Category, direction: -1 | 1) => void;
+  onToggleActive: () => void;
+  onAddSubcategory?: () => void;
   onDragStart: (category: Category) => void;
   onDrop: (category: Category) => void;
 }) {
@@ -2286,48 +3004,86 @@ function CategoryRow({
       onDragStart={() => onDragStart(category)}
       onDragOver={(event) => event.preventDefault()}
       onDrop={() => onDrop(category)}
-      className="flex flex-wrap items-center gap-3 border-b border-border/60 p-4 last:border-0"
+      className="flex flex-wrap items-center gap-3 p-3.5 sm:p-4 hover:bg-muted/10 transition"
     >
       <GripVertical
-        className="h-5 w-5 cursor-grab text-muted-foreground"
+        className="h-5 w-5 cursor-grab text-muted-foreground/60 hover:text-foreground"
         aria-label={`Drag ${category.name} to sort`}
       />
       <div className="min-w-0 flex-1">
-        <p className={`font-medium ${child ? "text-sm" : "font-display text-lg"}`}>
-          {category.name}
-        </p>
-        <p className="text-xs text-muted-foreground">
-          {count} products - {category.isActive ? "Visible" : "Hidden"}
+        <div className="flex items-center gap-2 flex-wrap">
+          <p className={`font-semibold ${child ? "text-sm text-foreground" : "font-display text-base sm:text-lg text-foreground"}`}>
+            {category.name}
+          </p>
+          {category.isActive ? (
+            <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-emerald-700 bg-emerald-50 border border-emerald-200/80 px-2 py-0.5 rounded-full">
+              <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
+              Visible
+            </span>
+          ) : (
+            <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-amber-700 bg-amber-50 border border-amber-200/80 px-2 py-0.5 rounded-full">
+              <span className="h-1.5 w-1.5 rounded-full bg-amber-500" />
+              Hidden
+            </span>
+          )}
+        </div>
+        <p className="text-xs text-muted-foreground mt-0.5">
+          {count} products • slug: <span className="font-mono text-[11px]">{category.slug || "auto"}</span>
         </p>
       </div>
-      <div className="flex items-center gap-1">
+
+      <div className="flex items-center gap-1.5">
+        {!child && onAddSubcategory && (
+          <button
+            type="button"
+            onClick={onAddSubcategory}
+            className="inline-flex items-center gap-1 rounded-md border border-primary/25 bg-primary/5 px-2.5 py-1 text-xs font-semibold text-primary hover:bg-primary/15 transition mr-1"
+          >
+            <Plus className="h-3.5 w-3.5" /> Subcategory
+          </button>
+        )}
+
         <button
+          type="button"
+          onClick={onToggleActive}
+          className="rounded-lg p-1.5 hover:bg-muted text-muted-foreground hover:text-foreground transition"
+          title={category.isActive ? "Click to Hide from storefront" : "Click to Show in storefront"}
+          aria-label={`Toggle visibility of ${category.name}`}
+        >
+          {category.isActive ? <Eye className="h-4 w-4 text-emerald-600" /> : <EyeOff className="h-4 w-4 text-amber-600" />}
+        </button>
+
+        <button
+          type="button"
           onClick={() => onMove(category, -1)}
-          className="rounded-md border px-2 py-1 text-xs"
+          className="rounded-md border px-2 py-1 text-xs hover:bg-muted font-mono"
           aria-label={`Move ${category.name} up`}
         >
           ↑
         </button>
         <button
+          type="button"
           onClick={() => onMove(category, 1)}
-          className="rounded-md border px-2 py-1 text-xs"
+          className="rounded-md border px-2 py-1 text-xs hover:bg-muted font-mono"
           aria-label={`Move ${category.name} down`}
         >
           ↓
         </button>
         <button
+          type="button"
           onClick={onEdit}
-          className="rounded-lg p-2 hover:bg-muted"
+          className="rounded-lg p-1.5 hover:bg-muted text-muted-foreground hover:text-foreground transition"
           aria-label={`Edit ${category.name}`}
         >
           <Pencil className="h-4 w-4" />
         </button>
         <button
+          type="button"
           onClick={() => {
             if (confirm(`Delete ${category.name}? Products in it will be hidden.`))
               onDelete(category.name);
           }}
-          className="rounded-lg p-2 text-destructive hover:bg-destructive/10"
+          className="rounded-lg p-1.5 text-destructive hover:bg-destructive/10 transition"
           aria-label={`Delete ${category.name}`}
         >
           <Trash2 className="h-4 w-4" />
@@ -2360,92 +3116,564 @@ function CategoryEditor({
           setSaving(true);
           void Promise.resolve(onSave({ ...value, name })).finally(() => setSaving(false));
         }}
-        className="max-h-[90vh] w-full max-w-lg space-y-4 overflow-y-auto rounded-lg bg-card p-6"
+        className="max-h-[90vh] w-full max-w-lg space-y-4 overflow-y-auto rounded-xl bg-card p-6 shadow-2xl"
         onClick={(event) => event.stopPropagation()}
       >
         <div>
           <h2 className="font-display text-2xl">
             {category.id ? "Edit Category" : "New Category"}
           </h2>
-          <p className="text-sm text-muted-foreground">
-            Changes appear in storefront navigation immediately.
+          <p className="text-xs text-muted-foreground mt-0.5">
+            Organize main categories and subcategories for the storefront navigation.
           </p>
         </div>
         <In
-          label="Category name"
+          label="Category name *"
           value={value.name}
           onChange={(name) => setValue({ ...value, name })}
+          placeholder="e.g. Tulsi Mala or Japa Mala"
         />
         <In
-          label="SEO slug (optional)"
+          label="SEO slug (optional - auto-generated if empty)"
           value={value.slug ?? ""}
           onChange={(slug) => setValue({ ...value, slug })}
+          placeholder="e.g. tulsi-mala"
         />
         <label className="block text-sm">
-          <span className="text-xs text-muted-foreground">Parent category</span>
+          <span className="text-xs font-medium text-muted-foreground">Parent Category</span>
           <select
             value={value.parentId ?? ""}
             onChange={(event) => setValue({ ...value, parentId: event.target.value || null })}
-            className="mt-1 h-11 w-full rounded-lg border bg-background px-3"
+            className="mt-1 h-11 w-full rounded-lg border bg-background px-3 text-sm font-medium focus:outline-none focus:border-primary"
           >
-            <option value="">Top level</option>
+            <option value="">None (Top level / Main Category)</option>
             {parents.map((parent) => (
               <option key={parent.id} value={parent.id}>
-                {parent.name}
+                {parent.name} {!parent.isActive ? "(Hidden)" : ""}
               </option>
             ))}
           </select>
+          <span className="text-[11px] text-muted-foreground mt-1 block">
+            Choose a parent to make this a subcategory, or leave as &quot;None&quot; for a main category.
+          </span>
         </label>
         <AdminImageUpload
-          label="Category image"
+          label="Category banner / icon image"
           value={value.image ?? ""}
           onChange={(image) => setValue({ ...value, image })}
         />
         <label className="block text-sm">
-          <span className="text-xs text-muted-foreground">Description</span>
+          <span className="text-xs font-medium text-muted-foreground">Description</span>
           <textarea
             value={value.description ?? ""}
             onChange={(event) => setValue({ ...value, description: event.target.value })}
             rows={3}
-            className="mt-1 w-full rounded-lg border bg-background p-3"
+            placeholder="Devotional description for this category..."
+            className="mt-1 w-full rounded-lg border bg-background p-3 text-sm focus:outline-none focus:border-primary"
           />
         </label>
         <In
-          label="Meta title"
+          label="Meta title (SEO)"
           value={value.metaTitle ?? ""}
           onChange={(metaTitle) => setValue({ ...value, metaTitle })}
+          placeholder="e.g. Buy Original Tulsi Mala Online | Shri Radha Govind Store"
         />
         <label className="block text-sm">
-          <span className="text-xs text-muted-foreground">Meta description</span>
+          <span className="text-xs font-medium text-muted-foreground">Meta description (SEO)</span>
           <textarea
             value={value.metaDescription ?? ""}
             onChange={(event) => setValue({ ...value, metaDescription: event.target.value })}
             rows={2}
-            className="mt-1 w-full rounded-lg border bg-background p-3"
+            placeholder="Brief Google snippet (up to 160 chars)..."
+            className="mt-1 w-full rounded-lg border bg-background p-3 text-sm focus:outline-none focus:border-primary"
           />
         </label>
-        <label className="flex items-center gap-2 text-sm">
-          <span className="sr-only">Category visibility</span>
+        <label className="flex items-center gap-2 text-sm font-medium cursor-pointer pt-1">
           <input
             type="checkbox"
             checked={value.isActive ?? true}
             onChange={(event) => setValue({ ...value, isActive: event.target.checked })}
-          />{" "}
-          Visible in storefront
+            className="h-4 w-4 rounded border-border text-primary"
+          />
+          <span>Visible in storefront (Unchecking hides it from navigation)</span>
         </label>
-        <div className="flex justify-end gap-3">
-          <button type="button" onClick={onClose} className="h-10 rounded-full border px-5 text-sm">
+        <div className="flex justify-end gap-3 pt-2">
+          <button type="button" onClick={onClose} className="h-10 rounded-full border px-5 text-sm hover:bg-muted">
             Cancel
           </button>
           <button
             type="submit"
             disabled={saving}
-            className="h-10 rounded-full bg-primary px-5 text-sm font-medium text-primary-foreground"
+            className="h-10 rounded-full bg-primary px-6 text-sm font-medium text-primary-foreground shadow hover:bg-primary/90"
           >
             {saving ? "Saving..." : "Save Category"}
           </button>
         </div>
       </form>
+    </div>
+  );
+}
+
+function BlogEditorFullPage({
+  blog,
+  onClose,
+  onSave,
+}: {
+  blog: Blog;
+  onClose: () => void;
+  onSave: (blog: Blog) => void;
+}) {
+  const [value, setValue] = useState<Blog>(blog);
+  const [showPreview, setShowPreview] = useState(false);
+
+  const effectiveSlug = value.slug.trim() || slugify(value.title || "post");
+
+  const handleSaveDraft = () => {
+    if (!value.title.trim()) {
+      toast.error("Please enter a blog title before saving draft");
+      return;
+    }
+    onSave({
+      ...value,
+      title: value.title.trim(),
+      slug: effectiveSlug,
+      isPublished: false,
+    });
+  };
+
+  const handlePublish = () => {
+    if (!value.title.trim()) {
+      toast.error("Please enter a blog title before publishing");
+      return;
+    }
+    onSave({
+      ...value,
+      title: value.title.trim(),
+      slug: effectiveSlug,
+      isPublished: true,
+      publishedAt: value.publishedAt || new Date().toISOString(),
+    });
+  };
+
+  const handleUnpublish = () => {
+    onSave({
+      ...value,
+      isPublished: false,
+    });
+  };
+
+  return (
+    <div className="space-y-6">
+      {/* Sticky Top Action Bar */}
+      <div className="sticky top-0 z-20 -mx-4 -mt-6 px-4 py-3 sm:py-4 bg-background/95 backdrop-blur-md border-b border-border shadow-xs flex flex-wrap items-center justify-between gap-3">
+        <div className="flex items-center gap-3 min-w-0">
+          <button
+            type="button"
+            onClick={onClose}
+            className="h-9 px-3 rounded-lg border border-border bg-card hover:bg-muted text-xs font-semibold text-foreground transition inline-flex items-center gap-1.5 shrink-0"
+          >
+            <ArrowLeft className="h-4 w-4" />
+            <span>Back to Blogs</span>
+          </button>
+          <div className="h-5 w-px bg-border/80 hidden sm:block shrink-0" />
+          <div className="min-w-0">
+            <h2 className="font-display text-base sm:text-lg font-bold text-foreground truncate max-w-xs md:max-w-md">
+              {value.title.trim() || "Untitled Post"}
+            </h2>
+            <div className="flex items-center gap-2 text-[11px] text-muted-foreground">
+              <span
+                className={`px-2 py-0.5 rounded-full text-[10px] font-semibold ${
+                  value.isPublished
+                    ? "bg-green-600/10 text-green-700 border border-green-600/20"
+                    : "bg-amber-500/10 text-amber-700 border border-amber-500/20"
+                }`}
+              >
+                {value.isPublished ? "Published" : "Draft"}
+              </span>
+              {value.publishedAt && (
+                <span>
+                  • {new Date(value.publishedAt).toLocaleDateString("en-IN", {
+                    day: "numeric",
+                    month: "short",
+                    year: "numeric",
+                  })}
+                </span>
+              )}
+            </div>
+          </div>
+        </div>
+
+        <div className="flex flex-wrap items-center gap-2 shrink-0">
+          <button
+            type="button"
+            onClick={() => setShowPreview(true)}
+            className="h-9 px-3 rounded-lg border border-border bg-card hover:bg-muted text-xs font-semibold text-foreground transition inline-flex items-center gap-1.5 shadow-xs"
+            title="Preview how article looks on store"
+          >
+            <Eye className="h-3.5 w-3.5 text-primary" />
+            <span>Preview</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={handleSaveDraft}
+            className="h-9 px-3.5 rounded-lg border border-border bg-card hover:bg-muted text-xs font-semibold text-foreground transition inline-flex items-center gap-1.5 shadow-xs"
+            title="Save as Draft"
+          >
+            <BookmarkCheck className="h-3.5 w-3.5 text-amber-600" />
+            <span>Save Draft</span>
+          </button>
+
+          {value.isPublished ? (
+            <>
+              <button
+                type="button"
+                onClick={handleUnpublish}
+                className="h-9 px-3 rounded-lg border border-amber-500/30 bg-amber-50 text-amber-800 hover:bg-amber-100 text-xs font-semibold transition inline-flex items-center gap-1.5"
+                title="Revert published post to draft"
+              >
+                <EyeOff className="h-3.5 w-3.5" />
+                <span>Unpublish</span>
+              </button>
+              <button
+                type="button"
+                onClick={handlePublish}
+                className="h-9 px-4 rounded-lg bg-primary text-primary-foreground text-xs font-semibold hover:bg-primary/90 transition shadow-sm inline-flex items-center gap-1.5"
+              >
+                <Check className="h-3.5 w-3.5" />
+                <span>Update Post</span>
+              </button>
+            </>
+          ) : (
+            <button
+              type="button"
+              onClick={handlePublish}
+              className="h-9 px-4 rounded-lg bg-green-600 text-white text-xs font-semibold hover:bg-green-700 transition shadow-sm inline-flex items-center gap-1.5"
+            >
+              <UploadCloud className="h-3.5 w-3.5" />
+              <span>Publish Post</span>
+            </button>
+          )}
+        </div>
+      </div>
+
+      {/* Main 2-Column Full-Page Editor Layout */}
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+        {/* Left Column: Post Content (8 cols on desktop) */}
+        <div className="lg:col-span-8 space-y-6">
+          {/* Post Title & Slug Card */}
+          <div className="rounded-2xl border border-border bg-card p-5 sm:p-6 shadow-xs space-y-4">
+            <div>
+              <label className="text-xs font-bold uppercase tracking-wider text-muted-foreground block mb-2">
+                Article Title *
+              </label>
+              <input
+                value={value.title}
+                onChange={(e) => setValue({ ...value, title: e.target.value })}
+                placeholder="Enter post title (e.g. The Sacred Significance of Tulsi Mala in Daily Sadhana)..."
+                className="w-full text-xl sm:text-2xl font-serif font-bold text-foreground bg-transparent border-0 border-b border-border/80 pb-2.5 focus:outline-none focus:border-primary placeholder:text-muted-foreground/40"
+              />
+            </div>
+
+            {/* URL Slug Preview / Edit */}
+            <div className="pt-2">
+              <label className="text-xs font-semibold text-muted-foreground block mb-1">
+                Permanent URL Slug
+              </label>
+              <div className="flex items-center rounded-lg border bg-muted/20 px-3 text-xs text-muted-foreground focus-within:border-primary focus-within:bg-background focus-within:text-foreground">
+                <span className="font-mono text-muted-foreground/70 shrink-0">https://shriradhagovind.com/blog/</span>
+                <input
+                  value={value.slug}
+                  onChange={(e) => setValue({ ...value, slug: e.target.value })}
+                  placeholder={slugify(value.title || "post-slug")}
+                  className="w-full bg-transparent py-2 px-1 font-mono text-xs text-foreground focus:outline-none"
+                />
+              </div>
+              <p className="text-[11px] text-muted-foreground/80 mt-1">
+                Leave blank to automatically derive from title: <code className="bg-muted px-1 rounded">{effectiveSlug}</code>
+              </p>
+            </div>
+          </div>
+
+          {/* Excerpt / Summary Card */}
+          <div className="rounded-2xl border border-border bg-card p-5 sm:p-6 shadow-xs space-y-2">
+            <div className="flex items-center justify-between">
+              <label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
+                Short Excerpt / Devotional Summary
+              </label>
+              <span className="text-[11px] text-muted-foreground">
+                {value.excerpt.length} characters
+              </span>
+            </div>
+            <p className="text-xs text-muted-foreground">
+              Brief summary displayed on the blog list cards, search snippets, and social sharing cards.
+            </p>
+            <textarea
+              value={value.excerpt}
+              onChange={(e) => setValue({ ...value, excerpt: e.target.value })}
+              rows={3}
+              placeholder="Write a 1-3 sentence summary explaining the spiritual essence and key takeaways of this article..."
+              className="w-full rounded-xl border bg-background p-3.5 text-sm focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary/20 leading-relaxed font-sans"
+            />
+          </div>
+
+          {/* Full Article Content Editor */}
+          <div className="rounded-2xl border border-border bg-card p-5 sm:p-6 shadow-xs space-y-2">
+            <div className="flex items-center justify-between">
+              <label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
+                Full Article Content *
+              </label>
+              <span className="text-[11px] text-muted-foreground">
+                Rich text formatting supported
+              </span>
+            </div>
+            <p className="text-xs text-muted-foreground">
+              Format your text using Headings (H2, H3), Blockquotes, Font Family (Serif / Sans), Text Alignment, Bullet & Numbered lists, Bold, Italic, and Underline.
+            </p>
+            <SimpleRichEditor
+              value={value.content}
+              onChange={(content) => setValue({ ...value, content })}
+              rows={20}
+              extended={true}
+              placeholder="Start writing the full devotional article..."
+            />
+          </div>
+        </div>
+
+        {/* Right Column: Publishing Sidebar (4 cols on desktop) */}
+        <div className="lg:col-span-4 space-y-6">
+          {/* Publishing Settings Card */}
+          <div className="rounded-2xl border border-border bg-card p-5 shadow-xs space-y-4">
+            <div className="flex items-center justify-between border-b pb-3">
+              <h3 className="text-xs font-bold uppercase tracking-wider text-foreground">
+                Publishing Details
+              </h3>
+              <span
+                className={`px-2 py-0.5 rounded-full text-[11px] font-semibold ${
+                  value.isPublished
+                    ? "bg-green-600/10 text-green-700 border border-green-600/20"
+                    : "bg-amber-500/10 text-amber-700 border border-amber-500/20"
+                }`}
+              >
+                {value.isPublished ? "Live / Published" : "Draft (Hidden)"}
+              </span>
+            </div>
+
+            <div className="space-y-3 text-xs">
+              <div>
+                <label className="font-semibold text-muted-foreground block mb-1">Author Name</label>
+                <input
+                  value={value.author}
+                  onChange={(e) => setValue({ ...value, author: e.target.value })}
+                  placeholder="Shri Radha Govind Store"
+                  className="w-full h-10 rounded-lg border bg-background px-3 text-xs focus:outline-none focus:border-primary"
+                />
+              </div>
+
+              <div>
+                <label className="font-semibold text-muted-foreground block mb-1">Publish Date</label>
+                <input
+                  type="date"
+                  value={
+                    value.publishedAt
+                      ? new Date(value.publishedAt).toISOString().split("T")[0]
+                      : new Date().toISOString().split("T")[0]
+                  }
+                  onChange={(e) => {
+                    const d = e.target.value ? new Date(e.target.value).toISOString() : new Date().toISOString();
+                    setValue({ ...value, publishedAt: d });
+                  }}
+                  className="w-full h-10 rounded-lg border bg-background px-3 text-xs focus:outline-none focus:border-primary"
+                />
+              </div>
+
+              <div className="pt-2 border-t flex flex-col gap-2">
+                <button
+                  type="button"
+                  onClick={handleSaveDraft}
+                  className="w-full h-9 rounded-lg border border-border hover:bg-muted text-xs font-semibold text-foreground transition inline-flex items-center justify-center gap-1.5"
+                >
+                  <BookmarkCheck className="h-3.5 w-3.5 text-amber-600" />
+                  <span>Save as Draft</span>
+                </button>
+
+                {value.isPublished ? (
+                  <button
+                    type="button"
+                    onClick={handlePublish}
+                    className="w-full h-9 rounded-lg bg-primary text-primary-foreground text-xs font-semibold hover:bg-primary/90 transition inline-flex items-center justify-center gap-1.5 shadow-xs"
+                  >
+                    <Check className="h-3.5 w-3.5" />
+                    <span>Update Published Post</span>
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={handlePublish}
+                    className="w-full h-9 rounded-lg bg-green-600 text-white text-xs font-semibold hover:bg-green-700 transition inline-flex items-center justify-center gap-1.5 shadow-xs"
+                  >
+                    <UploadCloud className="h-3.5 w-3.5" />
+                    <span>Publish Post Now</span>
+                  </button>
+                )}
+              </div>
+            </div>
+          </div>
+
+          {/* Featured Cover Image Card */}
+          <div className="rounded-2xl border border-border bg-card p-5 shadow-xs space-y-3">
+            <h3 className="text-xs font-bold uppercase tracking-wider text-foreground border-b pb-2">
+              Featured Cover Image
+            </h3>
+            <p className="text-xs text-muted-foreground">
+              Main cover image displayed at the header of the article and in blog category listings.
+            </p>
+            <AdminImageUpload
+              label="Upload cover image"
+              value={value.image}
+              onChange={(image) => setValue({ ...value, image })}
+            />
+          </div>
+
+          {/* SEO & Search Engine Preview Card */}
+          <div className="rounded-2xl border border-indigo-200 bg-indigo-50/40 p-5 shadow-xs space-y-3">
+            <div className="flex items-center justify-between border-b border-indigo-200/70 pb-2">
+              <h3 className="text-xs font-bold uppercase tracking-wider text-indigo-950 flex items-center gap-1.5">
+                <Globe className="h-3.5 w-3.5 text-indigo-700" /> SEO & Google Search Snippet
+              </h3>
+            </div>
+
+            <div className="space-y-3 text-xs">
+              <div>
+                <label className="font-semibold text-indigo-900 block mb-1">SEO Meta Title</label>
+                <input
+                  value={value.metaTitle ?? ""}
+                  onChange={(e) => setValue({ ...value, metaTitle: e.target.value })}
+                  placeholder={value.title || "Sacred Benefits of Tulsi Mala | Shri Radha Govind Store"}
+                  className="w-full h-10 rounded-lg border border-indigo-200 bg-white px-3 text-xs focus:outline-none focus:border-indigo-600"
+                />
+              </div>
+
+              <div>
+                <div className="flex justify-between mb-1">
+                  <label className="font-semibold text-indigo-900">SEO Meta Description</label>
+                  <span className="text-[10px] text-indigo-700 font-mono">
+                    {(value.metaDescription ?? "").length}/160
+                  </span>
+                </div>
+                <textarea
+                  value={value.metaDescription ?? ""}
+                  onChange={(e) => setValue({ ...value, metaDescription: e.target.value })}
+                  rows={2}
+                  maxLength={160}
+                  placeholder={value.excerpt || "Discover the authentic spiritual benefits and proper care of sacred malas from Vrindavan..."}
+                  className="w-full rounded-lg border border-indigo-200 bg-white p-2.5 text-xs focus:outline-none focus:border-indigo-600 leading-relaxed"
+                />
+              </div>
+
+              {/* Realistic Google Snippet Preview */}
+              <div className="mt-3 pt-3 border-t border-indigo-200/70">
+                <p className="text-[10px] font-bold uppercase tracking-wider text-indigo-900/80 mb-1.5">
+                  Google Search Result Preview
+                </p>
+                <div className="p-3 bg-white rounded-lg border border-indigo-200/80 text-left font-sans space-y-1 select-none">
+                  <p className="text-[11px] text-[#202124] truncate">
+                    https://shriradhagovind.com <span className="text-[#5f6368]">› blog › {effectiveSlug}</span>
+                  </p>
+                  <p className="text-sm text-[#1a0dab] font-medium hover:underline truncate">
+                    {value.metaTitle?.trim() || value.title?.trim() || "Untitled Post | Shri Radha Govind Store"}
+                  </p>
+                  <p className="text-[11px] text-[#4d5156] line-clamp-2 leading-relaxed">
+                    {value.metaDescription?.trim() || value.excerpt?.trim() || "Read authentic devotional guides, product care tips, and Vrindavan insights from Shri Radha Govind Store."}
+                  </p>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Full Live Preview Modal */}
+      {showPreview && (
+        <div
+          className="fixed inset-0 z-50 bg-black/70 grid place-items-center p-3 sm:p-6 overflow-y-auto"
+          onClick={() => setShowPreview(false)}
+        >
+          <div
+            className="bg-white text-foreground rounded-2xl border border-border w-full max-w-3xl max-h-[92vh] overflow-y-auto shadow-2xl space-y-6 my-auto"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Preview Modal Header */}
+            <div className="p-4 sm:px-6 border-b flex items-center justify-between bg-muted/20 sticky top-0 bg-white z-10">
+              <div className="flex items-center gap-2">
+                <span className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
+                <span className="text-xs font-bold uppercase tracking-wider text-foreground">Live Storefront Preview</span>
+                <span className="text-xs text-muted-foreground">(/blog/{effectiveSlug})</span>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowPreview(false)}
+                className="p-1.5 rounded-lg border hover:bg-muted text-muted-foreground hover:text-foreground"
+              >
+                <XIcon className="h-4 w-4" />
+              </button>
+            </div>
+
+            {/* Simulated Storefront Article Container */}
+            <div className="p-6 sm:p-10 space-y-6">
+              <div className="space-y-2">
+                <p className="text-xs font-semibold text-primary uppercase tracking-wider">Shri Radha Govind Devotional Blog</p>
+                <h1 className="font-serif text-3xl sm:text-4xl font-bold text-foreground leading-tight">
+                  {value.title || "Untitled Post Title"}
+                </h1>
+                <p className="text-xs text-muted-foreground pt-1 flex items-center gap-2">
+                  <span>By {value.author || "Shri Radha Govind Store"}</span>
+                  <span>•</span>
+                  <span>
+                    {value.publishedAt
+                      ? new Date(value.publishedAt).toLocaleDateString("en-IN", {
+                          day: "numeric",
+                          month: "long",
+                          year: "numeric",
+                        })
+                      : new Date().toLocaleDateString("en-IN", {
+                          day: "numeric",
+                          month: "long",
+                          year: "numeric",
+                        })}
+                  </span>
+                </p>
+              </div>
+
+              {value.image && (
+                <div className="rounded-xl overflow-hidden border max-h-[380px] bg-muted">
+                  <img src={value.image} alt={value.title} className="w-full h-full object-cover" />
+                </div>
+              )}
+
+              {value.excerpt && (
+                <div className="p-4 rounded-xl bg-muted/30 border-l-4 border-primary text-sm italic text-muted-foreground">
+                  {value.excerpt}
+                </div>
+              )}
+
+              <div className="pt-2 text-foreground leading-relaxed">
+                <FormattedText content={value.content || value.excerpt || "No article content written yet."} />
+              </div>
+            </div>
+
+            <div className="p-4 border-t bg-muted/20 flex justify-end">
+              <button
+                type="button"
+                onClick={() => setShowPreview(false)}
+                className="h-9 px-5 rounded-lg bg-primary text-primary-foreground text-xs font-semibold hover:bg-primary/90 transition"
+              >
+                Close Preview
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -2469,166 +3697,221 @@ function BlogManager({
     author: "Shri Radha Govind Store",
     isPublished: true,
     sortOrder: blogs.length,
+    publishedAt: new Date().toISOString(),
   });
+
   const [editing, setEditing] = useState<Blog | null>(null);
+  const [statusFilter, setStatusFilter] = useState<"all" | "published" | "draft">("all");
+  const [searchQuery, setSearchQuery] = useState("");
+
+  if (editing) {
+    return (
+      <BlogEditorFullPage
+        blog={editing}
+        onClose={() => setEditing(null)}
+        onSave={async (saved) => {
+          await onSave(saved);
+          setEditing(null);
+        }}
+      />
+    );
+  }
+
+  const filteredBlogs = blogs.filter((b) => {
+    if (statusFilter === "published" && !b.isPublished) return false;
+    if (statusFilter === "draft" && b.isPublished) return false;
+    if (searchQuery.trim()) {
+      const q = searchQuery.toLowerCase();
+      const matchTitle = (b.title || "").toLowerCase().includes(q);
+      const matchAuthor = (b.author || "").toLowerCase().includes(q);
+      const matchSlug = (b.slug || "").toLowerCase().includes(q);
+      return matchTitle || matchAuthor || matchSlug;
+    }
+    return true;
+  });
+
+  const publishedCount = blogs.filter((b) => b.isPublished).length;
+  const draftCount = blogs.filter((b) => !b.isPublished).length;
+
   return (
-    <div>
-      <div className="flex flex-wrap items-center justify-between gap-3">
+    <div className="space-y-6">
+      {/* Top Header */}
+      <div className="flex flex-wrap items-center justify-between gap-4">
         <div>
-          <h1 className="font-display text-3xl">Blogs</h1>
-          <p className="text-sm text-muted-foreground">Publish and maintain devotional articles.</p>
+          <h1 className="font-display text-3xl">Blog CMS</h1>
+          <p className="text-sm text-muted-foreground mt-0.5">
+            Write, manage, and publish devotional articles, product care tips, and Vrindavan stories.
+          </p>
         </div>
         <button
           onClick={() => setEditing(blank())}
-          className="inline-flex h-10 items-center gap-2 rounded-full bg-primary px-5 text-sm font-medium text-primary-foreground"
+          className="inline-flex h-10 items-center gap-2 rounded-xl bg-primary px-5 text-sm font-semibold text-primary-foreground hover:bg-primary/90 transition shadow-sm"
         >
-          <Plus className="h-4 w-4" /> New Post
+          <Plus className="h-4 w-4" /> New Blog Post
         </button>
       </div>
-      <div className="mt-6 grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-        {blogs.length === 0 && (
-          <div className="rounded-lg bg-card p-8 text-sm text-muted-foreground premium-shadow">
-            No blog posts yet.
+
+      {/* Filter and Search Bar */}
+      <div className="flex flex-col md:flex-row gap-3">
+        <div className="relative flex-1">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+          <input
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            placeholder="Search articles by title, author, or slug..."
+            className="w-full h-11 pl-9 pr-4 rounded-lg border bg-background text-sm focus:outline-none focus:border-primary"
+          />
+          {searchQuery && (
+            <button
+              onClick={() => setSearchQuery("")}
+              className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-muted-foreground hover:text-foreground"
+            >
+              Clear
+            </button>
+          )}
+        </div>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => setStatusFilter("all")}
+            className={`h-11 px-4 rounded-lg text-xs font-semibold transition border ${
+              statusFilter === "all"
+                ? "bg-primary text-primary-foreground border-primary shadow-xs"
+                : "bg-card text-muted-foreground border-border hover:border-primary/50 hover:text-foreground"
+            }`}
+          >
+            All Articles ({blogs.length})
+          </button>
+          <button
+            onClick={() => setStatusFilter("published")}
+            className={`h-11 px-4 rounded-lg text-xs font-semibold transition border ${
+              statusFilter === "published"
+                ? "bg-green-600 text-white border-green-600 shadow-xs"
+                : "bg-card text-muted-foreground border-border hover:border-green-600/50 hover:text-foreground"
+            }`}
+          >
+            Published ({publishedCount})
+          </button>
+          <button
+            onClick={() => setStatusFilter("draft")}
+            className={`h-11 px-4 rounded-lg text-xs font-semibold transition border ${
+              statusFilter === "draft"
+                ? "bg-amber-600 text-white border-amber-600 shadow-xs"
+                : "bg-card text-muted-foreground border-border hover:border-amber-600/50 hover:text-foreground"
+            }`}
+          >
+            Drafts ({draftCount})
+          </button>
+        </div>
+      </div>
+
+      {/* Blog Cards Grid */}
+      <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-3">
+        {filteredBlogs.length === 0 && (
+          <div className="col-span-full rounded-xl bg-card p-12 text-center border border-border">
+            <FileText className="h-10 w-10 mx-auto text-muted-foreground/40 mb-3" />
+            <p className="font-medium text-base text-foreground">No blog posts found</p>
+            <p className="text-xs text-muted-foreground mt-1">
+              {searchQuery || statusFilter !== "all"
+                ? "Try adjusting your search query or filter."
+                : "Click '+ New Blog Post' to publish your first devotional guide."}
+            </p>
           </div>
         )}
-        {blogs.map((blog) => (
-          <article key={blog.id} className="overflow-hidden rounded-lg bg-card premium-shadow">
-            {blog.image && <img src={blog.image} alt="" className="h-40 w-full object-cover" />}
-            <div className="p-5">
-              <div className="mb-2 flex items-center justify-between gap-2">
-                <span
-                  className={`rounded-full px-2 py-1 text-[10px] ${blog.isPublished ? "bg-green-600/10 text-green-700" : "bg-muted text-muted-foreground"}`}
-                >
-                  {blog.isPublished ? "Published" : "Draft"}
-                </span>
-                <span className="text-xs text-muted-foreground">
-                  {blog.publishedAt
-                    ? new Date(blog.publishedAt).toLocaleDateString()
-                    : "Unscheduled"}
-                </span>
+
+        {filteredBlogs.map((blog) => (
+          <article
+            key={blog.id}
+            className="overflow-hidden rounded-xl bg-card border border-border hover:border-primary/40 transition shadow-xs flex flex-col justify-between group"
+          >
+            <div>
+              {blog.image ? (
+                <div className="h-44 w-full bg-muted overflow-hidden relative">
+                  <img
+                    src={blog.image}
+                    alt={blog.title}
+                    className="h-full w-full object-cover group-hover:scale-105 transition duration-300"
+                  />
+                  <div className="absolute top-3 right-3">
+                    <span
+                      className={`px-2.5 py-1 rounded-full text-[11px] font-semibold shadow-xs ${
+                        blog.isPublished
+                          ? "bg-green-600 text-white"
+                          : "bg-amber-500 text-white"
+                      }`}
+                    >
+                      {blog.isPublished ? "Published" : "Draft"}
+                    </span>
+                  </div>
+                </div>
+              ) : (
+                <div className="h-28 w-full bg-muted/40 p-4 flex items-start justify-between border-b">
+                  <FileText className="h-8 w-8 text-muted-foreground/40" />
+                  <span
+                    className={`px-2.5 py-1 rounded-full text-[11px] font-semibold ${
+                      blog.isPublished
+                        ? "bg-green-600/10 text-green-700 border border-green-600/20"
+                        : "bg-amber-500/10 text-amber-700 border border-amber-500/20"
+                    }`}
+                  >
+                    {blog.isPublished ? "Published" : "Draft"}
+                  </span>
+                </div>
+              )}
+
+              <div className="p-5 space-y-2">
+                <div className="flex items-center justify-between text-[11px] text-muted-foreground">
+                  <span>{blog.author || "Shri Radha Govind Store"}</span>
+                  <span>
+                    {blog.publishedAt
+                      ? new Date(blog.publishedAt).toLocaleDateString("en-IN", {
+                          day: "numeric",
+                          month: "short",
+                          year: "numeric",
+                        })
+                      : "Unscheduled"}
+                  </span>
+                </div>
+
+                <h2 className="font-serif text-lg font-bold text-foreground leading-snug line-clamp-2">
+                  {blog.title}
+                </h2>
+
+                <p className="line-clamp-2 text-xs text-muted-foreground leading-relaxed">
+                  {blog.excerpt || "No summary excerpt provided."}
+                </p>
               </div>
-              <h2 className="font-display text-xl">{blog.title}</h2>
-              <p className="mt-1 line-clamp-2 text-sm text-muted-foreground">
-                {blog.excerpt || "No excerpt"}
-              </p>
-              <div className="mt-4 flex justify-end gap-2">
+            </div>
+
+            <div className="p-5 pt-0 border-t border-border/40 mt-4 flex items-center justify-between gap-2">
+              <span className="text-[11px] font-mono text-muted-foreground/70 truncate max-w-[140px]">
+                /blog/{blog.slug || slugify(blog.title)}
+              </span>
+
+              <div className="flex items-center gap-1.5">
                 <button
+                  type="button"
                   onClick={() => setEditing(blog)}
-                  className="rounded-lg border p-2"
+                  className="h-8 px-3 rounded-lg border border-border bg-card hover:bg-muted text-xs font-semibold text-foreground transition inline-flex items-center gap-1"
                   aria-label={`Edit ${blog.title}`}
                 >
-                  <Pencil className="h-4 w-4" />
+                  <Pencil className="h-3.5 w-3.5 text-primary" />
+                  <span>Edit</span>
                 </button>
                 <button
+                  type="button"
                   onClick={() => {
-                    if (confirm(`Delete ${blog.title}?`)) onDelete(blog.id);
+                    if (confirm(`Delete "${blog.title}"? This cannot be undone.`)) onDelete(blog.id);
                   }}
-                  className="rounded-lg bg-destructive/10 p-2 text-destructive"
+                  className="h-8 w-8 rounded-lg bg-destructive/10 text-destructive hover:bg-destructive/20 transition grid place-items-center"
                   aria-label={`Delete ${blog.title}`}
                 >
-                  <Trash2 className="h-4 w-4" />
+                  <Trash2 className="h-3.5 w-3.5" />
                 </button>
               </div>
             </div>
           </article>
         ))}
       </div>
-      {editing && (
-        <BlogEditor
-          blog={editing}
-          onClose={() => setEditing(null)}
-          onSave={(blog) => {
-            onSave(blog);
-            setEditing(null);
-          }}
-        />
-      )}
-    </div>
-  );
-}
-
-function BlogEditor({
-  blog,
-  onClose,
-  onSave,
-}: {
-  blog: Blog;
-  onClose: () => void;
-  onSave: (blog: Blog) => void;
-}) {
-  const [value, setValue] = useState(blog);
-  return (
-    <div className="fixed inset-0 z-50 grid place-items-center bg-black/50 p-4" onClick={onClose}>
-      <form
-        onSubmit={(event) => {
-          event.preventDefault();
-          if (value.title.trim()) onSave({ ...value, title: value.title.trim() });
-        }}
-        className="max-h-[90vh] w-full max-w-2xl space-y-4 overflow-y-auto rounded-lg bg-card p-6"
-        onClick={(event) => event.stopPropagation()}
-      >
-        <div>
-          <h2 className="font-display text-2xl">{blog.id ? "Edit Post" : "New Post"}</h2>
-          <p className="text-sm text-muted-foreground">
-            Write, preview, and publish content for the store blog.
-          </p>
-        </div>
-        <In label="Title" value={value.title} onChange={(title) => setValue({ ...value, title })} />
-        <div className="grid gap-3 sm:grid-cols-2">
-          <In
-            label="Slug (optional)"
-            value={value.slug}
-            onChange={(slug) => setValue({ ...value, slug })}
-          />
-          <In
-            label="Author"
-            value={value.author}
-            onChange={(author) => setValue({ ...value, author })}
-          />
-        </div>
-        <AdminImageUpload
-          label="Blog cover image"
-          value={value.image}
-          onChange={(image) => setValue({ ...value, image })}
-        />
-        <label className="block text-sm">
-          <span className="text-xs text-muted-foreground">Excerpt</span>
-          <textarea
-            value={value.excerpt}
-            onChange={(event) => setValue({ ...value, excerpt: event.target.value })}
-            rows={2}
-            className="mt-1 w-full rounded-lg border bg-background p-3"
-          />
-        </label>
-        <label className="block text-sm">
-          <span className="text-xs text-muted-foreground">Content</span>
-          <textarea
-            value={value.content}
-            onChange={(event) => setValue({ ...value, content: event.target.value })}
-            rows={10}
-            className="mt-1 w-full rounded-lg border bg-background p-3"
-          />
-        </label>
-        <label className="flex items-center gap-2 text-sm">
-          <input
-            type="checkbox"
-            checked={value.isPublished}
-            onChange={(event) => setValue({ ...value, isPublished: event.target.checked })}
-          />{" "}
-          Publish this post
-        </label>
-        <div className="flex justify-end gap-3">
-          <button type="button" onClick={onClose} className="h-10 rounded-full border px-5 text-sm">
-            Cancel
-          </button>
-          <button
-            type="submit"
-            className="h-10 rounded-full bg-primary px-5 text-sm font-medium text-primary-foreground"
-          >
-            Save Post
-          </button>
-        </div>
-      </form>
     </div>
   );
 }

@@ -1,130 +1,218 @@
 import { Link } from "@tanstack/react-router";
-import { useState } from "react";
-import { Youtube, Instagram, Facebook, Mail, Phone, MapPin } from "lucide-react";
-import { toast } from "sonner";
+import {
+  Youtube,
+  Instagram,
+  Facebook,
+  Mail,
+  Phone,
+  MapPin,
+  MessageCircle,
+} from "lucide-react";
 import { useStore } from "@/lib/store";
+
 const logo = "/brand-logo-large.png";
 
 export function Footer() {
-  const { settings } = useStore();
-  const [email, setEmail] = useState("");
-
-  const subscribe = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!email.includes("@")) return toast.error("Please enter a valid email");
-    toast.success("Subscribed. Use code WELCOME10 at checkout.");
-    setEmail("");
-  };
+  const { settings, user } = useStore();
 
   return (
-    <footer className="mt-16 shrink-0 border-t border-border bg-white">
-      <div className="border-b border-border bg-secondary">
-        <div className="container-app grid gap-4 py-5 sm:grid-cols-3">
-          <Promise title="Fast Delivery" text="Across India from Vrindavan" />
-          <Promise title="Authentic Products" text="Temple-sourced devotional items" />
-          <Promise title="Easy Returns" text="Simple support-led return process" />
-        </div>
-      </div>
+    <footer className="mt-12 shrink-0 border-t border-[#E7E1D6] bg-[#FFFFF4] text-[#2B211C]">
 
-      <div className="container-app grid gap-8 py-10 lg:grid-cols-[1.2fr_2fr_1.1fr]">
-        <section>
-          <Link to="/" className="mb-4 flex items-center gap-3">
+      {/* 4-Column Main Footer Grid with Natural Height */}
+      <div className="container-app grid gap-10 py-12 sm:grid-cols-2 lg:grid-cols-4 lg:gap-8">
+        {/* Column 1: Brand */}
+        <div className="flex flex-col">
+          <Link to="/" className="flex items-center gap-3">
             <img
               src={logo}
               alt={settings.siteName}
-              className="h-14 w-14 rounded-full border border-border bg-white object-contain"
+              className="h-13 w-13 rounded-full border border-[#E7E1D6] bg-white object-contain p-0.5 shadow-sm"
             />
-            <span className="max-w-48 text-lg font-semibold leading-tight">
+            <span className="font-serif text-xl font-semibold leading-tight text-[#2B211C]">
               {settings.siteName}
             </span>
           </Link>
-          <p className="max-w-sm text-sm leading-relaxed text-muted-foreground">
-            Authentic malas, pooja essentials, poshak, shringar and sacred gifts delivered with care
-            from Vrindavan.
+          <p className="mt-4 text-xs leading-relaxed text-[#6A605A]">
+            Authentic Tulsi malas, pooja essentials, poshak, shringar and sacred devotional items thoughtfully sourced and delivered with devotion from Vrindavan.
           </p>
-          <div className="mt-5 flex items-center gap-2">
+          <div className="mt-6 flex items-center gap-2.5">
             <Social href="https://youtube.com" label="YouTube" icon={Youtube} />
             <Social href="https://instagram.com" label="Instagram" icon={Instagram} />
             <Social href="https://facebook.com" label="Facebook" icon={Facebook} />
+            <a
+              href="https://wa.me/917500533505"
+              target="_blank"
+              rel="noreferrer"
+              aria-label="WhatsApp Support"
+              className="grid h-9 w-9 place-items-center rounded-xl border border-[#E7E1D6] bg-white text-[#166F77] transition hover:border-[#D9A441] hover:bg-[#F8F4EC]"
+            >
+              <MessageCircle className="h-4 w-4" />
+            </a>
           </div>
-        </section>
-
-        <section className="grid gap-6 sm:grid-cols-3">
-          <FooterLinks
-            title="Shop"
-            links={[
-              ["All Products", "/shop"],
-              ["Puja Items", "/shop"],
-              ["Wishlist", "/wishlist"],
-              ["Track Order", "/track"],
-            ]}
-          />
-          <FooterLinks
-            title="Help"
-            links={[
-              ["About Us", "/about"],
-              ["Contact Us", "/contact"],
-              ["Shipping Policy", "/shipping"],
-              ["Returns Policy", "/returns"],
-              ["Privacy Policy", "/privacy"],
-              ["Terms", "/terms"],
-            ]}
-          />
-          <FooterLinks
-            title="Account"
-            links={[
-              ["Login", "/login"],
-              ["Sign Up", "/signup"],
-              ["Orders", "/orders"],
-              ["Profile", "/profile"],
-              ["Cart", "/cart"],
-            ]}
-          />
-        </section>
-
-        <section>
-          <h3 className="text-sm font-bold uppercase tracking-wide">Newsletter</h3>
-          <p className="mt-2 text-sm text-muted-foreground">
-            Get restock alerts, offers and new devotional collections.
+          <p className="mt-5 text-[11px] text-[#6A605A]">
+            Directly supporting traditional Vrindavan artisans and Braj seva.
           </p>
-          <form
-            onSubmit={subscribe}
-            className="mt-4 flex h-11 overflow-hidden rounded-lg border border-border bg-white shadow-sm"
-          >
-            <input
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              type="email"
-              placeholder="Enter email"
-              className="min-w-0 flex-1 px-3 text-sm outline-none"
-            />
-            <button className="bg-primary px-4 text-sm font-semibold text-primary-foreground transition hover:bg-primary/90">
-              Subscribe
-            </button>
-          </form>
-          <address className="mt-5 space-y-2 text-sm not-italic text-muted-foreground">
-            <p className="flex gap-2">
-              <MapPin className="mt-0.5 h-4 w-4 shrink-0 text-primary" />
-              155, 2nd Floor, Madan Mohan Ghera, Vrindavan, Mathura, UP 281121
-            </p>
-            <p className="flex gap-2">
-              <Phone className="h-4 w-4 shrink-0 text-primary" />
-              <a href="tel:+917500533505" className="hover:text-primary">
+        </div>
+
+        {/* Column 2: Shop */}
+        <div>
+          <h3 className="text-xs font-bold uppercase tracking-[0.16em] text-[#166F77]">
+            Shop
+          </h3>
+          <ul className="mt-4 space-y-2.5 text-xs text-[#6A605A]">
+            <li>
+              <Link to="/shop" className="transition hover:text-[#166F77]">
+                All Products
+              </Link>
+            </li>
+            <li>
+              <Link
+                to="/shop"
+                search={{ cat: "Tulsi Mala" } as never}
+                className="transition hover:text-[#166F77]"
+              >
+                Tulsi Mala
+              </Link>
+            </li>
+            <li>
+              <Link
+                to="/shop"
+                search={{ cat: "Puja Essentials" } as never}
+                className="transition hover:text-[#166F77]"
+              >
+                Puja Items & Essentials
+              </Link>
+            </li>
+            <li>
+              <Link
+                to="/shop"
+                search={{ cat: "Chandan & Tilak" } as never}
+                className="transition hover:text-[#166F77]"
+              >
+                Chandan & Tilak
+              </Link>
+            </li>
+            <li>
+              <Link
+                to="/shop"
+                search={{ cat: "Itra & Fragrance" } as never}
+                className="transition hover:text-[#166F77]"
+              >
+                Itra & Fragrance
+              </Link>
+            </li>
+            <li>
+              <Link to="/wishlist" className="transition hover:text-[#166F77]">
+                Wishlist
+              </Link>
+            </li>
+            <li>
+              <Link to="/track" className="transition hover:text-[#166F77]">
+                Track Order
+              </Link>
+            </li>
+          </ul>
+        </div>
+
+        {/* Column 3: Help & Policies */}
+        <div>
+          <h3 className="text-xs font-bold uppercase tracking-[0.16em] text-[#166F77]">
+            Help & Policies
+          </h3>
+          <ul className="mt-4 space-y-2.5 text-xs text-[#6A605A]">
+            <li>
+              <Link to="/about" className="transition hover:text-[#166F77]">
+                About Us
+              </Link>
+            </li>
+            <li>
+              <Link to="/contact" className="transition hover:text-[#166F77]">
+                Contact Us
+              </Link>
+            </li>
+            <li>
+              <Link to="/shipping" className="transition hover:text-[#166F77]">
+                Shipping Policy
+              </Link>
+            </li>
+            <li>
+              <Link to="/returns" className="transition hover:text-[#166F77]">
+                Returns & Refund Policy
+              </Link>
+            </li>
+            <li>
+              <Link to="/privacy" className="transition hover:text-[#166F77]">
+                Privacy Policy
+              </Link>
+            </li>
+            <li>
+              <Link to="/terms" className="transition hover:text-[#166F77]">
+                Terms & Conditions
+              </Link>
+            </li>
+            <li>
+              <Link to="/blog" className="transition hover:text-[#166F77]">
+                Devotional Blog & Articles
+              </Link>
+            </li>
+          </ul>
+        </div>
+
+        {/* Column 4: Account & Contact */}
+        <div>
+          <h3 className="text-xs font-bold uppercase tracking-[0.16em] text-[#166F77]">
+            Account & Contact
+          </h3>
+          <ul className="mt-4 space-y-2.5 text-xs text-[#6A605A]">
+            <li>
+              <Link
+                to={user ? "/profile" : "/login"}
+                className="font-semibold text-[#2B211C] transition hover:text-[#166F77]"
+              >
+                {user ? "Your Profile" : "Login / Sign Up"}
+              </Link>
+            </li>
+            <li>
+              <Link to={user ? "/orders" : "/login"} className="transition hover:text-[#166F77]">
+                Your Orders
+              </Link>
+            </li>
+            <li>
+              <Link to="/cart" className="transition hover:text-[#166F77]">
+                Shopping Cart
+              </Link>
+            </li>
+            <li>
+              <Link to="/profile" className="transition hover:text-[#166F77]">
+                Saved Addresses
+              </Link>
+            </li>
+          </ul>
+
+          <address className="mt-5 space-y-2.5 border-t border-[#E7E1D6]/80 pt-4 text-xs not-italic text-[#6A605A]">
+            <p className="flex items-start gap-2">
+              <Phone className="mt-0.5 h-3.5 w-3.5 shrink-0 text-[#166F77]" />
+              <a href="tel:+917500533505" className="hover:text-[#166F77]">
                 +91 7500533505
               </a>
             </p>
-            <p className="flex gap-2">
-              <Mail className="h-4 w-4 shrink-0 text-primary" />
-              <a href={`mailto:${settings.supportEmail}`} className="break-all hover:text-primary">
+            <p className="flex items-start gap-2">
+              <Mail className="mt-0.5 h-3.5 w-3.5 shrink-0 text-[#166F77]" />
+              <a href={`mailto:${settings.supportEmail}`} className="break-all hover:text-[#166F77]">
                 {settings.supportEmail}
               </a>
             </p>
+            <p className="flex items-start gap-2">
+              <MapPin className="mt-0.5 h-3.5 w-3.5 shrink-0 text-[#166F77]" />
+              <span>155, 2nd Floor, Madan Mohan Ghera, Vrindavan, Mathura, UP 281121</span>
+            </p>
           </address>
-        </section>
+        </div>
       </div>
 
-      <div className="border-t border-border bg-primary text-primary-foreground">
-        <div className="container-app flex flex-wrap items-center justify-between gap-3 py-4 text-xs">
+      {/* Bottom Bar */}
+      <div className="border-t border-[#E7E1D6] bg-[#166F77] text-white">
+        <div className="container-app flex flex-wrap items-center justify-between gap-3 py-4 text-xs text-white/90">
           <span>
             Copyright {new Date().getFullYear()} {settings.siteName}. All rights reserved.
           </span>
@@ -132,6 +220,7 @@ export function Footer() {
         </div>
       </div>
 
+      {/* Floating WhatsApp Button */}
       <a
         href="https://wa.me/917500533505"
         target="_blank"
@@ -144,32 +233,6 @@ export function Footer() {
         </svg>
       </a>
     </footer>
-  );
-}
-
-function Promise({ title, text }: { title: string; text: string }) {
-  return (
-    <div>
-      <p className="text-sm font-bold">{title}</p>
-      <p className="mt-1 text-xs leading-5 text-muted-foreground">{text}</p>
-    </div>
-  );
-}
-
-function FooterLinks({ title, links }: { title: string; links: [string, string][] }) {
-  return (
-    <div>
-      <h3 className="text-sm font-bold uppercase tracking-wide">{title}</h3>
-      <ul className="mt-3 space-y-2 text-sm text-muted-foreground">
-        {links.map(([label, to]) => (
-          <li key={label}>
-            <Link to={to} className="hover:text-primary">
-              {label}
-            </Link>
-          </li>
-        ))}
-      </ul>
-    </div>
   );
 }
 
@@ -188,9 +251,9 @@ function Social({
       target="_blank"
       rel="noreferrer"
       aria-label={label}
-      className="grid h-10 w-10 place-items-center rounded-md border border-border bg-white text-primary transition hover:border-primary/40 hover:bg-secondary"
+      className="grid h-9 w-9 place-items-center rounded-xl border border-[#E7E1D6] bg-white text-[#166F77] transition hover:border-[#D9A441] hover:bg-[#F8F4EC]"
     >
-      <Icon className="h-5 w-5" />
+      <Icon className="h-4 w-4" />
     </a>
   );
 }

@@ -408,7 +408,7 @@ function Checkout() {
     }
 
     await new Promise<void>((resolve, reject) => {
-      const rzp = new window.Razorpay({
+      const rzp = new (window as any).Razorpay({
         key: keyId,
         amount: rzpOrder.amount,
         currency: rzpOrder.currency || "INR",
@@ -421,7 +421,7 @@ function Checkout() {
           email: form.email.trim(),
         },
         theme: { color: "#0f6f72" },
-        handler: async (resp) => {
+        handler: async (resp: any) => {
           try {
             await finalizeOrder({
               razorpayOrderId: resp.razorpay_order_id,
@@ -445,7 +445,7 @@ function Checkout() {
           },
         },
       });
-      rzp.on("payment.failed", async (resp) => {
+      rzp.on("payment.failed", async (resp: any) => {
         await reportPaymentFailed(rzpOrder.id, resp?.error?.description ?? "Payment failed");
         toast.error("Payment unsuccessful. Order was not placed.");
         reject(new Error(resp?.error?.description ?? "payment failed"));

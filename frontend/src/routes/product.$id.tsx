@@ -7,6 +7,7 @@ import { Heart, ShoppingBag, Star, Check } from "lucide-react";
 import { useEffect, useState } from "react";
 import { ProductCard } from "@/components/ProductCard";
 import { cleanMetaText, pageSeo, slugify } from "@/lib/seo";
+import { FormattedText } from "@/components/SimpleRichEditor";
 
 function normalizeProduct(value: Record<string, unknown>): Product {
   return {
@@ -182,7 +183,7 @@ function ProductDetail() {
               </span>
               {off > 0 && <span className="text-sm font-medium text-emerald-700">{off}% off</span>}
             </div>
-            <p className="text-muted-foreground mt-4 leading-relaxed">{product.description}</p>
+            <FormattedText content={product.description} className="mt-4 text-muted-foreground" />
 
             <ul className="mt-5 space-y-2">
               {product.details.map((d) => (
