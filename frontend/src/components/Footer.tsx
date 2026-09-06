@@ -36,13 +36,25 @@ export function Footer() {
             Authentic Tulsi malas, pooja essentials, poshak, shringar and sacred devotional items thoughtfully sourced and delivered with devotion from Vrindavan.
           </p>
           <div className="mt-6 flex items-center gap-2.5">
-            <Social href="https://youtube.com" label="YouTube" icon={Youtube} />
-            <Social href="https://instagram.com" label="Instagram" icon={Instagram} />
-            <Social href="https://facebook.com" label="Facebook" icon={Facebook} />
+            <Social
+              href="https://youtube.com/@shriradhagovindstore?si=mXapbranPLnBCYsj"
+              label="YouTube"
+              icon={Youtube}
+            />
+            <Social
+              href="https://www.instagram.com/shriradhagovind_store?stkn=ZjZhYjVtNjV0bDYz"
+              label="Instagram"
+              icon={Instagram}
+            />
+            <Social
+              href="https://www.facebook.com/profile.php?id=61580313882838"
+              label="Facebook"
+              icon={Facebook}
+            />
             <a
-              href="https://wa.me/917500533505"
+              href="https://api.whatsapp.com/send/?phone=917500533505&text&type=phone_number&app_absent=0"
               target="_blank"
-              rel="noreferrer"
+              rel="noopener noreferrer"
               aria-label="WhatsApp Support"
               className="grid h-9 w-9 place-items-center rounded-xl border border-[#E7E1D6] bg-white text-[#166F77] transition hover:border-[#D9A441] hover:bg-[#F8F4EC]"
             >
@@ -249,7 +261,7 @@ function Social({
     <a
       href={href}
       target="_blank"
-      rel="noreferrer"
+      rel="noopener noreferrer"
       aria-label={label}
       className="grid h-9 w-9 place-items-center rounded-xl border border-[#E7E1D6] bg-white text-[#166F77] transition hover:border-[#D9A441] hover:bg-[#F8F4EC]"
     >

@@ -251,12 +251,32 @@ function buildWhatsAppOrderUrl(order: Order, template?: string): { url?: string;
   const orderId = `#${displayOrderNumber(order)}`;
   const trackingId = order.trackingId || "Pending";
   const courierService = order.courier || "Standard Delivery";
-  const origin = typeof window !== "undefined" ? window.location.origin : "https://www.shriradhagovindstore.com";
-  const trackingLink = order.courierTrackingUrl || (order.trackingId ? getCourierTrackingUrl(order.courier, order.trackingId) : `${origin}/track?order=${displayOrderNumber(order)}`);
+  const PRODUCTION_DOMAIN = "https://www.shriradhagovindstore.com";
+  const orderNumber = displayOrderNumber(order);
+  const storeTrackingLink = `${PRODUCTION_DOMAIN}/track?order=${encodeURIComponent(orderNumber)}`;
+  const trackingLink =
+    order.courierTrackingUrl?.trim() ||
+    (order.trackingId ? getCourierTrackingUrl(order.courier, order.trackingId) : "") ||
+    storeTrackingLink;
 
-  const defaultTpl = "Hare Krishna {{FIRST_NAME}}! Thank you for ordering from Shri Radha Govind Store. Your order {{ORDER_ID}} has been shipped via {{SHIPPING_SERVICE}} with tracking number {{TRACKING_ID}}. Track here: {{TRACKING_LINK}}";
-  let msg = (template && template.trim()) ? template.trim() : defaultTpl;
-  msg = msg
+  const defaultTpl =
+    "🙏 Hare Krishna {{FIRST_NAME}},\n\n" +
+    "Your order {{ORDER_ID}} has been shipped.\n\n" +
+    "Tracking ID: {{TRACKING_ID}}\n" +
+    "Courier: {{SHIPPING_SERVICE}}\n" +
+    "Track: {{TRACKING_LINK}}\n\n" +
+    "Thank you for shopping with Shri Radha Govind Store.\n\n" +
+    "Hare Krishna 🙏";
+
+  const raw = template && template.trim() ? template.trim() : defaultTpl;
+  // Normalize Windows CRLF, carriage returns, and escaped \n to real newlines \n
+  const normalizedTpl = raw
+    .replace(/\\r\\n/g, "\n")
+    .replace(/\\n/g, "\n")
+    .replace(/\r\n/g, "\n")
+    .replace(/\r/g, "\n");
+
+  const msg = normalizedTpl
     .replace(/{{FIRST_NAME}}/g, firstName)
     .replace(/{{ORDER_ID}}/g, orderId)
     .replace(/{{TRACKING_ID}}/g, trackingId)
@@ -715,8 +735,9 @@ function AdminRoot() {
                 tree={adminCategoryTree}
                 categories={categories}
                 onClose={() => setEditing(null)}
-                onSave={(p) => {
-                  void Promise.resolve(saveProduct(p)).then(() => setEditing(null));
+                onSave={async (p) => {
+                  await saveProduct(p);
+                  setEditing(null);
                 }}
               />
             )}
@@ -2366,9 +2387,9 @@ function SettingsPanel({
             <textarea
               value={s.whatsappTemplate ?? ""}
               onChange={(e) => setS({ ...s, whatsappTemplate: e.target.value })}
-              rows={3}
-              placeholder="Hare Krishna {{FIRST_NAME}}! Thank you for ordering from Shri Radha Govind Store. Your order {{ORDER_ID}} has been shipped via {{SHIPPING_SERVICE}} with tracking number {{TRACKING_ID}}. Track here: {{TRACKING_LINK}}"
-              className="mt-1 w-full rounded-lg border bg-background p-3 text-sm focus:outline-none focus:border-primary font-sans"
+              rows={6}
+              placeholder={`🙏 Hare Krishna {{FIRST_NAME}},\n\nYour order {{ORDER_ID}} has been shipped.\n\nTracking ID: {{TRACKING_ID}}\nCourier: {{SHIPPING_SERVICE}}\nTrack: {{TRACKING_LINK}}\n\nThank you for shopping with Shri Radha Govind Store.\n\nHare Krishna 🙏`}
+              className="mt-1 w-full rounded-lg border bg-background p-3 text-sm focus:outline-none focus:border-primary font-mono leading-relaxed"
             />
           </label>
         </section>

@@ -952,6 +952,16 @@ export function StoreProvider({ children }: { children: ReactNode }) {
           isTaxable: p.isTaxable !== undefined ? Boolean(p.isTaxable) : true,
           metaTitle: p.metaTitle ?? "",
           metaDescription: p.metaDescription ?? "",
+          comboComponents: Array.isArray(p.comboComponents)
+            ? p.comboComponents.map((c) => ({
+                name: String(c.name || "").trim(),
+                qty: Math.max(1, Number(c.qty) || 1),
+                hsnCode: String(c.hsnCode || "").trim(),
+                gstRate: Number(c.gstRate) || 0,
+                gstInclusive: c.gstInclusive !== false,
+                baseValue: Math.max(0, Number(c.baseValue) || 0),
+              }))
+            : [],
         };
         const isExisting = !!previousProduct;
         const r = isExisting
