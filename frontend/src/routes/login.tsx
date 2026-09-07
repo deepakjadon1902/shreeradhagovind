@@ -3,7 +3,7 @@ import { useEffect, useRef, useState } from "react";
 import { useStore } from "@/lib/store";
 import { toast } from "sonner";
 import { Mail, Lock, Eye, EyeOff } from "lucide-react";
-import heroKrishna from "@/assets/hero-krishna.jpg";
+const defaultHeroBanner = "/home-devotional-hero.png";
 const logo = "/brand-logo-large.png";
 
 export const Route = createFileRoute("/login")({
@@ -345,11 +345,14 @@ function Login() {
 }
 
 export function AuthShell({ title, subtitle, children }: { title: string; subtitle: string; children: React.ReactNode }) {
+  const { settings } = useStore();
+  const heroBanner = settings?.homeHeroImage?.trim() || defaultHeroBanner;
+
   return (
     <div className="min-h-screen grid lg:grid-cols-2">
       <div className="hidden lg:block relative overflow-hidden bg-slate-900">
         <img
-          src={heroKrishna}
+          src={heroBanner}
           className="absolute inset-0 h-full w-full object-cover object-center opacity-90"
           alt="Shri Radha Govind Devotional"
         />

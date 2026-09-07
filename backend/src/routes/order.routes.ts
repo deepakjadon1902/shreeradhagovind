@@ -126,9 +126,11 @@ r.get("/track/:trackingId", async (req, res, next) => {
         courierTrackingData: trackingData,
         createdAt: o.createdAt,
         items: o.items.map((i: any) => ({
+          productId: i.productId ? String(i.productId) : undefined,
           name: i.name,
           image: i.image,
           qty: i.qty,
+          price: i.price,
         })),
         total: o.total,
         address: {

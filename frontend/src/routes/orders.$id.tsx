@@ -25,10 +25,12 @@ import {
   MapPin,
   Copy,
   Star,
+  Sparkles,
   X as XIcon,
 } from "lucide-react";
 import { useEffect, useState, useCallback } from "react";
 import { api, isApiEnabled } from "@/lib/api";
+import { slugify } from "@/lib/seo";
 import { toast } from "sonner";
 
 type Search = { token?: string };
@@ -340,7 +342,10 @@ function OrderDetail() {
             <div>
               <p className="font-semibold text-sm text-red-900">This Order Has Been Cancelled</p>
               <p className="text-xs text-red-700 mt-0.5">
-                For assistance, please contact orders@shriradhagovindstore.com.
+                For assistance, please contact{" "}
+                <a href="mailto:support@shriradhagovindstore.com" className="font-semibold underline hover:text-red-950">
+                  support@shriradhagovindstore.com
+                </a>.
               </p>
             </div>
           </div>
@@ -351,97 +356,194 @@ function OrderDetail() {
           <div className="bg-white rounded-2xl p-6 sm:p-8 border border-stone-200 shadow-sm mt-6">
             <h2 className="font-serif text-xl text-stone-900 mb-6">Track your order</h2>
 
-            {/* Desktop Stepper */}
-            <div className="hidden md:block px-2">
-              <div className="flex items-center justify-between relative">
-                <div className="absolute top-5 left-6 right-6 h-1 bg-stone-100 rounded-full" />
-                <div
-                  className="absolute top-5 left-6 h-1 bg-gradient-to-r from-[#166F77] to-teal-500 rounded-full transition-all duration-700 ease-out"
-                  style={{
-                    width: `calc(${
-                      isHold
-                        ? ((MAIN_STAGES.indexOf("Processing") + 0.5) / (MAIN_STAGES.length - 1)) * 100
-                        : (Math.max(0, currentIdx) / (MAIN_STAGES.length - 1)) * 100
-                    }% - 24px)`,
-                  }}
-                />
+            {/* Delivered Celebration Notice */}
+            {order.status === "Delivered" && (
+              <div className="mb-6 p-4 rounded-xl bg-gradient-to-r from-emerald-50 via-teal-50/70 to-emerald-50 border border-emerald-200/80 text-emerald-950 flex items-center gap-3.5 shadow-sm">
+                <div className="w-10 h-10 rounded-full bg-emerald-600 text-white grid place-items-center shrink-0 shadow-md shadow-emerald-600/20">
+                  <CheckCircle2 className="w-5 h-5 stroke-[2.5]" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <p className="font-semibold text-sm text-emerald-950">
+                      Sacred Order Successfully Delivered
+                    </p>
+                    <span className="inline-flex items-center gap-1 text-[11px] font-medium text-emerald-800 bg-emerald-100/70 px-2 py-0.5 rounded-full">
+                      <Sparkles className="w-3 h-3 text-amber-600" /> Sri Vrindavan Dham
+                    </span>
+                  </div>
+                  <p className="text-xs text-emerald-800/90 mt-0.5 leading-relaxed">
+                    Your package has safely arrived with divine blessings. May Thakur Ji & Sri Radha Rani bless your home with peace, joy, and devotion.
+                  </p>
+                </div>
+              </div>
+            )}
 
+            {/* Desktop Stepper */}
+            <div className="hidden md:block">
+              <div className="grid grid-cols-7 relative">
                 {MAIN_STAGES.map((s, i) => {
-                  const isCompleted = currentIdx > i;
-                  const isCurrent = currentIdx === i && !isHold;
+                  const isDelivered = s === "Delivered" && currentIdx >= i;
+                  const isCompleted = currentIdx > i || isDelivered;
+                  const isCurrent = currentIdx === i && !isHold && !isDelivered;
                   const isPastOrCurrent = currentIdx >= i;
+                  const hasConnector = i < MAIN_STAGES.length - 1;
+
+                  // Connector fill calculation from stage i to stage i+1 (NO connector exists after Delivered)
+                  const isConnectorCompleted = currentIdx > i;
+                  const isConnectorActive = currentIdx === i && !isHold;
 
                   return (
-                    <div key={s} className="relative z-10 flex flex-col items-center text-center">
+                    <div key={s} className="relative flex flex-col items-center text-center group">
+                      {/* Segmented Connector line to NEXT stage (strictly i < length - 1, NEVER after Delivered) */}
+                      {hasConnector && (
+                        <div className="absolute top-5 left-1/2 w-full h-1.5 bg-stone-100 rounded-full z-0 overflow-hidden shadow-inner">
+                          <div
+                            className={`h-full rounded-full transition-all duration-700 ease-out ${
+                              isConnectorCompleted
+                                ? "w-full bg-gradient-to-r from-[#166F77] via-teal-500 to-[#166F77]"
+                                : isConnectorActive
+                                ? "w-1/2 bg-gradient-to-r from-[#166F77] to-teal-400 animate-pulse"
+                                : isHold && i === MAIN_STAGES.indexOf("Processing")
+                                ? "w-1/2 bg-amber-400 animate-pulse"
+                                : "w-0"
+                            }`}
+                          />
+                        </div>
+                      )}
+
+                      {/* Node Circle */}
                       <div
-                        className={`h-10 w-10 rounded-full grid place-items-center transition-all duration-500 ${
-                          isCompleted
+                        className={`relative z-10 h-10 w-10 rounded-full grid place-items-center transition-all duration-500 ${
+                          isDelivered
+                            ? "bg-gradient-to-br from-emerald-600 via-teal-600 to-emerald-700 text-white shadow-lg shadow-emerald-600/30 ring-4 ring-emerald-100 font-bold"
+                            : isCompleted
                             ? "bg-[#166F77] text-white shadow-md shadow-[#166F77]/20 ring-4 ring-teal-50"
                             : isCurrent
-                            ? "bg-white border-2 border-[#166F77] text-[#166F77] ring-4 ring-[#166F77]/20 shadow-lg font-bold"
-                            : "bg-stone-100 border border-stone-200 text-stone-400"
+                            ? "bg-white border-2 border-[#166F77] text-[#166F77] ring-4 ring-[#166F77]/25 shadow-lg font-bold"
+                            : "bg-stone-50 border border-stone-200 text-stone-400"
                         }`}
                       >
-                        {isCompleted ? (
+                        {isDelivered ? (
+                          <Check className="h-5 w-5 stroke-[3] text-white motion-safe:animate-scale-in" />
+                        ) : isCompleted ? (
                           <Check className="h-4 w-4 stroke-[3] motion-safe:animate-scale-in" />
                         ) : isCurrent ? (
-                          <span className="relative flex h-2.5 w-2.5">
+                          <span className="relative flex h-3 w-3">
                             <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-[#166F77] opacity-75" />
-                            <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-[#166F77]" />
+                            <span className="relative inline-flex rounded-full h-3 w-3 bg-[#166F77]" />
                           </span>
                         ) : (
-                          <span className="text-xs font-medium">{i + 1}</span>
+                          <span className="text-xs font-semibold">{i + 1}</span>
                         )}
                       </div>
+
+                      {/* Stage Label */}
                       <p
-                        className={`text-xs mt-2.5 max-w-[85px] leading-tight transition-colors ${
-                          isPastOrCurrent
+                        className={`text-xs mt-2.5 px-1 leading-tight transition-colors ${
+                          isDelivered
+                            ? "text-emerald-800 font-bold"
+                            : isCurrent
+                            ? "text-[#166F77] font-bold"
+                            : isPastOrCurrent
                             ? "text-stone-900 font-semibold"
                             : "text-stone-400 font-normal"
                         }`}
                       >
                         {s}
                       </p>
+
+                      {/* Status Micro-badge */}
+                      {isDelivered && (
+                        <span className="mt-1 inline-flex items-center gap-1 text-[10px] font-bold text-emerald-700 bg-emerald-50 border border-emerald-200/80 px-2 py-0.5 rounded-full shadow-xs">
+                          <Sparkles className="w-2.5 h-2.5 text-amber-500 shrink-0" /> Blessed
+                        </span>
+                      )}
+                      {isCurrent && (
+                        <span className="mt-1 text-[10px] font-semibold text-[#166F77] bg-teal-50 border border-teal-200/70 px-2 py-0.5 rounded-full">
+                          In Progress
+                        </span>
+                      )}
                     </div>
                   );
                 })}
               </div>
             </div>
 
-            {/* Mobile Stepper */}
-            <div className="md:hidden space-y-3">
+            {/* Mobile Stepper (Vertical Timeline) */}
+            <div className="md:hidden mt-4 space-y-0">
               {MAIN_STAGES.map((s, i) => {
-                const isCompleted = currentIdx > i;
-                const isCurrent = currentIdx === i && !isHold;
+                const isDelivered = s === "Delivered" && currentIdx >= i;
+                const isCompleted = currentIdx > i || isDelivered;
+                const isCurrent = currentIdx === i && !isHold && !isDelivered;
                 const isPastOrCurrent = currentIdx >= i;
+                const isLast = i === MAIN_STAGES.length - 1;
 
                 return (
-                  <div key={s} className="flex items-center gap-3">
+                  <div key={s} className="relative flex items-start gap-3.5 pb-5 last:pb-0">
+                    {/* Vertical Connector Line (strictly !isLast, NEVER after Delivered) */}
+                    {!isLast && (
+                      <div
+                        className={`absolute left-[15px] top-8 bottom-0 w-0.5 transition-colors duration-500 ${
+                          currentIdx > i
+                            ? "bg-[#166F77]"
+                            : currentIdx === i && !isHold
+                            ? "bg-gradient-to-b from-[#166F77] to-stone-200"
+                            : "bg-stone-200"
+                        }`}
+                      />
+                    )}
+
+                    {/* Node Circle */}
                     <div
-                      className={`h-8 w-8 rounded-full grid place-items-center shrink-0 text-xs font-semibold ${
-                        isCompleted
-                          ? "bg-[#166F77] text-white shadow-sm"
+                      className={`relative z-10 h-8 w-8 rounded-full grid place-items-center shrink-0 text-xs font-semibold transition-all duration-300 ${
+                        isDelivered
+                          ? "bg-gradient-to-br from-emerald-600 to-[#166F77] text-white ring-4 ring-emerald-100 shadow-sm"
+                          : isCompleted
+                          ? "bg-[#166F77] text-white shadow-sm ring-2 ring-teal-50"
                           : isCurrent
-                          ? "bg-[#166F77] text-white ring-4 ring-[#166F77]/20 font-bold"
-                          : "bg-stone-100 text-stone-400 border border-stone-200"
+                          ? "bg-white border-2 border-[#166F77] text-[#166F77] ring-4 ring-[#166F77]/20 font-bold"
+                          : "bg-stone-50 text-stone-400 border border-stone-200"
                       }`}
                     >
-                      {isCompleted ? <Check className="h-3.5 w-3.5 stroke-[3]" /> : i + 1}
+                      {isDelivered ? (
+                        <Check className="h-4 w-4 stroke-[3] text-white" />
+                      ) : isCompleted ? (
+                        <Check className="h-3.5 w-3.5 stroke-[3]" />
+                      ) : isCurrent ? (
+                        <span className="relative flex h-2 w-2">
+                          <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-[#166F77] opacity-75" />
+                          <span className="relative inline-flex rounded-full h-2 w-2 bg-[#166F77]" />
+                        </span>
+                      ) : (
+                        i + 1
+                      )}
                     </div>
-                    <div className="flex-1 min-w-0">
-                      <p
-                        className={`text-sm ${
-                          isPastOrCurrent ? "text-stone-900 font-semibold" : "text-stone-400"
-                        }`}
-                      >
-                        {s}
-                      </p>
+
+                    <div className="flex-1 min-w-0 pt-1">
+                      <div className="flex items-center justify-between gap-2">
+                        <p
+                          className={`text-sm ${
+                            isDelivered
+                              ? "text-emerald-800 font-bold"
+                              : isPastOrCurrent
+                              ? "text-stone-900 font-semibold"
+                              : "text-stone-400"
+                          }`}
+                        >
+                          {s}
+                        </p>
+                        {isDelivered && (
+                          <span className="inline-flex items-center gap-1 text-[10px] font-bold text-emerald-700 bg-emerald-50 border border-emerald-200/80 px-2 py-0.5 rounded-full">
+                            <Sparkles className="w-2.5 h-2.5 text-amber-500" /> Delivered
+                          </span>
+                        )}
+                        {isCurrent && (
+                          <span className="text-[10px] font-semibold uppercase tracking-wider text-[#166F77] bg-teal-50 border border-teal-200/70 px-2 py-0.5 rounded-full">
+                            Active Stage
+                          </span>
+                        )}
+                      </div>
                     </div>
-                    {isCurrent && (
-                      <span className="text-[10px] font-semibold uppercase tracking-wider text-[#166F77] bg-teal-50 px-2 py-0.5 rounded-full">
-                        Active Stage
-                      </span>
-                    )}
                   </div>
                 );
               })}
@@ -614,17 +716,56 @@ function OrderDetail() {
               <Package className="h-5 w-5 text-[#166F77]" /> Ordered Items ({order.items.length})
             </h2>
             <div className="space-y-4 divide-y divide-stone-100">
-              {order.items.map((i, idx) => (
-                <div key={i.product.id || idx} className="pt-4 first:pt-0 flex items-center gap-4">
-                  <div className="h-16 w-16 rounded-xl overflow-hidden bg-stone-100 border border-stone-200 shrink-0">
-                    <img src={i.product.image} alt={i.product.name} className="h-full w-full object-cover" />
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="font-medium text-sm text-stone-900">{i.product.name}</p>
-                    <p className="text-xs text-stone-500 mt-0.5">
-                      Qty: {i.qty} × {formatINR(i.product.price)}
-                    </p>
-                  </div>
+              {order.items.map((i, idx) => {
+                const productTarget =
+                  i.product.slug ||
+                  (i.product.name ? slugify(i.product.name) : "") ||
+                  i.product.id ||
+                  "";
+
+                return (
+                  <div key={i.product.id || idx} className="pt-4 first:pt-0 flex items-center gap-4">
+                    {productTarget ? (
+                      <Link
+                        to="/product/$id"
+                        params={{ id: productTarget }}
+                        className="group flex items-center gap-4 flex-1 min-w-0"
+                      >
+                        <div className="h-16 w-16 rounded-xl overflow-hidden bg-stone-100 border border-stone-200 shrink-0 group-hover:border-[#166F77]/30 transition-colors">
+                          <img
+                            src={i.product.image}
+                            alt={i.product.name}
+                            className="h-full w-full object-cover group-hover:scale-105 transition-transform duration-200"
+                          />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-1.5">
+                            <p className="font-medium text-sm text-stone-900 group-hover:text-[#166F77] truncate transition-colors">
+                              {i.product.name}
+                            </p>
+                            <ExternalLink className="w-3.5 h-3.5 text-stone-400 opacity-0 group-hover:opacity-100 group-hover:text-[#166F77] transition-all shrink-0" />
+                          </div>
+                          <p className="text-xs text-stone-500 mt-0.5">
+                            Qty: {i.qty} × {formatINR(i.product.price)}
+                          </p>
+                          <span className="text-[11px] text-[#166F77] font-medium opacity-0 group-hover:opacity-100 transition-opacity">
+                            View product →
+                          </span>
+                        </div>
+                      </Link>
+                    ) : (
+                      <>
+                        <div className="h-16 w-16 rounded-xl overflow-hidden bg-stone-100 border border-stone-200 shrink-0">
+                          <img src={i.product.image} alt={i.product.name} className="h-full w-full object-cover" />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="font-medium text-sm text-stone-900">{i.product.name}</p>
+                          <p className="text-xs text-stone-500 mt-0.5">
+                            Qty: {i.qty} × {formatINR(i.product.price)}
+                          </p>
+                        </div>
+                      </>
+                    )}
                   <div className="text-right shrink-0">
                     <span className="font-semibold text-sm text-stone-900 block">
                       {formatINR(i.product.price * i.qty)}
@@ -645,7 +786,8 @@ function OrderDetail() {
                     )}
                   </div>
                 </div>
-              ))}
+              );
+            })}
             </div>
           </div>
 

@@ -1,8 +1,9 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useState, useEffect, useRef, useCallback } from "react";
 import { Layout } from "@/components/Layout";
-import { formatINR, type NormalizedTrackingData } from "@/lib/store";
+import { formatINR, useStore, type NormalizedTrackingData } from "@/lib/store";
 import { api, isApiEnabled } from "@/lib/api";
+import { slugify } from "@/lib/seo";
 import {
   Check,
   Package,
@@ -19,6 +20,7 @@ import {
   RefreshCw,
   Sparkles,
   Copy,
+  Mail,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -48,7 +50,14 @@ type TrackedOrder = {
   courierTrackingUrl?: string;
   courierTrackingData?: NormalizedTrackingData | null;
   createdAt: string;
-  items: { name?: string; image?: string; qty: number; price?: number }[];
+  items: {
+    productId?: string;
+    slug?: string;
+    name?: string;
+    image?: string;
+    qty: number;
+    price?: number;
+  }[];
   total: number;
   address: { name?: string; city?: string; state?: string; pincode?: string };
   payment: { method: string; status: string };
@@ -79,6 +88,9 @@ export const Route = createFileRoute("/track")({
 });
 
 function TrackPage() {
+  const { settings } = useStore();
+  const supportEmail = settings?.supportEmail?.trim() || "support@shriradhagovindstore.com";
+  const whatsappPhone = settings?.whatsappPhone?.trim() || "917500533505";
   const search = Route.useSearch();
   const [id, setId] = useState(search.id ?? "");
   const [loading, setLoading] = useState(false);
@@ -389,7 +401,9 @@ function TrackPage() {
                     <p className="font-semibold text-sm text-red-900">This Order Has Been Cancelled</p>
                     <p className="text-xs text-red-700 mt-1">
                       For refund inquiries or assistance, please contact support at{" "}
-                      <span className="font-semibold">orders@shriradhagovindstore.com</span>.
+                      <a href={`mailto:${supportEmail}`} className="font-semibold underline hover:text-red-950">
+                        {supportEmail}
+                      </a>.
                     </p>
                   </div>
                 </div>
@@ -398,61 +412,113 @@ function TrackPage() {
               {/* Progress Stepper (Hidden on Cancelled) */}
               {!isCancelled && (
                 <div className="mt-8 pt-2">
+                  {/* Delivered Celebration Notice */}
+                  {order.status === "Delivered" && (
+                    <div className="mb-6 p-4 rounded-xl bg-gradient-to-r from-emerald-50 via-teal-50/70 to-emerald-50 border border-emerald-200/80 text-emerald-950 flex items-center gap-3.5 shadow-sm">
+                      <div className="w-10 h-10 rounded-full bg-emerald-600 text-white grid place-items-center shrink-0 shadow-md shadow-emerald-600/20">
+                        <CheckCircle2 className="w-5 h-5 stroke-[2.5]" />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <p className="font-semibold text-sm text-emerald-950">
+                            Sacred Order Successfully Delivered
+                          </p>
+                          <span className="inline-flex items-center gap-1 text-[11px] font-medium text-emerald-800 bg-emerald-100/70 px-2 py-0.5 rounded-full">
+                            <Sparkles className="w-3 h-3 text-amber-600" /> Sri Vrindavan Dham
+                          </span>
+                        </div>
+                        <p className="text-xs text-emerald-800/90 mt-0.5 leading-relaxed">
+                          Your package has safely arrived with divine blessings. May Thakur Ji & Sri Radha Rani bless your home with joy and prosperity.
+                        </p>
+                      </div>
+                    </div>
+                  )}
+
                   {/* Desktop Stepper */}
                   <div className="hidden md:block">
-                    <div className="flex items-center justify-between relative px-2">
-                      {/* Background Bar */}
-                      <div className="absolute top-5 left-6 right-6 h-1 bg-stone-100 rounded-full" />
-                      {/* Active Fill Bar */}
-                      <div
-                        className="absolute top-5 left-6 h-1 bg-gradient-to-r from-[#166F77] to-teal-500 rounded-full transition-all duration-700 ease-out"
-                        style={{
-                          width: `calc(${
-                            isHold
-                              ? ((MAIN_STAGES.indexOf("Processing") + 0.5) /
-                                  (MAIN_STAGES.length - 1)) *
-                                100
-                              : (Math.max(0, currentIdx) / (MAIN_STAGES.length - 1)) * 100
-                          }% - 24px)`,
-                        }}
-                      />
-
+                    <div className="grid grid-cols-7 relative">
                       {MAIN_STAGES.map((stage, i) => {
-                        const isCompleted = currentIdx > i;
-                        const isCurrent = currentIdx === i && !isHold;
+                        const isDelivered = stage === "Delivered" && currentIdx >= i;
+                        const isCompleted = currentIdx > i || isDelivered;
+                        const isCurrent = currentIdx === i && !isHold && !isDelivered;
                         const isPastOrCurrent = currentIdx >= i;
+                        const hasConnector = i < MAIN_STAGES.length - 1;
+
+                        // Connector fill calculation from stage i to stage i+1 (NO connector exists after Delivered)
+                        const isConnectorCompleted = currentIdx > i;
+                        const isConnectorActive = currentIdx === i && !isHold;
 
                         return (
-                          <div key={stage} className="relative z-10 flex flex-col items-center text-center">
+                          <div key={stage} className="relative flex flex-col items-center text-center group">
+                            {/* Segmented Connector line to NEXT stage (strictly i < length - 1, NEVER after Delivered) */}
+                            {hasConnector && (
+                              <div className="absolute top-5 left-1/2 w-full h-1.5 bg-stone-100 rounded-full z-0 overflow-hidden shadow-inner">
+                                <div
+                                  className={`h-full rounded-full transition-all duration-700 ease-out ${
+                                    isConnectorCompleted
+                                      ? "w-full bg-gradient-to-r from-[#166F77] via-teal-500 to-[#166F77]"
+                                      : isConnectorActive
+                                      ? "w-1/2 bg-gradient-to-r from-[#166F77] to-teal-400 animate-pulse"
+                                      : isHold && i === MAIN_STAGES.indexOf("Processing")
+                                      ? "w-1/2 bg-amber-400 animate-pulse"
+                                      : "w-0"
+                                  }`}
+                                />
+                              </div>
+                            )}
+
+                            {/* Node Circle */}
                             <div
-                              className={`h-10 w-10 rounded-full grid place-items-center transition-all duration-500 ${
-                                isCompleted
+                              className={`relative z-10 h-10 w-10 rounded-full grid place-items-center transition-all duration-500 ${
+                                isDelivered
+                                  ? "bg-gradient-to-br from-emerald-600 via-teal-600 to-emerald-700 text-white shadow-lg shadow-emerald-600/30 ring-4 ring-emerald-100 font-bold"
+                                  : isCompleted
                                   ? "bg-[#166F77] text-white shadow-md shadow-[#166F77]/20 ring-4 ring-teal-50"
                                   : isCurrent
-                                  ? "bg-white border-2 border-[#166F77] text-[#166F77] ring-4 ring-[#166F77]/20 shadow-lg font-bold"
-                                  : "bg-stone-100 border border-stone-200 text-stone-400"
+                                  ? "bg-white border-2 border-[#166F77] text-[#166F77] ring-4 ring-[#166F77]/25 shadow-lg font-bold"
+                                  : "bg-stone-50 border border-stone-200 text-stone-400"
                               }`}
                             >
-                              {isCompleted ? (
+                              {isDelivered ? (
+                                <Check className="h-5 w-5 stroke-[3] text-white motion-safe:animate-scale-in" />
+                              ) : isCompleted ? (
                                 <Check className="h-4 w-4 stroke-[3] motion-safe:animate-scale-in" />
                               ) : isCurrent ? (
-                                <span className="relative flex h-2.5 w-2.5">
+                                <span className="relative flex h-3 w-3">
                                   <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-[#166F77] opacity-75" />
-                                  <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-[#166F77]" />
+                                  <span className="relative inline-flex rounded-full h-3 w-3 bg-[#166F77]" />
                                 </span>
                               ) : (
-                                <span className="text-xs font-medium">{i + 1}</span>
+                                <span className="text-xs font-semibold">{i + 1}</span>
                               )}
                             </div>
+
+                            {/* Stage Label */}
                             <p
-                              className={`text-xs mt-2.5 max-w-[85px] leading-tight transition-colors ${
-                                isPastOrCurrent
+                              className={`text-xs mt-2.5 px-1 leading-tight transition-colors ${
+                                isDelivered
+                                  ? "text-emerald-800 font-bold"
+                                  : isCurrent
+                                  ? "text-[#166F77] font-bold"
+                                  : isPastOrCurrent
                                   ? "text-stone-900 font-semibold"
                                   : "text-stone-400 font-normal"
                               }`}
                             >
                               {stage}
                             </p>
+
+                            {/* Status Micro-badge */}
+                            {isDelivered && (
+                              <span className="mt-1 inline-flex items-center gap-1 text-[10px] font-bold text-emerald-700 bg-emerald-50 border border-emerald-200/80 px-2 py-0.5 rounded-full shadow-xs">
+                                <Sparkles className="w-2.5 h-2.5 text-amber-500 shrink-0" /> Blessed
+                              </span>
+                            )}
+                            {isCurrent && (
+                              <span className="mt-1 text-[10px] font-semibold text-[#166F77] bg-teal-50 border border-teal-200/70 px-2 py-0.5 rounded-full">
+                                In Progress
+                              </span>
+                            )}
                           </div>
                         );
                       })}
@@ -460,39 +526,80 @@ function TrackPage() {
                   </div>
 
                   {/* Mobile Stepper (Vertical Timeline) */}
-                  <div className="md:hidden mt-4 space-y-3">
+                  <div className="md:hidden mt-4 space-y-0">
                     {MAIN_STAGES.map((stage, i) => {
-                      const isCompleted = currentIdx > i;
-                      const isCurrent = currentIdx === i && !isHold;
+                      const isDelivered = stage === "Delivered" && currentIdx >= i;
+                      const isCompleted = currentIdx > i || isDelivered;
+                      const isCurrent = currentIdx === i && !isHold && !isDelivered;
                       const isPastOrCurrent = currentIdx >= i;
+                      const isLast = i === MAIN_STAGES.length - 1;
 
                       return (
-                        <div key={stage} className="flex items-center gap-3">
+                        <div key={stage} className="relative flex items-start gap-3.5 pb-5 last:pb-0">
+                          {/* Vertical Connector Line (strictly !isLast, NEVER after Delivered) */}
+                          {!isLast && (
+                            <div
+                              className={`absolute left-[15px] top-8 bottom-0 w-0.5 transition-colors duration-500 ${
+                                currentIdx > i
+                                  ? "bg-[#166F77]"
+                                  : currentIdx === i && !isHold
+                                  ? "bg-gradient-to-b from-[#166F77] to-stone-200"
+                                  : "bg-stone-200"
+                              }`}
+                            />
+                          )}
+
+                          {/* Node Circle */}
                           <div
-                            className={`h-8 w-8 rounded-full grid place-items-center shrink-0 text-xs font-semibold ${
-                              isCompleted
-                                ? "bg-[#166F77] text-white shadow-sm"
+                            className={`relative z-10 h-8 w-8 rounded-full grid place-items-center shrink-0 text-xs font-semibold transition-all duration-300 ${
+                              isDelivered
+                                ? "bg-gradient-to-br from-emerald-600 to-[#166F77] text-white ring-4 ring-emerald-100 shadow-sm"
+                                : isCompleted
+                                ? "bg-[#166F77] text-white shadow-sm ring-2 ring-teal-50"
                                 : isCurrent
-                                ? "bg-[#166F77] text-white ring-4 ring-[#166F77]/20 font-bold"
-                                : "bg-stone-100 text-stone-400 border border-stone-200"
+                                ? "bg-white border-2 border-[#166F77] text-[#166F77] ring-4 ring-[#166F77]/20 font-bold"
+                                : "bg-stone-50 text-stone-400 border border-stone-200"
                             }`}
                           >
-                            {isCompleted ? <Check className="h-3.5 w-3.5 stroke-[3]" /> : i + 1}
+                            {isDelivered ? (
+                              <Check className="h-4 w-4 stroke-[3] text-white" />
+                            ) : isCompleted ? (
+                              <Check className="h-3.5 w-3.5 stroke-[3]" />
+                            ) : isCurrent ? (
+                              <span className="relative flex h-2 w-2">
+                                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-[#166F77] opacity-75" />
+                                <span className="relative inline-flex rounded-full h-2 w-2 bg-[#166F77]" />
+                              </span>
+                            ) : (
+                              i + 1
+                            )}
                           </div>
-                          <div className="flex-1 min-w-0">
-                            <p
-                              className={`text-sm ${
-                                isPastOrCurrent ? "text-stone-900 font-semibold" : "text-stone-400"
-                              }`}
-                            >
-                              {stage}
-                            </p>
+
+                          <div className="flex-1 min-w-0 pt-1">
+                            <div className="flex items-center justify-between gap-2">
+                              <p
+                                className={`text-sm ${
+                                  isDelivered
+                                    ? "text-emerald-800 font-bold"
+                                    : isPastOrCurrent
+                                    ? "text-stone-900 font-semibold"
+                                    : "text-stone-400"
+                                }`}
+                              >
+                                {stage}
+                              </p>
+                              {isDelivered && (
+                                <span className="inline-flex items-center gap-1 text-[10px] font-bold text-emerald-700 bg-emerald-50 border border-emerald-200/80 px-2 py-0.5 rounded-full">
+                                  <Sparkles className="w-2.5 h-2.5 text-amber-500" /> Delivered
+                                </span>
+                              )}
+                              {isCurrent && (
+                                <span className="text-[10px] font-semibold uppercase tracking-wider text-[#166F77] bg-teal-50 border border-teal-200/70 px-2 py-0.5 rounded-full">
+                                  Active Stage
+                                </span>
+                              )}
+                            </div>
                           </div>
-                          {isCurrent && (
-                            <span className="text-[10px] font-semibold uppercase tracking-wider text-[#166F77] bg-teal-50 px-2 py-0.5 rounded-full">
-                              Active Stage
-                            </span>
-                          )}
                         </div>
                       );
                     })}
@@ -702,26 +809,65 @@ function TrackPage() {
                 <h2 className="font-serif text-lg text-stone-900 mb-4 flex items-center gap-2">
                   <Package className="w-5 h-5 text-[#166F77]" /> Items Ordered ({order.items.length})
                 </h2>
-                <div className="space-y-3 divide-y divide-stone-100">
-                  {order.items.map((item, idx) => (
-                    <div key={idx} className="pt-3 first:pt-0 flex items-center gap-3">
-                      {item.image ? (
-                        <img
-                          src={item.image}
-                          alt={item.name}
-                          className="w-12 h-12 rounded-lg object-cover bg-stone-100 border border-stone-200 shrink-0"
-                        />
-                      ) : (
-                        <div className="w-12 h-12 rounded-lg bg-stone-100 border border-stone-200 grid place-items-center text-stone-400 shrink-0">
-                          <Package className="w-5 h-5" />
+                <div className="space-y-2 divide-y divide-stone-100">
+                  {order.items.map((item, idx) => {
+                    const productTarget =
+                      item.slug ||
+                      (item.name ? slugify(item.name) : "") ||
+                      item.productId ||
+                      "";
+
+                    const itemContent = (
+                      <>
+                        {item.image ? (
+                          <img
+                            src={item.image}
+                            alt={item.name || "Sacred item"}
+                            className="w-13 h-13 rounded-xl object-cover bg-stone-100 border border-stone-200 shrink-0 group-hover:scale-105 group-hover:shadow-sm transition-all duration-200"
+                          />
+                        ) : (
+                          <div className="w-13 h-13 rounded-xl bg-stone-100 border border-stone-200 grid place-items-center text-stone-400 shrink-0 group-hover:border-[#166F77]/30 transition-colors">
+                            <Package className="w-5 h-5" />
+                          </div>
+                        )}
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-1.5">
+                            <p className="text-sm font-medium text-stone-900 group-hover:text-[#166F77] truncate transition-colors">
+                              {item.name}
+                            </p>
+                            <ExternalLink className="w-3.5 h-3.5 text-stone-400 opacity-0 group-hover:opacity-100 group-hover:text-[#166F77] group-hover:translate-x-0.5 transition-all shrink-0" />
+                          </div>
+                          <div className="flex items-center gap-2.5 mt-0.5">
+                            <p className="text-xs text-stone-500">Qty: {item.qty}</p>
+                            {typeof item.price === "number" && item.price > 0 && (
+                              <p className="text-xs font-semibold text-stone-700">
+                                {formatINR(item.price * item.qty)}
+                              </p>
+                            )}
+                            <span className="text-[11px] text-[#166F77] font-medium opacity-0 group-hover:opacity-100 transition-opacity">
+                              View product →
+                            </span>
+                          </div>
                         </div>
-                      )}
-                      <div className="flex-1 min-w-0">
-                        <p className="text-sm font-medium text-stone-900 truncate">{item.name}</p>
-                        <p className="text-xs text-stone-500">Qty: {item.qty}</p>
+                      </>
+                    );
+
+                    return productTarget ? (
+                      <Link
+                        key={idx}
+                        to="/product/$id"
+                        params={{ id: productTarget }}
+                        className="pt-3 first:pt-0 flex items-center gap-3.5 group rounded-xl p-2 -mx-2 hover:bg-stone-50/80 transition-all duration-200"
+                        title="View sacred product details"
+                      >
+                        {itemContent}
+                      </Link>
+                    ) : (
+                      <div key={idx} className="pt-3 first:pt-0 flex items-center gap-3.5 p-2 -mx-2">
+                        {itemContent}
                       </div>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
                 <div className="border-t border-stone-100 mt-4 pt-3 flex justify-between items-center text-sm font-semibold text-stone-900">
                   <span>Total Amount</span>
@@ -758,14 +904,35 @@ function TrackPage() {
         )}
 
         {/* Footer Support Notice */}
-        <div className="mt-12 text-center text-xs text-stone-500 space-y-1">
-          <p>
-            Have questions about your delivery? Contact our Vrindavan Dham support team at{" "}
-            <a href="mailto:orders@shriradhagovindstore.com" className="text-[#166F77] underline">
-              orders@shriradhagovindstore.com
-            </a>
+        <div className="mt-12 max-w-xl mx-auto rounded-2xl border border-[#E7E1D6] bg-white/90 p-5 sm:p-6 text-center shadow-sm">
+          <div className="inline-flex items-center justify-center w-10 h-10 rounded-full bg-[#166F77]/10 text-[#166F77] mb-3">
+            <Mail className="w-5 h-5" />
+          </div>
+          <h3 className="font-serif text-base sm:text-lg font-semibold text-[#2B211C]">
+            Have questions about your delivery?
+          </h3>
+          <p className="text-xs sm:text-sm text-stone-600 mt-1 max-w-md mx-auto leading-relaxed">
+            Contact our Vrindavan Dham support team for any order assistance, delivery updates, or seva queries.
           </p>
-          <p className="text-stone-400 font-serif italic pt-1">
+          <div className="mt-4 flex flex-wrap items-center justify-center gap-3">
+            <a
+              href={`mailto:${supportEmail}`}
+              className="inline-flex items-center gap-1.5 rounded-xl bg-[#166F77] px-4 py-2 text-xs font-semibold text-white shadow-sm transition hover:bg-[#135E65] active:scale-[0.98]"
+            >
+              <Mail className="w-3.5 h-3.5" />
+              <span>{supportEmail}</span>
+            </a>
+            <a
+              href={`https://wa.me/${whatsappPhone.replace(/\D/g, "")}?text=${encodeURIComponent("Hare Krishna! I need assistance with my order.")}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-1.5 rounded-xl border border-[#E7E1D6] bg-[#F8F4EC] px-4 py-2 text-xs font-semibold text-[#166F77] transition hover:border-[#D9A441] hover:bg-white active:scale-[0.98]"
+            >
+              <MessageCircle className="w-3.5 h-3.5 text-emerald-600" />
+              <span>WhatsApp Support</span>
+            </a>
+          </div>
+          <p className="mt-4 pt-3 border-t border-[#E7E1D6]/70 text-[11px] sm:text-xs text-stone-500 font-serif tracking-wide">
             श्री राधा गोविंद कृपा • Blessed from Sri Vrindavan Dham
           </p>
         </div>
