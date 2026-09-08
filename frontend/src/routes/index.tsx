@@ -39,7 +39,22 @@ export const Route = createFileRoute("/")({
 });
 
 function Home() {
-  const { adminProducts, categoryTree, settings } = useStore();
+  const { adminProducts, categoryTree, settings, isSettingsLoaded, isProductsLoaded } = useStore();
+
+  const [heroImageLoaded, setHeroImageLoaded] = useState(false);
+  const [storyImageLoaded, setStoryImageLoaded] = useState(false);
+
+  // Hero image determination:
+  // If settings configured an image, use it. If settings finished and none configured, use fallback.
+  // While settings are resolving, do NOT render the fallback image so it doesn't flash.
+  const configuredHero = settings?.homeHeroImage?.trim();
+  const isHeroKnown = Boolean(configuredHero) || isSettingsLoaded;
+  const targetHeroSrc = configuredHero || (isSettingsLoaded ? homeHero : null);
+
+  // Vrindavan story image determination:
+  const configuredStory = settings?.vrindavanStoryImage?.trim();
+  const isStoryKnown = Boolean(configuredStory) || isSettingsLoaded;
+  const targetStorySrc = configuredStory || (isSettingsLoaded ? heroKrishna : null);
 
   const categoryShelves = useMemo(
     () =>
@@ -126,25 +141,58 @@ function Home() {
 
           <div className="relative">
             <div className="soft-shadow overflow-hidden rounded-2xl border border-[#E7E1D6] bg-white p-2">
-              <img
-                src={settings?.homeHeroImage?.trim() || homeHero}
-                alt="Shri Radha Govind Store devotional collection from Vrindavan"
-                className="aspect-[4/3] w-full rounded-xl object-cover object-center"
-              />
+              <div className="relative aspect-[4/3] w-full overflow-hidden rounded-xl bg-[#FAF5EE]">
+                {/* Neutral devotional placeholder while settings are resolving or image is downloading */}
+                {(!isHeroKnown || !heroImageLoaded) && (
+                  <div
+                    className="absolute inset-0 flex flex-col items-center justify-center bg-gradient-to-br from-[#FFFDF8] via-[#FAF4EA] to-[#F2E8DA] p-4 text-center select-none"
+                    aria-hidden="true"
+                  >
+                    <div className="h-9 w-9 rounded-full border-2 border-[#D9A441]/30 border-t-[#D9A441] animate-spin mb-2" />
+                    <span className="text-[11px] font-serif font-semibold tracking-wider text-[#7A4D20]/60">
+                      ॥ श्री राधा गोविन्द ॥
+                    </span>
+                  </div>
+                )}
+
+                {/* Hero Image renders ONLY once the authoritative URL is known */}
+                {targetHeroSrc && (
+                  <img
+                    src={targetHeroSrc}
+                    alt="Shri Radha Govind Store devotional collection from Vrindavan"
+                    fetchPriority="high"
+                    loading="eager"
+                    decoding="async"
+                    width={800}
+                    height={600}
+                    onLoad={() => setHeroImageLoaded(true)}
+                    className={`aspect-[4/3] w-full rounded-xl object-cover object-center transition-opacity duration-300 ${
+                      heroImageLoaded ? "opacity-100" : "opacity-0"
+                    }`}
+                  />
+                )}
+              </div>
             </div>
           </div>
         </div>
       </section>
 
       {/* 2. PRODUCT SECTIONS (Horizontal Carousels / Sliders) */}
-      {categoryShelves.map(({ category, products }, index) => (
-        <ProductShelfCarousel
-          key={category.id}
-          category={category}
-          products={products}
-          isAlternate={index % 2 === 1}
-        />
-      ))}
+      {!isProductsLoaded && categoryShelves.length === 0 ? (
+        <>
+          <ProductShelfSkeleton isAlternate={false} categoryName="Tulsi Mala" />
+          <ProductShelfSkeleton isAlternate={true} categoryName="Puja Essentials" />
+        </>
+      ) : (
+        categoryShelves.map(({ category, products }, index) => (
+          <ProductShelfCarousel
+            key={category.id}
+            category={category}
+            products={products}
+            isAlternate={index % 2 === 1}
+          />
+        ))
+      )}
 
       {/* 4. VRINDAVAN STORY SECTION (Short & Compact) */}
       <section
@@ -154,11 +202,30 @@ function Home() {
         <div className="container-app">
           <div className="grid items-center gap-6 md:grid-cols-[280px_1fr] lg:grid-cols-[340px_1fr] lg:gap-10">
             <div className="soft-shadow overflow-hidden rounded-xl border border-[#E7E1D6] bg-white p-1.5">
-              <img
-                src={settings?.vrindavanStoryImage?.trim() || heroKrishna}
-                alt="Shri Radha Govind Vrindavan"
-                className="aspect-[4/3] w-full rounded-lg object-cover"
-              />
+              <div className="relative aspect-[4/3] w-full overflow-hidden rounded-lg bg-[#FAF5EE]">
+                {(!isStoryKnown || !storyImageLoaded) && (
+                  <div
+                    className="absolute inset-0 flex items-center justify-center bg-gradient-to-br from-[#FFFDF8] via-[#FAF4EA] to-[#F2E8DA] select-none"
+                    aria-hidden="true"
+                  >
+                    <div className="h-7 w-7 rounded-full border-2 border-[#D9A441]/30 border-t-[#D9A441] animate-spin" />
+                  </div>
+                )}
+                {targetStorySrc && (
+                  <img
+                    src={targetStorySrc}
+                    alt="Shri Radha Govind Vrindavan"
+                    loading="lazy"
+                    decoding="async"
+                    width={680}
+                    height={510}
+                    onLoad={() => setStoryImageLoaded(true)}
+                    className={`aspect-[4/3] w-full rounded-lg object-cover transition-opacity duration-300 ${
+                      storyImageLoaded ? "opacity-100" : "opacity-0"
+                    }`}
+                  />
+                )}
+              </div>
             </div>
 
             <div className="flex flex-col justify-center">
@@ -329,7 +396,7 @@ function ProductShelfCarousel({
         <div
           ref={scrollRef}
           onScroll={pauseAutoplay}
-          className="mt-4 flex snap-x snap-mandatory gap-2.5 sm:gap-3.5 overflow-x-auto scroll-smooth py-1 px-0.5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+          className="mt-4 flex min-h-[270px] sm:min-h-[350px] snap-x snap-mandatory gap-2.5 sm:gap-3.5 overflow-x-auto scroll-smooth py-1 px-0.5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
         >
           {products.map((product) => (
             <div
@@ -344,3 +411,47 @@ function ProductShelfCarousel({
     </section>
   );
 }
+
+function ProductShelfSkeleton({ isAlternate, categoryName }: { isAlternate: boolean; categoryName: string }) {
+  const bgClass = isAlternate ? "bg-[#FAF4EE]" : "bg-[#FFFFF4]";
+
+  return (
+    <section className={`border-b border-[#E7E1D6] ${bgClass} py-6 md:py-8`}>
+      <div className="container-app">
+        {/* Section Header Skeleton */}
+        <div className="flex items-end justify-between gap-3 border-b border-[#E7E1D6] pb-2.5">
+          <div>
+            <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-[#D9A441]">
+              TOP PICKS
+            </p>
+            <h2 className="mt-0.5 font-serif text-xl font-semibold text-[#2B211C] sm:text-2xl">
+              Best of {categoryName}
+            </h2>
+          </div>
+          <div className="h-4 w-28 rounded bg-[#E7E1D6]/60 animate-pulse" />
+        </div>
+
+        {/* Carousel Row Skeleton matching card widths */}
+        <div className="mt-4 flex min-h-[270px] sm:min-h-[350px] gap-2.5 sm:gap-3.5 overflow-hidden py-1 px-0.5">
+          {[1, 2, 3, 4, 5].map((idx) => (
+            <div
+              key={idx}
+              className="w-[145px] min-[360px]:w-[155px] min-[390px]:w-[165px] sm:w-[185px] md:w-[205px] lg:w-[225px] shrink-0"
+            >
+              <div className="rounded-xl border border-[#E7E1D6] bg-white p-2 sm:p-2.5 shadow-sm">
+                <div className="aspect-square w-full rounded-lg bg-[#FAF4EA] animate-pulse" />
+                <div className="mt-2.5 h-3.5 w-4/5 rounded bg-[#FAF4EA] animate-pulse" />
+                <div className="mt-1.5 h-3 w-3/5 rounded bg-[#FAF4EA] animate-pulse" />
+                <div className="mt-3 flex items-center justify-between">
+                  <div className="h-4 w-12 rounded bg-[#FAF4EA] animate-pulse" />
+                  <div className="h-7 w-16 rounded bg-[#FAF4EA] animate-pulse" />
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    </section>
+  );
+}
+

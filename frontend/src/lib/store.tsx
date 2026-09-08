@@ -28,6 +28,7 @@ export type OrderItem = {
   qty: number;
   hsnCode?: string;
   price?: number;
+  costPrice?: number;
   mrp?: number;
   taxableAmount?: number;
   gstAmount?: number;
@@ -51,6 +52,13 @@ export type Order = {
   igst?: number;
   gstTotal?: number;
   total: number;
+  courierCharge?: number;
+  packagingCost?: number;
+  razorpayFee?: number;
+  productCost?: number;
+  totalExpense?: number;
+  netProfit?: number;
+  invoiceSentAt?: string | null;
   alternatePhone?: string;
   needsGstInvoice?: boolean;
   businessName?: string;
@@ -193,6 +201,10 @@ export type Settings = {
   footerDescription?: string;
   homeHeroImage?: string;
   vrindavanStoryImage?: string;
+  aboutHeroImage?: string;
+  aboutStoryImage?: string;
+  aboutManojImage?: string;
+  aboutGovindImage?: string;
   whatsappTemplate?: string;
 };
 
@@ -216,6 +228,10 @@ const DEFAULT_SETTINGS: Settings = {
   footerDescription: "Shri Radha Govind Store brings authentic, consecrated devotional items directly from the holy land of Vrindavan Dham to your home.",
   homeHeroImage: "",
   vrindavanStoryImage: "",
+  aboutHeroImage: "",
+  aboutStoryImage: "",
+  aboutManojImage: "",
+  aboutGovindImage: "",
   whatsappTemplate: "",
 };
 
@@ -287,6 +303,9 @@ type Store = {
   deleteCategory: (nameOrId: string) => Promise<void> | void;
   settings: Settings;
   updateSettings: (patch: Partial<Settings>) => Promise<void> | void;
+  isSettingsLoaded: boolean;
+  isProductsLoaded: boolean;
+  isCategoriesLoaded: boolean;
   customers: { name: string; email: string; phone: string; orders: number; spent: number }[];
   registeredUsers: RegisteredUser[];
   fetchRegisteredUsers: () => Promise<void>;
@@ -368,6 +387,10 @@ const mapSettings = (s: any): Partial<Settings> => ({
   footerDescription: s.footerDescription,
   homeHeroImage: s.homeHeroImage,
   vrindavanStoryImage: s.vrindavanStoryImage,
+  aboutHeroImage: s.aboutHeroImage,
+  aboutStoryImage: s.aboutStoryImage,
+  aboutManojImage: s.aboutManojImage,
+  aboutGovindImage: s.aboutGovindImage,
   whatsappTemplate: s.whatsappTemplate,
 });
 
@@ -493,6 +516,7 @@ const mapOrder = (o: any, productLookup: Map<string, Product>): Order => {
             qty: Number(i?.qty) || 1,
             hsnCode: i?.hsnCode || baseProd.hsnCode || "",
             price: typeof i?.price === "number" ? i.price : baseProd.price,
+            costPrice: typeof i?.costPrice === "number" ? i.costPrice : (baseProd as any).costPrice,
             mrp: typeof i?.mrp === "number" ? i.mrp : baseProd.mrp,
             taxableAmount: typeof i?.taxableAmount === "number" ? i.taxableAmount : undefined,
             gstAmount: typeof i?.gstAmount === "number" ? i.gstAmount : undefined,
@@ -510,6 +534,13 @@ const mapOrder = (o: any, productLookup: Map<string, Product>): Order => {
     igst: typeof o?.igst === "number" ? o.igst : undefined,
     gstTotal: typeof o?.gstTotal === "number" ? o.gstTotal : undefined,
     total: Number(o?.total) || 0,
+    courierCharge: typeof o?.courierCharge === "number" ? o.courierCharge : 0,
+    packagingCost: typeof o?.packagingCost === "number" ? o.packagingCost : 0,
+    razorpayFee: typeof o?.razorpayFee === "number" ? o.razorpayFee : 0,
+    productCost: typeof o?.productCost === "number" ? o.productCost : 0,
+    totalExpense: typeof o?.totalExpense === "number" ? o.totalExpense : 0,
+    netProfit: typeof o?.netProfit === "number" ? o.netProfit : 0,
+    invoiceSentAt: o?.invoiceSentAt ? String(o.invoiceSentAt) : null,
     alternatePhone: o?.alternatePhone ?? safeAddress.alternatePhone,
     needsGstInvoice: Boolean(o?.needsGstInvoice),
     businessName: String(o?.businessName || ""),
@@ -546,12 +577,41 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   const [cart, setCart] = useState<CartItem[]>([]);
   const [wishlist, setWishlist] = useState<string[]>([]);
   const [orders, setOrders] = useState<Order[]>([]);
-  const [adminProducts, setAdminProducts] = useState<Product[]>([]);
+  const [isSettingsLoaded, setIsSettingsLoaded] = useState(false);
+  const [isProductsLoaded, setIsProductsLoaded] = useState(false);
+  const [isCategoriesLoaded, setIsCategoriesLoaded] = useState(false);
+
+  const [adminProducts, setAdminProducts] = useState<Product[]>(() => {
+    if (typeof window !== "undefined") {
+      try {
+        const sess = sessionStorage.getItem("srg_session_prods");
+        if (sess) {
+          const parsed = JSON.parse(sess);
+          if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+        }
+      } catch {
+        /* ignore */
+      }
+    }
+    return [];
+  });
   const [categories, setCategories] = useState<string[]>(DEFAULT_CATEGORIES);
   const [categoryDetails, setCategoryDetails] = useState<Category[]>(DEFAULT_CATEGORY_DETAILS);
   // backend category name → id
   const [categoryIds, setCategoryIds] = useState<Record<string, string>>({});
-  const [settings, setSettings] = useState<Settings>(DEFAULT_SETTINGS);
+  const [settings, setSettings] = useState<Settings>(() => {
+    if (typeof window !== "undefined") {
+      try {
+        const cached = load<Partial<Settings>>("settings", {});
+        if (cached && (cached.homeHeroImage || cached.siteName)) {
+          return { ...DEFAULT_SETTINGS, ...cached };
+        }
+      } catch {
+        /* ignore */
+      }
+    }
+    return DEFAULT_SETTINGS;
+  });
   const [registeredUsers, setRegisteredUsers] = useState<RegisteredUser[]>([]);
   const [blogs, setBlogs] = useState<Blog[]>([]);
 
@@ -584,35 +644,21 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     setCategoryDetails(load("categoryDetails", DEFAULT_CATEGORY_DETAILS));
     setBlogs(load("blogs", []));
     setOrders((load("orders", []) || []).map((o: any) => mapOrder(o, new Map())));
-    setSettings({ ...DEFAULT_SETTINGS, ...load("settings", {}) });
-    if (!apiEnabled) return;
+
+    const cachedSettings = load("settings", {});
+    if (cachedSettings && Object.keys(cachedSettings).length > 0) {
+      setSettings((s) => ({ ...s, ...cachedSettings }));
+    }
+
+    if (!apiEnabled) {
+      setIsSettingsLoaded(true);
+      setIsProductsLoaded(true);
+      setIsCategoriesLoaded(true);
+      return;
+    }
 
     (async () => {
-      // 1. Independent products fetch
-      const prodPromise = api<{ products: any[] }>("/products", { retries: 2, retryDelayMs: 1500 })
-        .then((prodRes) => {
-          const products = (prodRes?.products || []).map(mapProduct);
-          setAdminProducts(products);
-          return products;
-        })
-        .catch((e: any) => {
-          console.warn("[api] initial products load failed:", e?.message);
-          return [] as Product[];
-        });
-
-      // 2. Independent categories fetch
-      const catPromise = api<{ categories: any[] }>("/categories", { retries: 2, retryDelayMs: 1500 })
-        .then((catRes) => {
-          const mappedCategories = (catRes?.categories || []).map(mapCategory);
-          setCategoryDetails(mappedCategories);
-          setCategories(mappedCategories.filter((c) => c.isActive).map((c) => c.name));
-          setCategoryIds(Object.fromEntries(mappedCategories.map((c) => [c.name, c.id])));
-        })
-        .catch((e: any) => {
-          console.warn("[api] initial categories load failed:", e?.message);
-        });
-
-      // 3. Independent settings fetch
+      // 1. Settings fetch (independent and prioritized for hero/header branding)
       const setPromise = api<{ settings: any }>("/settings", { retries: 2, retryDelayMs: 1500 })
         .then((setRes) => {
           if (setRes?.settings) {
@@ -621,10 +667,50 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         })
         .catch((e: any) => {
           console.warn("[api] initial settings load failed:", e?.message);
+        })
+        .finally(() => {
+          setIsSettingsLoaded(true);
         });
 
-      // 4. Independent blogs fetch
-      const blogPromise = api<{ blogs: any[] }>("/blogs?all=true", { retries: 2, retryDelayMs: 1500 })
+      // 2. Products and Categories fetched in parallel and batched together to prevent progressive shelf jumping
+      const prodAndCatPromise = Promise.allSettled([
+        api<{ products: any[] }>("/products", { retries: 2, retryDelayMs: 1500 }),
+        api<{ categories: any[] }>("/categories", { retries: 2, retryDelayMs: 1500 }),
+      ]).then(([prodResult, catResult]) => {
+        let prods: Product[] = [];
+        if (prodResult.status === "fulfilled" && prodResult.value?.products) {
+          prods = prodResult.value.products.map(mapProduct);
+          setAdminProducts(prods);
+          if (typeof window !== "undefined") {
+            try {
+              sessionStorage.setItem("srg_session_prods", JSON.stringify(prods));
+            } catch {
+              /* ignore */
+            }
+          }
+        } else if (prodResult.status === "rejected") {
+          console.warn("[api] initial products load failed:", prodResult.reason?.message);
+        }
+
+        if (catResult.status === "fulfilled" && catResult.value?.categories) {
+          const mappedCategories = catResult.value.categories.map(mapCategory);
+          setCategoryDetails(mappedCategories);
+          setCategories(mappedCategories.filter((c: any) => c.isActive).map((c: any) => c.name));
+          setCategoryIds(Object.fromEntries(mappedCategories.map((c: any) => [c.name, c.id])));
+        } else if (catResult.status === "rejected") {
+          console.warn("[api] initial categories load failed:", catResult.reason?.message);
+        }
+
+        setIsProductsLoaded(true);
+        setIsCategoriesLoaded(true);
+        return prods;
+      });
+
+      // Wait for above-the-fold critical data to settle before checking user auth
+      const [prods] = await Promise.all([prodAndCatPromise, setPromise]);
+
+      // 3. Defer non-critical blogs request so it does not compete for initial page bandwidth
+      api<{ blogs: any[] }>("/blogs?all=true", { retries: 1, retryDelayMs: 2000 })
         .then((blogRes) => {
           if (blogRes?.blogs) {
             setBlogs(blogRes.blogs.map(mapBlog));
@@ -633,8 +719,6 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         .catch((e: any) => {
           console.warn("[api] initial blogs load failed:", e?.message);
         });
-
-      await Promise.allSettled([prodPromise, catPromise, setPromise, blogPromise]);
 
       if (getToken()) {
         try {
@@ -651,13 +735,15 @@ export function StoreProvider({ children }: { children: ReactNode }) {
           const ord = await api<{ orders: any[] }>(
             me.user.role === "admin" ? "/admin/orders" : "/orders",
           );
-          const currentProducts = await prodPromise;
+          const currentProducts = Array.isArray(prods) && prods.length > 0 ? prods : adminProducts;
           const lookup = new Map(currentProducts.map((p) => [p.id, p]));
           setOrders((ord?.orders || []).map((o) => mapOrder(o, lookup)));
         } catch {
           setToken(null);
           setUser(null);
         }
+      } else {
+        setUser(null);
       }
     })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -671,7 +757,11 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   useEffect(() => save("categories", categories), [categories]);
   useEffect(() => save("categoryDetails", categoryDetails), [categoryDetails]);
   useEffect(() => save("blogs", blogs), [blogs]);
-  useEffect(() => save("settings", settings), [settings]);
+  useEffect(() => {
+    if (isSettingsLoaded) {
+      save("settings", settings);
+    }
+  }, [settings, isSettingsLoaded]);
 
   const adminAuthed = !!user && user.role === "admin";
 
@@ -1555,6 +1645,9 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     resetPassword,
     settings,
     updateSettings,
+    isSettingsLoaded,
+    isProductsLoaded,
+    isCategoriesLoaded,
     customers,
     registeredUsers,
     fetchRegisteredUsers,
