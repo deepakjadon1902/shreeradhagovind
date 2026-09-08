@@ -1,5 +1,6 @@
 import { Resend } from "resend";
 import { env } from "../config/env";
+import { Order } from "../models/Order";
 import { generateInvoicePDF, type InvoiceData } from "./invoice";
 import { getCourierTrackingUrl } from "./courier";
 
@@ -145,6 +146,135 @@ export async function sendOrderConfirmationWithInvoice(
     subject: built.subject,
     html: built.html,
     attachments,
+  });
+}
+
+/**
+ * Safely and idempotently dispatches the order confirmation email with invoice PDF.
+ * Strict rules enforced:
+ * 1. Check order.invoiceSentAt. If already sent, do NOT generate or send another invoice.
+ * 2. Atomic lock via invoiceLockUntil prevents duplicate concurrent sends (e.g. concurrent webhooks or status changes).
+ * 3. Generate invoice PDF.
+ * 4. Send invoice email.
+ * 5. ONLY AFTER the email sending operation succeeds: persist invoiceSentAt and clear the lock.
+ * 6. If invoice generation or email fails: invoiceSentAt MUST remain null/unset, lock is cleared, allowing legitimate retries.
+ */
+export async function dispatchOrderInvoiceEmailOnce(
+  orderId: any,
+  to: string,
+  name: string,
+  order: EmailOrderPayload
+): Promise<{ success: boolean; reason?: string; skipped?: boolean }> {
+  if (!orderId || !to) return { success: false, reason: "missing_recipient_or_order_id" };
+
+  const now = new Date();
+  const lockExpiry = new Date(now.getTime() + 60 * 1000); // 60-second atomic lock window
+
+  // Atomic check and lock: order must NOT have invoiceSentAt set, and must NOT have an active lock
+  const lockedOrder = await Order.findOneAndUpdate(
+    {
+      _id: orderId,
+      invoiceSentAt: null,
+      $or: [
+        { invoiceLockUntil: null },
+        { invoiceLockUntil: { $lt: now } },
+      ],
+    },
+    {
+      $set: { invoiceLockUntil: lockExpiry },
+    },
+    { new: true }
+  );
+
+  if (!lockedOrder) {
+    // Either already sent (invoiceSentAt is not null) or another worker is actively sending right now
+    return { success: false, reason: "already_sent_or_in_progress", skipped: true };
+  }
+
+  try {
+    const orderNum = formatOrderNumber(order);
+    const invoiceData: InvoiceData = {
+      orderId: String(order._id),
+      orderNo: order.orderNo ?? orderNum,
+      invoiceNo: `INV-${orderNum}`,
+      trackingId: order.trackingId,
+      courier: order.courier ?? null,
+      status: order.status,
+      customerName: name,
+      customerEmail: to,
+      businessName: order.businessName,
+      gstin: order.gstin,
+      needsGstInvoice: order.needsGstInvoice,
+      items: order.items,
+      subtotal: order.subtotal,
+      shipping: order.shipping,
+      total: order.total,
+      address: order.address,
+      payment: order.payment,
+      createdAt: order.createdAt,
+    };
+
+    const pdf = await generateInvoicePDF(invoiceData);
+    const fname = `Invoice-${orderNum}.pdf`;
+    const attachments: EmailAttachment[] = [{ filename: fname, content: pdf }];
+
+    const built = tpl.orderConfirmed(name, order);
+    const sendResult = await sendEmail({
+      to,
+      bcc: SUPPORT_EMAIL_BCC,
+      subject: built.subject,
+      html: built.html,
+      attachments,
+    });
+
+    if (sendResult && (sendResult as any).error) {
+      throw new Error(`Email provider error: ${JSON.stringify((sendResult as any).error)}`);
+    }
+
+    // ONLY AFTER the email sending operation succeeds: persist invoiceSentAt and release lock
+    const sentDate = new Date();
+    await Order.findByIdAndUpdate(orderId, {
+      $set: {
+        invoiceSentAt: sentDate,
+        invoiceLockUntil: null,
+      },
+    });
+
+    return { success: true };
+  } catch (err: any) {
+    console.error("[dispatchOrderInvoiceEmailOnce] Failed to generate/send invoice email:", err);
+    // Release the lock so a legitimate retry remains possible. invoiceSentAt MUST remain null/unset!
+    await Order.findByIdAndUpdate(orderId, {
+      $set: { invoiceLockUntil: null },
+    }).catch(() => {});
+    return { success: false, reason: err?.message || String(err) };
+  }
+}
+
+/**
+ * Sends a status update email WITHOUT invoice attachment.
+ * Per business rules, invoices are sent only once upon order confirmation.
+ */
+export async function sendOrderStatusUpdate(
+  to: string,
+  name: string,
+  order: EmailOrderPayload & { status: string }
+) {
+  const orderNum = formatOrderNumber(order);
+  const built = tpl.statusUpdate(
+    name,
+    orderNum,
+    order.status,
+    order.trackingId,
+    order.courier,
+    order.courierTrackingUrl,
+    order,
+  );
+  return sendEmail({
+    to,
+    bcc: SUPPORT_EMAIL_BCC,
+    subject: built.subject,
+    html: built.html,
   });
 }
 

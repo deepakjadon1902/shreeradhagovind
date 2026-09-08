@@ -54,6 +54,7 @@ import {
   Copy,
   Download,
   ArrowLeft,
+  ArrowUpRight,
   BookmarkCheck,
   Globe,
   AlertTriangle,
@@ -82,6 +83,7 @@ type Tab =
   | "categories"
   | "blogs"
   | "users"
+  | "finance"
   | "payments"
   | "reviews"
   | "settings";
@@ -470,24 +472,24 @@ function AdminRoot() {
   };
 
   return (
-    <div className="min-h-screen flex flex-col bg-[#f6f6f6] md:flex-row">
-      <aside className="w-full bg-[var(--primary)] text-white p-4 flex flex-col md:sticky md:top-0 md:h-screen md:w-64 md:p-5">
-        <div className="flex items-center gap-3 mb-4 md:mb-10">
+    <div className="min-h-screen flex flex-col bg-[#f8f8f8] md:flex-row font-sans">
+      <aside className="w-full bg-white border-r border-stone-200 text-stone-800 p-4 flex flex-col md:sticky md:top-0 md:h-screen md:w-64 md:p-5 shadow-xs z-20">
+        <div className="flex items-center gap-3 mb-4 md:mb-8 pb-4 border-b border-stone-100">
           <img
             src="/brand-logo-large.png"
             alt="Shri Radha Govind Store"
-            className="h-11 w-11 rounded-full object-cover ring-2 ring-accent"
+            className="h-10 w-10 rounded-full object-cover ring-1 ring-stone-200"
           />
           <div>
-            <span className="block font-display text-lg leading-tight">Admin Panel</span>
-            <span className="text-[10px] uppercase tracking-[.18em] text-primary-foreground/65">
+            <span className="block font-serif text-base font-bold text-stone-900 leading-tight">Admin Console</span>
+            <span className="text-[10px] uppercase font-semibold tracking-wider text-stone-400">
               Shri Radha Govind
             </span>
           </div>
         </div>
         <nav className="flex gap-1 overflow-x-auto pb-2 md:block md:space-y-4 md:overflow-visible md:pb-0 md:flex-1">
           <div>
-            <span className="hidden md:block px-3 mb-1 text-[10px] font-bold uppercase tracking-[0.16em] text-white/40">
+            <span className="hidden md:block px-3 mb-1.5 text-[10px] font-bold uppercase tracking-[0.16em] text-stone-400">
               STORE
             </span>
             <div className="flex md:block space-x-1 md:space-x-0 md:space-y-1">
@@ -510,7 +512,7 @@ function AdminRoot() {
           </div>
 
           <div>
-            <span className="hidden md:block px-3 mb-1 text-[10px] font-bold uppercase tracking-[0.16em] text-white/40">
+            <span className="hidden md:block px-3 mb-1.5 text-[10px] font-bold uppercase tracking-[0.16em] text-stone-400">
               CONTENT
             </span>
             <div className="flex md:block space-x-1 md:space-x-0 md:space-y-1">
@@ -524,10 +526,13 @@ function AdminRoot() {
           </div>
 
           <div>
-            <span className="hidden md:block px-3 mb-1 text-[10px] font-bold uppercase tracking-[0.16em] text-white/40">
+            <span className="hidden md:block px-3 mb-1.5 text-[10px] font-bold uppercase tracking-[0.16em] text-stone-400">
               FINANCE
             </span>
             <div className="flex md:block space-x-1 md:space-x-0 md:space-y-1">
+              <NavBtn active={tab === "finance"} onClick={() => setTab("finance")} icon={IndianRupee}>
+                Finance & Analytics
+              </NavBtn>
               <NavBtn active={tab === "payments"} onClick={() => setTab("payments")} icon={CreditCard}>
                 Payments
               </NavBtn>
@@ -535,7 +540,7 @@ function AdminRoot() {
           </div>
 
           <div>
-            <span className="hidden md:block px-3 mb-1 text-[10px] font-bold uppercase tracking-[0.16em] text-white/40">
+            <span className="hidden md:block px-3 mb-1.5 text-[10px] font-bold uppercase tracking-[0.16em] text-stone-400">
               STORE SETTINGS
             </span>
             <div className="flex md:block space-x-1 md:space-x-0 md:space-y-1">
@@ -549,18 +554,18 @@ function AdminRoot() {
             </div>
           </div>
         </nav>
-        <div className="mt-3 flex items-center gap-4 border-t border-primary-foreground/15 pt-3 md:block">
+        <div className="mt-3 flex items-center gap-4 border-t border-stone-200 pt-3 md:block">
           <button
             onClick={adminLogout}
-            className="flex items-center gap-2 text-sm text-primary-foreground/75 hover:text-primary-foreground py-2"
+            className="flex items-center gap-2 text-sm text-stone-600 hover:text-stone-900 py-2 font-medium transition"
           >
             <LogOut className="h-4 w-4" /> Logout
           </button>
           <Link
             to="/"
-            className="text-xs text-primary-foreground/60 hover:text-primary-foreground md:mt-2 md:block"
+            className="text-xs text-stone-500 hover:text-stone-900 md:mt-1 md:block font-medium transition"
           >
-            View store
+            View storefront ↗
           </Link>
         </div>
       </aside>
@@ -568,22 +573,22 @@ function AdminRoot() {
       <main className="min-w-0 flex-1 p-4 sm:p-6 lg:p-10 overflow-x-hidden">
         {tab === "dash" && (
           <div>
-            <section className="rounded-lg bg-[var(--primary)] p-6 text-white premium-shadow">
-              <p className="text-xs font-bold uppercase tracking-[0.22em] text-[var(--secondary)]">
-                Marketplace command center
+            <section className="rounded-xl bg-white border border-stone-200 p-6 text-stone-900 shadow-xs">
+              <p className="text-[11px] font-bold uppercase tracking-[0.2em] text-stone-400">
+                Business Management Console
               </p>
               <div className="mt-2 flex flex-wrap items-end justify-between gap-4">
                 <div>
-                  <h1 className="font-display text-4xl">Store Overview</h1>
-                  <p className="mt-1 text-sm text-white/75">
-                    Manage your store, orders, products and customers.
+                  <h1 className="font-serif text-3xl font-bold text-stone-900">Store Overview</h1>
+                  <p className="mt-1 text-sm text-stone-500">
+                    Manage your store, orders, products, finances, and customer activity.
                   </p>
                 </div>
                 <Link
                   to="/"
-                  className="inline-flex h-10 items-center rounded-md border border-white/20 px-4 text-sm font-semibold text-white hover:bg-white/10 transition"
+                  className="inline-flex h-9 items-center rounded-lg border border-stone-300 bg-white px-3.5 text-xs font-semibold text-stone-700 hover:bg-stone-50 transition shadow-xs"
                 >
-                  View storefront
+                  View storefront ↗
                 </Link>
               </div>
             </section>
@@ -670,7 +675,8 @@ function AdminRoot() {
                   <tr>
                     <th className="p-4">Product</th>
                     <th>Category</th>
-                    <th>Price</th>
+                    <th>Selling Price</th>
+                    <th>Cost Price</th>
                     <th>HSN / GST</th>
                     <th>Stock</th>
                     <th></th>
@@ -678,13 +684,16 @@ function AdminRoot() {
                 </thead>
                 <tbody>
                   {adminProducts.map((pr) => (
-                    <tr key={pr.id} className="border-t">
+                    <tr key={pr.id} className="border-t hover:bg-stone-50/50 transition">
                       <td className="p-4 flex items-center gap-3">
                         <img src={pr.image} className="h-12 w-12 rounded-lg object-cover" alt="" />
                         <span className="font-medium line-clamp-1 max-w-xs">{pr.name}</span>
                       </td>
                       <td>{pr.category}</td>
-                      <td className="font-medium">{formatINR(pr.price)}</td>
+                      <td className="font-medium text-stone-900">{formatINR(pr.price)}</td>
+                      <td className="text-xs text-stone-600 font-mono">
+                        {pr.costPrice ? formatINR(pr.costPrice) : "₹0"}
+                      </td>
                       <td className="text-xs">
                         <div className="flex items-center gap-1.5 font-mono">
                           <span className="text-muted-foreground font-medium">
@@ -911,8 +920,17 @@ function AdminRoot() {
                           </button>
                           <button
                             type="button"
+                            onClick={() => downloadOrderInvoicePdf(o)}
+                            className="h-9 px-3 rounded-lg border border-border bg-white text-xs font-semibold hover:bg-stone-50 text-stone-700 transition inline-flex items-center gap-1.5 shadow-xs"
+                            title="Download Tax Invoice PDF"
+                          >
+                            <Download className="h-3.5 w-3.5 text-stone-600" />
+                            <span>Invoice</span>
+                          </button>
+                          <button
+                            type="button"
                             onClick={() => setEditingOrder(o)}
-                            className="h-9 px-4 rounded-lg bg-primary text-primary-foreground text-xs font-semibold hover:bg-primary/90 transition shadow-sm"
+                            className="h-9 px-4 rounded-lg bg-stone-900 text-white text-xs font-semibold hover:bg-stone-800 transition shadow-xs"
                           >
                             Manage Order
                           </button>
@@ -1175,8 +1193,773 @@ function AdminRoot() {
         )}
 
         {tab === "settings" && <SettingsPanel settings={settings} onSave={updateSettings} />}
+        {tab === "finance" && (
+          <FinanceAnalyticsPanel
+            orders={orders}
+            onManageOrder={(o) => setEditingOrder(o)}
+            onNavigateToOrders={() => setTab("orders")}
+          />
+        )}
         {tab === "reviews" && <ReviewsManager />}
       </main>
+    </div>
+  );
+}
+
+export function isOrderPaidForFinance(o: any): boolean {
+  if (!o || o.status === "Cancelled") return false;
+  const pStatus = o.payment?.status;
+  if (pStatus === "failed" || pStatus === "refunded") return false;
+  if (pStatus === "paid") return true;
+  // For COD orders, cash is collected upon successful delivery
+  if (o.payment?.method === "cod" && o.status === "Delivered") return true;
+  return false;
+}
+
+function FinanceAnalyticsPanel({
+  orders,
+  onManageOrder,
+  onNavigateToOrders,
+}: {
+  orders: Order[];
+  onManageOrder?: (order: Order) => void;
+  onNavigateToOrders?: () => void;
+}) {
+  const [timeframe, setTimeframe] = useState<"daily" | "weekly" | "monthly" | "yearly">("monthly");
+  const [drilldown, setDrilldown] = useState<{
+    title: string;
+    periodLabel: string;
+    metricName: string;
+    orders: Order[];
+  } | null>(null);
+
+  // Valid orders only: paid and verified orders (cancelled, unpaid, and failed orders strictly excluded from Finance Analytics)
+  const validOrders = useMemo(() => {
+    return (orders || []).filter(isOrderPaidForFinance);
+  }, [orders]);
+
+  // Overall summary metrics
+  const summary = useMemo(() => {
+    let totalRevenue = 0;
+    let totalPackagingCost = 0;
+    let totalCourierCharge = 0;
+    let totalRazorpayFee = 0;
+    let knownProductCost = 0;
+    let knownNetProfit = 0;
+    let ordersWithCostCount = 0;
+
+    for (const o of validOrders) {
+      const orderTotal = Number(o.total) || 0;
+      totalRevenue += orderTotal;
+
+      const subtotal = Number(o.subtotal);
+      const shipping = Number(o.shipping) || 0;
+      const orderValue = !isNaN(subtotal) && subtotal > 0 ? subtotal : Math.max(0, orderTotal - shipping);
+      const packCost =
+        typeof o.packagingCost === "number" && o.packagingCost > 0
+          ? o.packagingCost
+          : Math.round(orderValue * 0.02 * 100) / 100;
+      totalPackagingCost += packCost;
+
+      const cCharge = typeof o.courierCharge === "number" ? o.courierCharge : 0;
+      totalCourierCharge += cCharge;
+
+      const isOnlinePaid = o.payment?.method === "razorpay" && o.payment?.status === "paid";
+      const rFee =
+        typeof o.razorpayFee === "number" && o.razorpayFee > 0
+          ? o.razorpayFee
+          : isOnlinePaid
+            ? Math.round(orderTotal * 0.0236 * 100) / 100
+            : 0;
+      totalRazorpayFee += rFee;
+
+      if (typeof o.productCost === "number" && o.productCost !== null) {
+        knownProductCost += o.productCost;
+        ordersWithCostCount++;
+        if (typeof o.netProfit === "number" && o.netProfit !== null) {
+          knownNetProfit += o.netProfit;
+        } else {
+          const exp = Math.round((o.productCost + packCost + cCharge + rFee) * 100) / 100;
+          knownNetProfit += Math.round((orderTotal - exp) * 100) / 100;
+        }
+      }
+    }
+
+    const allCostAvailable = ordersWithCostCount === validOrders.length && validOrders.length > 0;
+    const totalExpense = allCostAvailable
+      ? Math.round((knownProductCost + totalPackagingCost + totalCourierCharge + totalRazorpayFee) * 100) / 100
+      : null;
+    const netProfit = allCostAvailable ? Math.round((totalRevenue - totalExpense!) * 100) / 100 : null;
+    const profitMargin = allCostAvailable && totalRevenue > 0 ? ((netProfit! / totalRevenue) * 100).toFixed(1) : null;
+    const aov = validOrders.length > 0 ? Math.round(totalRevenue / validOrders.length) : 0;
+
+    return {
+      totalOrders: validOrders.length,
+      totalRevenue,
+      totalProductCost: allCostAvailable ? knownProductCost : null,
+      knownProductCost,
+      totalPackagingCost,
+      totalCourierCharge,
+      totalRazorpayFee,
+      totalExpense,
+      netProfit,
+      profitMargin,
+      aov,
+      allCostAvailable,
+      ordersWithCostCount,
+      missingCostCount: validOrders.length - ordersWithCostCount,
+    };
+  }, [validOrders]);
+
+  // Periodic breakdown
+  const periods = useMemo(() => {
+    const map = new Map<
+      string,
+      {
+        key: string;
+        label: string;
+        orders: Order[];
+        orderCount: number;
+        revenue: number;
+        packagingCost: number;
+        courierCharge: number;
+        razorpayFee: number;
+        knownProductCost: number;
+        knownNetProfit: number;
+        ordersWithCostCount: number;
+        sortDate: number;
+      }
+    >();
+
+    for (const o of validOrders) {
+      const date = new Date(o.createdAt);
+      let key = "";
+      let label = "";
+      let sortDate = date.getTime();
+
+      if (timeframe === "daily") {
+        key = date.toISOString().slice(0, 10);
+        label = date.toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" });
+      } else if (timeframe === "weekly") {
+        const d = new Date(date);
+        const day = d.getDay();
+        const diff = d.getDate() - day;
+        d.setDate(diff);
+        key = d.toISOString().slice(0, 10);
+        label = `Week of ${d.toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" })}`;
+        sortDate = d.getTime();
+      } else if (timeframe === "monthly") {
+        key = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`;
+        label = date.toLocaleDateString("en-IN", { month: "long", year: "numeric" });
+        sortDate = new Date(date.getFullYear(), date.getMonth(), 1).getTime();
+      } else if (timeframe === "yearly") {
+        key = String(date.getFullYear());
+        label = `Year ${date.getFullYear()}`;
+        sortDate = new Date(date.getFullYear(), 0, 1).getTime();
+      }
+
+      const orderTotal = Number(o.total) || 0;
+      const subtotal = Number(o.subtotal);
+      const shipping = Number(o.shipping) || 0;
+      const orderValue = !isNaN(subtotal) && subtotal > 0 ? subtotal : Math.max(0, orderTotal - shipping);
+      const packCost =
+        typeof o.packagingCost === "number" && o.packagingCost > 0
+          ? o.packagingCost
+          : Math.round(orderValue * 0.02 * 100) / 100;
+      const cCharge = typeof o.courierCharge === "number" ? o.courierCharge : 0;
+      const isOnlinePaid = o.payment?.method === "razorpay" && o.payment?.status === "paid";
+      const rFee =
+        typeof o.razorpayFee === "number" && o.razorpayFee > 0
+          ? o.razorpayFee
+          : isOnlinePaid
+            ? Math.round(orderTotal * 0.0236 * 100) / 100
+            : 0;
+
+      const hasCost = typeof o.productCost === "number" && o.productCost !== null;
+      const pCost = hasCost ? o.productCost! : 0;
+      const nProfit = hasCost
+        ? typeof o.netProfit === "number" && o.netProfit !== null
+          ? o.netProfit
+          : Math.round((orderTotal - (pCost + packCost + cCharge + rFee)) * 100) / 100
+        : 0;
+
+      const existing = map.get(key);
+      if (existing) {
+        existing.orders.push(o);
+        existing.orderCount++;
+        existing.revenue += orderTotal;
+        existing.packagingCost += packCost;
+        existing.courierCharge += cCharge;
+        existing.razorpayFee += rFee;
+        if (hasCost) {
+          existing.knownProductCost += pCost;
+          existing.knownNetProfit += nProfit;
+          existing.ordersWithCostCount++;
+        }
+      } else {
+        map.set(key, {
+          key,
+          label,
+          orders: [o],
+          orderCount: 1,
+          revenue: orderTotal,
+          packagingCost: packCost,
+          courierCharge: cCharge,
+          razorpayFee: rFee,
+          knownProductCost: hasCost ? pCost : 0,
+          knownNetProfit: hasCost ? nProfit : 0,
+          ordersWithCostCount: hasCost ? 1 : 0,
+          sortDate,
+        });
+      }
+    }
+
+    return Array.from(map.values())
+      .sort((a, b) => b.sortDate - a.sortDate)
+      .map((row) => {
+        const allCostKnown = row.ordersWithCostCount === row.orders.length && row.orders.length > 0;
+        const totalExpense = allCostKnown
+          ? Math.round((row.knownProductCost + row.packagingCost + row.courierCharge + row.razorpayFee) * 100) / 100
+          : null;
+        const netProfit = allCostKnown ? Math.round((row.revenue - totalExpense!) * 100) / 100 : null;
+        const margin = allCostKnown && row.revenue > 0 ? ((netProfit! / row.revenue) * 100).toFixed(1) : null;
+        return {
+          ...row,
+          allCostKnown,
+          productCost: allCostKnown ? row.knownProductCost : null,
+          totalExpense,
+          netProfit,
+          margin,
+        };
+      });
+  }, [validOrders, timeframe]);
+
+  return (
+    <div className="space-y-6">
+      {/* Header & Controls */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div>
+          <h1 className="font-serif text-3xl font-bold text-stone-900">Finance & Analytics</h1>
+          <p className="text-xs text-stone-500 mt-1">
+            Real-time profit & loss accounting, expense breakdowns, and margin tracking with interactive drill-down.
+          </p>
+        </div>
+
+        {/* Timeframe selector */}
+        <div className="inline-flex rounded-xl bg-stone-100 p-1 border border-stone-200">
+          {(["daily", "weekly", "monthly", "yearly"] as const).map((t) => (
+            <button
+              key={t}
+              onClick={() => setTimeframe(t)}
+              className={`px-3 py-1.5 rounded-lg text-xs font-semibold capitalize transition ${
+                timeframe === t
+                  ? "bg-white text-stone-900 shadow-xs"
+                  : "text-stone-500 hover:text-stone-900"
+              }`}
+            >
+              {t === "daily" ? "Daily (30D)" : t === "weekly" ? "Weekly (12W)" : t === "monthly" ? "Monthly (12M)" : "Yearly"}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* Primary KPI Summary Cards */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+        <div
+          onClick={() =>
+            setDrilldown({
+              title: "All Timeframe Orders — Gross Revenue",
+              periodLabel: "All Timeframe",
+              metricName: "Gross Revenue",
+              orders: validOrders,
+            })
+          }
+          className="bg-white rounded-xl border border-stone-200 p-5 shadow-xs hover:border-stone-400 transition cursor-pointer group"
+        >
+          <div className="flex items-center justify-between">
+            <span className="text-[11px] uppercase font-bold text-stone-400 tracking-wider">Gross Revenue</span>
+            <ArrowUpRight className="h-3.5 w-3.5 text-stone-300 group-hover:text-stone-700 transition" />
+          </div>
+          <p className="font-serif text-2xl font-bold text-stone-900 mt-1">{formatINR(summary.totalRevenue)}</p>
+          <span className="text-[11px] text-stone-500 mt-0.5 block group-hover:underline">
+            {summary.totalOrders} paid/confirmed orders
+          </span>
+        </div>
+
+        <div
+          onClick={() =>
+            setDrilldown({
+              title: "All Timeframe Orders — Expenses",
+              periodLabel: "All Timeframe",
+              metricName: "Total Expenses",
+              orders: validOrders,
+            })
+          }
+          className="bg-white rounded-xl border border-stone-200 p-5 shadow-xs hover:border-stone-400 transition cursor-pointer group"
+        >
+          <div className="flex items-center justify-between">
+            <span className="text-[11px] uppercase font-bold text-stone-400 tracking-wider">Total Expenses</span>
+            <ArrowUpRight className="h-3.5 w-3.5 text-stone-300 group-hover:text-stone-700 transition" />
+          </div>
+          <p className="font-serif text-2xl font-bold text-stone-900 mt-1">
+            {summary.allCostAvailable ? formatINR(summary.totalExpense!) : "Not Available"}
+          </p>
+          <span className="text-[11px] text-stone-500 mt-0.5 block">
+            {summary.allCostAvailable ? "COGS + Packaging + Gateway + Courier" : "Historical COGS not recorded"}
+          </span>
+        </div>
+
+        <div
+          onClick={() =>
+            setDrilldown({
+              title: "All Timeframe Orders — Net Profit",
+              periodLabel: "All Timeframe",
+              metricName: "Net Profit",
+              orders: validOrders,
+            })
+          }
+          className="bg-white rounded-xl border border-stone-200 p-5 shadow-xs hover:border-stone-400 transition cursor-pointer group"
+        >
+          <div className="flex items-center justify-between">
+            <span className="text-[11px] uppercase font-bold text-stone-400 tracking-wider">Net Profit</span>
+            <ArrowUpRight className="h-3.5 w-3.5 text-stone-300 group-hover:text-stone-700 transition" />
+          </div>
+          {summary.allCostAvailable ? (
+            <>
+              <p className={`font-serif text-2xl font-bold mt-1 ${summary.netProfit! >= 0 ? "text-emerald-700" : "text-rose-600"}`}>
+                {formatINR(summary.netProfit!)}
+              </p>
+              <span className={`text-[11px] font-semibold mt-0.5 inline-flex items-center px-1.5 py-0.5 rounded ${summary.netProfit! >= 0 ? "bg-emerald-50 text-emerald-700" : "bg-rose-50 text-rose-700"}`}>
+                {summary.profitMargin}% Net Margin
+              </span>
+            </>
+          ) : (
+            <>
+              <p className="font-serif text-2xl font-bold text-stone-400 mt-1">Not Available</p>
+              <span className="text-[11px] text-amber-700 font-medium mt-0.5 block">
+                {summary.ordersWithCostCount > 0
+                  ? `${summary.ordersWithCostCount}/${validOrders.length} orders tracked`
+                  : "Historical cost basis not recorded"}
+              </span>
+            </>
+          )}
+        </div>
+
+        <div
+          onClick={() =>
+            setDrilldown({
+              title: "All Timeframe Orders — Average Order Value",
+              periodLabel: "All Timeframe",
+              metricName: "AOV",
+              orders: validOrders,
+            })
+          }
+          className="bg-white rounded-xl border border-stone-200 p-5 shadow-xs hover:border-stone-400 transition cursor-pointer group"
+        >
+          <div className="flex items-center justify-between">
+            <span className="text-[11px] uppercase font-bold text-stone-400 tracking-wider">Avg Order Value (AOV)</span>
+            <ArrowUpRight className="h-3.5 w-3.5 text-stone-300 group-hover:text-stone-700 transition" />
+          </div>
+          <p className="font-serif text-2xl font-bold text-stone-900 mt-1">{formatINR(summary.aov)}</p>
+          <span className="text-[11px] text-stone-500 mt-0.5 block">Per confirmed order</span>
+        </div>
+      </div>
+
+      {/* Detailed Expense Breakdown Row */}
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 bg-stone-50 border border-stone-200 rounded-xl p-4 text-xs">
+        <div>
+          <span className="text-stone-400 text-[10px] uppercase font-bold tracking-wider">Product Cost (COGS)</span>
+          <p className="font-semibold text-stone-800 text-sm mt-0.5">
+            {summary.allCostAvailable ? formatINR(summary.totalProductCost!) : "Not Available"}
+          </p>
+        </div>
+        <div>
+          <span className="text-stone-400 text-[10px] uppercase font-bold tracking-wider">Packaging Cost (2%)</span>
+          <p className="font-semibold text-stone-800 text-sm mt-0.5">{formatINR(summary.totalPackagingCost)}</p>
+        </div>
+        <div>
+          <span className="text-stone-400 text-[10px] uppercase font-bold tracking-wider">Gateway Fees (2.36%)</span>
+          <p className="font-semibold text-stone-800 text-sm mt-0.5">{formatINR(summary.totalRazorpayFee)}</p>
+        </div>
+        <div>
+          <span className="text-stone-400 text-[10px] uppercase font-bold tracking-wider">Courier Charges</span>
+          <p className="font-semibold text-stone-800 text-sm mt-0.5">{formatINR(summary.totalCourierCharge)}</p>
+        </div>
+      </div>
+
+      {/* Breakdown Table */}
+      <div className="bg-white rounded-xl border border-stone-200 shadow-xs overflow-x-auto">
+        <table className="w-full min-w-[850px] text-sm text-left">
+          <thead className="bg-stone-50/80 border-b border-stone-200 text-xs text-stone-500 uppercase font-semibold">
+            <tr>
+              <th className="p-4">Period</th>
+              <th className="p-4 text-center">Orders (Click to view)</th>
+              <th className="p-4 text-right">Gross Revenue</th>
+              <th className="p-4 text-right">Product Cost</th>
+              <th className="p-4 text-right">Packaging</th>
+              <th className="p-4 text-right">Gateway Fees</th>
+              <th className="p-4 text-right">Courier</th>
+              <th className="p-4 text-right">Total Expense</th>
+              <th className="p-4 text-right">Net Profit</th>
+              <th className="p-4 text-center">Margin</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-stone-100">
+            {periods.length === 0 && (
+              <tr>
+                <td colSpan={10} className="p-8 text-center text-stone-400 text-xs">
+                  No confirmed orders recorded for this timeframe.
+                </td>
+              </tr>
+            )}
+            {periods.map((row) => (
+              <tr key={row.key} className="hover:bg-stone-50/60 transition">
+                <td className="p-4 font-semibold text-stone-900 whitespace-nowrap">{row.label}</td>
+                <td className="p-4 text-center">
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setDrilldown({
+                        title: `${row.label} — Orders List`,
+                        periodLabel: row.label,
+                        metricName: "Orders",
+                        orders: row.orders,
+                      })
+                    }
+                    className="inline-flex items-center gap-1 font-mono font-bold text-stone-900 bg-stone-100 hover:bg-stone-200 hover:text-stone-950 px-2.5 py-1 rounded-md transition cursor-pointer text-xs shadow-2xs"
+                    title={`Click to view the ${row.orders.length} orders for ${row.label}`}
+                  >
+                    <span>{row.orderCount}</span>
+                    <ArrowUpRight className="h-3 w-3 text-stone-400" />
+                  </button>
+                </td>
+                <td className="p-4 text-right whitespace-nowrap">
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setDrilldown({
+                        title: `${row.label} — Gross Revenue`,
+                        periodLabel: row.label,
+                        metricName: "Revenue",
+                        orders: row.orders,
+                      })
+                    }
+                    className="font-medium text-stone-900 hover:underline hover:text-stone-700 transition cursor-pointer"
+                  >
+                    {formatINR(row.revenue)}
+                  </button>
+                </td>
+                <td className="p-4 text-right whitespace-nowrap">
+                  {row.allCostKnown ? (
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setDrilldown({
+                          title: `${row.label} — Product Cost`,
+                          periodLabel: row.label,
+                          metricName: "Product Cost",
+                          orders: row.orders,
+                        })
+                      }
+                      className="text-stone-600 hover:underline hover:text-stone-900 transition cursor-pointer"
+                    >
+                      {formatINR(row.productCost!)}
+                    </button>
+                  ) : (
+                    <span className="text-[11px] text-amber-700 bg-amber-50 border border-amber-200 px-1.5 py-0.5 rounded font-medium">
+                      Not Available
+                    </span>
+                  )}
+                </td>
+                <td className="p-4 text-right whitespace-nowrap">
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setDrilldown({
+                        title: `${row.label} — Packaging Cost`,
+                        periodLabel: row.label,
+                        metricName: "Packaging Cost",
+                        orders: row.orders,
+                      })
+                    }
+                    className="text-stone-600 hover:underline hover:text-stone-900 transition cursor-pointer"
+                  >
+                    {formatINR(row.packagingCost)}
+                  </button>
+                </td>
+                <td className="p-4 text-right whitespace-nowrap">
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setDrilldown({
+                        title: `${row.label} — Gateway Fees`,
+                        periodLabel: row.label,
+                        metricName: "Gateway Fees",
+                        orders: row.orders,
+                      })
+                    }
+                    className="text-stone-600 hover:underline hover:text-stone-900 transition cursor-pointer"
+                  >
+                    {formatINR(row.razorpayFee)}
+                  </button>
+                </td>
+                <td className="p-4 text-right whitespace-nowrap">
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setDrilldown({
+                        title: `${row.label} — Courier Charges`,
+                        periodLabel: row.label,
+                        metricName: "Courier Charges",
+                        orders: row.orders,
+                      })
+                    }
+                    className="text-stone-600 hover:underline hover:text-stone-900 transition cursor-pointer"
+                  >
+                    {formatINR(row.courierCharge)}
+                  </button>
+                </td>
+                <td className="p-4 text-right whitespace-nowrap">
+                  {row.allCostKnown ? (
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setDrilldown({
+                          title: `${row.label} — Total Expenses`,
+                          periodLabel: row.label,
+                          metricName: "Total Expenses",
+                          orders: row.orders,
+                        })
+                      }
+                      className="text-stone-600 font-medium hover:underline hover:text-stone-900 transition cursor-pointer"
+                    >
+                      {formatINR(row.totalExpense!)}
+                    </button>
+                  ) : (
+                    <span className="text-[11px] text-amber-700 bg-amber-50 border border-amber-200 px-1.5 py-0.5 rounded font-medium">
+                      Not Available
+                    </span>
+                  )}
+                </td>
+                <td className="p-4 text-right whitespace-nowrap">
+                  {row.allCostKnown ? (
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setDrilldown({
+                          title: `${row.label} — Net Profit`,
+                          periodLabel: row.label,
+                          metricName: "Net Profit",
+                          orders: row.orders,
+                        })
+                      }
+                      className={`font-bold hover:underline cursor-pointer ${
+                        row.netProfit! >= 0 ? "text-emerald-700" : "text-rose-600"
+                      }`}
+                    >
+                      {formatINR(row.netProfit!)}
+                    </button>
+                  ) : (
+                    <span className="text-stone-400 font-medium text-xs">Not Available</span>
+                  )}
+                </td>
+                <td className="p-4 text-center">
+                  {row.allCostKnown ? (
+                    <span
+                      className={`px-2 py-0.5 rounded text-xs font-semibold ${
+                        Number(row.margin) >= 20
+                          ? "bg-emerald-50 text-emerald-700 border border-emerald-200"
+                          : Number(row.margin) >= 0
+                            ? "bg-amber-50 text-amber-700 border border-amber-200"
+                            : "bg-rose-50 text-rose-700 border border-rose-200"
+                      }`}
+                    >
+                      {row.margin}%
+                    </span>
+                  ) : (
+                    <span className="text-stone-400 text-xs font-medium">N/A</span>
+                  )}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+
+      {/* Interactive Drill-Down Orders Modal */}
+      {drilldown && (
+        <div
+          className="fixed inset-0 bg-black/60 z-50 grid place-items-center p-3 sm:p-5 overflow-y-auto"
+          onClick={() => setDrilldown(null)}
+        >
+          <div
+            className="bg-white rounded-2xl border border-stone-200 p-5 sm:p-6 w-full max-w-5xl max-h-[90vh] overflow-y-auto shadow-2xl space-y-4 my-auto animate-in fade-in zoom-in-95 duration-150"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Modal Header */}
+            <div className="flex flex-wrap items-center justify-between gap-3 border-b border-stone-200 pb-4">
+              <div>
+                <div className="flex items-center gap-2">
+                  <h2 className="font-serif text-xl sm:text-2xl font-bold text-stone-900">{drilldown.title}</h2>
+                  <span className="px-2.5 py-0.5 rounded-full text-xs font-semibold bg-stone-100 text-stone-700 border border-stone-200">
+                    {drilldown.orders.length} {drilldown.orders.length === 1 ? "Order" : "Orders"}
+                  </span>
+                </div>
+                <p className="text-xs text-stone-500 mt-0.5">
+                  Showing actual verified orders contributing to {drilldown.metricName} for {drilldown.periodLabel}.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setDrilldown(null)}
+                className="h-8 w-8 rounded-lg border border-stone-200 hover:bg-stone-100 text-stone-600 grid place-items-center transition"
+                aria-label="Close"
+              >
+                <XIcon className="h-4 w-4" />
+              </button>
+            </div>
+
+            {/* Orders Table */}
+            <div className="border border-stone-200 rounded-xl overflow-x-auto">
+              <table className="w-full text-xs text-left">
+                <thead className="bg-stone-50 border-b border-stone-200 text-stone-600 uppercase tracking-wider font-semibold text-[11px]">
+                  <tr>
+                    <th className="p-3">Order #</th>
+                    <th className="p-3">Date</th>
+                    <th className="p-3">Customer</th>
+                    <th className="p-3 text-center">Items</th>
+                    <th className="p-3 text-center">Payment</th>
+                    <th className="p-3 text-center">Status</th>
+                    <th className="p-3 text-right">Total</th>
+                    <th className="p-3 text-right">Product Cost</th>
+                    <th className="p-3 text-right">Net Profit</th>
+                    <th className="p-3 text-right">Actions</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-stone-100">
+                  {drilldown.orders.map((o) => {
+                    const hasCost = typeof o.productCost === "number" && o.productCost !== null;
+                    return (
+                      <tr key={o.id} className="hover:bg-stone-50/70 transition">
+                        <td className="p-3 font-mono font-bold text-stone-900">
+                          #{displayOrderNumber(o)}
+                        </td>
+                        <td className="p-3 text-stone-600 whitespace-nowrap">
+                          {new Date(o.createdAt).toLocaleDateString("en-IN", {
+                            day: "numeric",
+                            month: "short",
+                            year: "numeric",
+                          })}
+                        </td>
+                        <td className="p-3">
+                          <div className="font-semibold text-stone-900">{o.address?.name || "Customer"}</div>
+                          <div className="text-[10px] text-stone-400">{o.address?.city || o.address?.state || "-"}</div>
+                        </td>
+                        <td className="p-3 text-center font-mono text-stone-600">
+                          {o.items?.reduce((s, i) => s + (i.qty || 1), 0) || 1}
+                        </td>
+                        <td className="p-3 text-center whitespace-nowrap">
+                          <span
+                            className={`px-2 py-0.5 rounded-full text-[10px] font-semibold uppercase ${
+                              o.payment?.status === "paid"
+                                ? "bg-emerald-50 text-emerald-700 border border-emerald-200"
+                                : "bg-amber-50 text-amber-700 border border-amber-200"
+                            }`}
+                          >
+                            {o.payment?.method === "razorpay" ? "Online" : "COD"} • {o.payment?.status || "pending"}
+                          </span>
+                        </td>
+                        <td className="p-3 text-center whitespace-nowrap">
+                          <span className="px-2 py-0.5 rounded text-[10px] font-semibold bg-stone-100 text-stone-800 border border-stone-200">
+                            {o.status || "Placed"}
+                          </span>
+                        </td>
+                        <td className="p-3 text-right font-bold text-stone-900 whitespace-nowrap">
+                          {formatINR(o.total)}
+                        </td>
+                        <td className="p-3 text-right whitespace-nowrap">
+                          {hasCost ? (
+                            <span className="text-stone-700 font-medium">{formatINR(o.productCost!)}</span>
+                          ) : (
+                            <span className="text-[10px] text-amber-700 bg-amber-50 border border-amber-200 px-1 py-0.5 rounded font-semibold">
+                              Not Available
+                            </span>
+                          )}
+                        </td>
+                        <td className="p-3 text-right whitespace-nowrap">
+                          {isOrderPaidForFinance(o) && hasCost && typeof o.netProfit === "number" && o.netProfit !== null ? (
+                            <span className={`font-bold ${o.netProfit >= 0 ? "text-emerald-700" : "text-rose-600"}`}>
+                              {formatINR(o.netProfit)}
+                            </span>
+                          ) : (
+                            <span className="text-stone-400 font-medium">N/A</span>
+                          )}
+                        </td>
+                        <td className="p-3 text-right whitespace-nowrap">
+                          <div className="inline-flex items-center gap-1.5">
+                            <button
+                              type="button"
+                              onClick={() => downloadOrderInvoicePdf(o)}
+                              className="h-7 px-2 rounded border border-stone-200 bg-white hover:bg-stone-50 text-[11px] font-semibold text-stone-700 transition inline-flex items-center gap-1 shadow-2xs"
+                              title="Download Invoice PDF"
+                            >
+                              <Download className="h-3 w-3 text-stone-500" />
+                              <span>PDF</span>
+                            </button>
+                            {onManageOrder && (
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setDrilldown(null);
+                                  onManageOrder(o);
+                                }}
+                                className="h-7 px-2.5 rounded bg-stone-900 hover:bg-stone-800 text-[11px] font-semibold text-white transition shadow-2xs"
+                              >
+                                Manage
+                              </button>
+                            )}
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+
+            {/* Footer */}
+            <div className="flex flex-wrap items-center justify-between gap-3 pt-2 border-t border-stone-200 text-xs">
+              <div className="text-stone-500">
+                Showing {drilldown.orders.length} real orders totaling{" "}
+                <strong className="text-stone-900">
+                  {formatINR(drilldown.orders.reduce((s, o) => s + (Number(o.total) || 0), 0))}
+                </strong>
+              </div>
+              <div className="flex items-center gap-2">
+                {onNavigateToOrders && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setDrilldown(null);
+                      onNavigateToOrders();
+                    }}
+                    className="h-9 px-4 rounded-lg border border-stone-300 hover:bg-stone-50 font-semibold text-stone-700 transition"
+                  >
+                    View in Orders Manager
+                  </button>
+                )}
+                <button
+                  type="button"
+                  onClick={() => setDrilldown(null)}
+                  className="h-9 px-4 rounded-lg bg-stone-900 text-white font-semibold hover:bg-stone-800 transition"
+                >
+                  Close
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -1195,21 +1978,25 @@ function NavBtn({
   return (
     <button
       onClick={onClick}
-      className={`shrink-0 text-left px-3 py-2.5 rounded-md text-sm flex items-center gap-2 transition md:w-full md:gap-3 ${active ? "bg-[var(--secondary)] text-[var(--foreground)]" : "text-white/72 hover:bg-white/10 hover:text-white"}`}
+      className={`shrink-0 text-left px-3 py-2 rounded-lg text-xs font-semibold flex items-center gap-2.5 transition md:w-full ${
+        active
+          ? "bg-stone-900 text-white shadow-xs"
+          : "text-stone-600 hover:bg-stone-100 hover:text-stone-900"
+      }`}
     >
-      <Icon className="h-4 w-4" />
-      {children}
+      <Icon className={`h-4 w-4 ${active ? "text-white" : "text-stone-400"}`} />
+      <span>{children}</span>
     </button>
   );
 }
 function Stat({ icon: Icon, label, value }: { icon: typeof Users; label: string; value: string }) {
   return (
-    <div className="rounded-lg border border-border bg-white p-5 premium-shadow">
-      <div className="grid h-10 w-10 place-items-center rounded-md bg-[var(--primary)] text-white">
+    <div className="rounded-xl border border-stone-200 bg-white p-5 shadow-xs">
+      <div className="grid h-10 w-10 place-items-center rounded-lg bg-stone-100 text-stone-700">
         <Icon className="h-5 w-5" />
       </div>
-      <p className="text-xs uppercase tracking-wider text-muted-foreground mt-3">{label}</p>
-      <p className="font-display text-2xl mt-1 text-[var(--foreground)]">{value}</p>
+      <p className="text-[11px] font-bold uppercase tracking-wider text-stone-400 mt-3">{label}</p>
+      <p className="font-serif text-2xl font-bold mt-0.5 text-stone-900">{value}</p>
     </div>
   );
 }
@@ -1434,6 +2221,7 @@ function ProductEditor({
         category,
         price: Number(p.price) || 0,
         mrp: Number(p.mrp) || 0,
+        costPrice: Number((p as any).costPrice) || 0,
         stock: Number(p.stock) || 0,
         hsnCode: (p.hsnCode || "").trim(),
         gstRate: Number(p.gstRate) || 0,
@@ -1595,6 +2383,12 @@ function ProductEditor({
                 type="number"
                 value={String(p.mrp ?? 0)}
                 onChange={(v) => setP({ ...p, mrp: +v })}
+              />
+              <In
+                label="Cost Price (₹) [Admin Only]"
+                type="number"
+                value={String((p as any).costPrice ?? 0)}
+                onChange={(v) => setP({ ...p, costPrice: +v } as any)}
               />
               <In
                 label="Stock Quantity"
@@ -2364,6 +3158,123 @@ function SettingsPanel({
           </label>
         </section>
 
+        {/* Section 5: About Us Page Media & Photos */}
+        <section className="bg-white rounded-xl border border-border p-6 shadow-sm space-y-4 lg:col-span-2">
+          <div className="flex items-center justify-between border-b border-border/70 pb-2">
+            <div>
+              <h2 className="font-display text-xl text-[#166F77]">About Us Page Media & Photos (हमारे बारे में पेज के चित्र)</h2>
+              <p className="text-xs text-muted-foreground mt-0.5">
+                Upload and manage photos displayed on the public About Us page (/about), including team photos and holy Vrindavan imagery.
+              </p>
+            </div>
+            <Link
+              to="/about"
+              target="_blank"
+              className="text-xs text-primary hover:underline font-semibold flex items-center gap-1"
+            >
+              Preview About Page ↗
+            </Link>
+          </div>
+
+          <div className="grid sm:grid-cols-2 gap-6">
+            {/* 1. About Hero Image */}
+            <div className="rounded-xl border border-stone-200 bg-stone-50/50 p-4 space-y-2">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-semibold text-stone-900">About Page Hero / Top Banner</span>
+                {Boolean(s.aboutHeroImage) && (
+                  <button
+                    type="button"
+                    onClick={() => setS({ ...s, aboutHeroImage: "" })}
+                    className="text-[11px] text-destructive hover:underline font-medium"
+                  >
+                    Reset
+                  </button>
+                )}
+              </div>
+              <AdminImageUpload
+                label=""
+                value={s.aboutHeroImage || ""}
+                onChange={(url) => setS({ ...s, aboutHeroImage: url })}
+              />
+              <p className="text-[11px] text-muted-foreground">
+                Main spiritual header visual for the About Us page. When unset, defaults to sacred Krishna artwork.
+              </p>
+            </div>
+
+            {/* 2. Vrindavan Story Image */}
+            <div className="rounded-xl border border-stone-200 bg-stone-50/50 p-4 space-y-2">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-semibold text-stone-900">Vrindavan Story Section Image</span>
+                {Boolean(s.aboutStoryImage) && (
+                  <button
+                    type="button"
+                    onClick={() => setS({ ...s, aboutStoryImage: "" })}
+                    className="text-[11px] text-destructive hover:underline font-medium"
+                  >
+                    Reset
+                  </button>
+                )}
+              </div>
+              <AdminImageUpload
+                label=""
+                value={s.aboutStoryImage || ""}
+                onChange={(url) => setS({ ...s, aboutStoryImage: url })}
+              />
+              <p className="text-[11px] text-muted-foreground">
+                Featured image in the "Our Vrindavan Story" section.
+              </p>
+            </div>
+
+            {/* 3. Manoj K. S. (Founder) Photo */}
+            <div className="rounded-xl border border-stone-200 bg-stone-50/50 p-4 space-y-2">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-semibold text-stone-900">Manoj K. S. — Founder Photo</span>
+                {Boolean(s.aboutManojImage) && (
+                  <button
+                    type="button"
+                    onClick={() => setS({ ...s, aboutManojImage: "" })}
+                    className="text-[11px] text-destructive hover:underline font-medium"
+                  >
+                    Reset
+                  </button>
+                )}
+              </div>
+              <AdminImageUpload
+                label=""
+                value={s.aboutManojImage || ""}
+                onChange={(url) => setS({ ...s, aboutManojImage: url })}
+              />
+              <p className="text-[11px] text-muted-foreground">
+                Founder · Operations & Logistics photo in the Meet Our Team section.
+              </p>
+            </div>
+
+            {/* 4. Govind Brajwasi Photo */}
+            <div className="rounded-xl border border-stone-200 bg-stone-50/50 p-4 space-y-2">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-semibold text-stone-900">Govind Brajwasi — Shop & Packing Photo</span>
+                {Boolean(s.aboutGovindImage) && (
+                  <button
+                    type="button"
+                    onClick={() => setS({ ...s, aboutGovindImage: "" })}
+                    className="text-[11px] text-destructive hover:underline font-medium"
+                  >
+                    Reset
+                  </button>
+                )}
+              </div>
+              <AdminImageUpload
+                label=""
+                value={s.aboutGovindImage || ""}
+                onChange={(url) => setS({ ...s, aboutGovindImage: url })}
+              />
+              <p className="text-[11px] text-muted-foreground">
+                Packing & Offline Shop Seva photo in the Meet Our Team section.
+              </p>
+            </div>
+          </div>
+        </section>
+
         {/* Section 5: WhatsApp Notification Template */}
         <section className="bg-white rounded-xl border border-border p-6 shadow-sm space-y-3 lg:col-span-2">
           <div className="flex items-center justify-between border-b border-border/70 pb-2">
@@ -2432,7 +3343,7 @@ function OrderManager({
   const [trackingId, setTrackingId] = useState(initialOrder.trackingId ?? "");
   const [courier, setCourier] = useState<Courier | "">(initialOrder.courier ?? "");
   const [courierTrackingUrl, setCourierTrackingUrl] = useState(
-    initialOrder.courierTrackingUrl ?? "",
+    initialOrder.courierTrackingUrl ?? ""
   );
   const [status, setStatus] = useState<Order["status"]>(initialOrder.status);
   const [holdReason, setHoldReason] = useState<string>(initialOrder.holdReason ?? "");
@@ -2440,6 +3351,34 @@ function OrderManager({
   const [pendingHoldReason, setPendingHoldReason] = useState<string>(initialOrder.holdReason ?? "");
   const [holdReasonError, setHoldReasonError] = useState("");
   const [note, setNote] = useState("");
+  const [courierChargeInput, setCourierChargeInput] = useState<number>(initialOrder.courierCharge ?? 0);
+  const [savingCourierCharge, setSavingCourierCharge] = useState(false);
+
+  const saveCourierCharge = async () => {
+    setSavingCourierCharge(true);
+    try {
+      const res = await api<{ order: any }>(`/admin/orders/${order.id}/courier-charge`, {
+        method: "PATCH",
+        body: { courierCharge: Number(courierChargeInput) || 0 },
+      });
+      if (res?.order) {
+        setOrder((prev) => ({
+          ...prev,
+          courierCharge: res.order.courierCharge,
+          packagingCost: res.order.packagingCost,
+          razorpayFee: res.order.razorpayFee,
+          productCost: res.order.productCost,
+          totalExpense: res.order.totalExpense,
+          netProfit: res.order.netProfit,
+        }));
+        toast.success("Courier charge updated and finances recalculated");
+      }
+    } catch (err: any) {
+      toast.error(err?.message || "Failed to update courier charge");
+    } finally {
+      setSavingCourierCharge(false);
+    }
+  };
 
   const STATUSES: Order["status"][] = [
     "Placed",
@@ -2904,8 +3843,8 @@ function OrderManager({
           </div>
         </div>
 
-        {/* ---- 2-Column Info Grid: Amount Breakdown & Payment Details ---- */}
-        <div className="grid md:grid-cols-2 gap-4 text-xs">
+        {/* ---- 3-Column Info Grid: Amount Breakdown, Payment Details, & Order Finances ---- */}
+        <div className="grid md:grid-cols-3 gap-4 text-xs">
           {/* Financial & Tax Breakdown Card */}
           <div className="rounded-xl border bg-muted/20 p-4 space-y-2">
             <p className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground border-b pb-1.5">
@@ -3003,6 +3942,122 @@ function OrderManager({
                   <span>{order.payment.failureReason}</span>
                 </div>
               )}
+            </div>
+          </div>
+
+          {/* Order Financials & Net Profit (Admin Internal) */}
+          <div className="rounded-xl border border-stone-200 bg-white p-4 space-y-2.5 shadow-xs">
+            <div className="flex items-center justify-between border-b border-stone-200/80 pb-1.5">
+              <p className="text-[11px] font-bold uppercase tracking-wider text-stone-700 flex items-center gap-1.5">
+                <IndianRupee className="h-3.5 w-3.5 text-stone-600" /> Order Financials
+              </p>
+              <span className="text-[10px] uppercase font-bold text-stone-500 bg-stone-100 px-1.5 py-0.5 rounded">
+                Admin Only
+              </span>
+            </div>
+
+            <div className="space-y-1.5">
+              <div className="flex justify-between text-stone-500">
+                <span>Order Value (Subtotal):</span>
+                <span className="font-semibold text-stone-900">{formatINR(computedSubtotal)}</span>
+              </div>
+              <div className="flex justify-between text-stone-500">
+                <span>Product Cost (COGS):</span>
+                {typeof order.productCost === "number" && order.productCost !== null ? (
+                  <span className="font-medium text-stone-800">{formatINR(order.productCost)}</span>
+                ) : (
+                  <span className="font-semibold text-amber-700 bg-amber-50 border border-amber-200 px-1.5 py-0.5 rounded text-[11px]">
+                    Not Available
+                  </span>
+                )}
+              </div>
+              <div className="flex justify-between text-stone-500">
+                <span>Packaging Cost (2%):</span>
+                <span className="font-medium text-stone-800">
+                  {formatINR(
+                    order.packagingCost ?? Math.round(computedSubtotal * 0.02 * 100) / 100
+                  )}
+                </span>
+              </div>
+              <div className="flex justify-between text-stone-500">
+                <span>Razorpay Fee (2.36%):</span>
+                <span className="font-medium text-stone-800">
+                  {formatINR(
+                    order.razorpayFee ??
+                      (order.payment?.method === "razorpay" && (order.payment?.status === "paid" || order.status !== "Cancelled")
+                        ? Math.round(order.total * 0.0236 * 100) / 100
+                        : 0)
+                  )}
+                </span>
+              </div>
+
+              {/* Editable Courier Charge */}
+              <div className="pt-2 border-t border-stone-200/80">
+                <label className="block">
+                  <span className="text-stone-500 font-medium text-[11px]">Courier Charge (₹):</span>
+                  <div className="flex items-center gap-1.5 mt-1">
+                    <input
+                      type="number"
+                      min="0"
+                      value={courierChargeInput}
+                      onChange={(e) => setCourierChargeInput(Math.max(0, Number(e.target.value) || 0))}
+                      className="h-8 w-24 rounded border border-stone-300 bg-white px-2 font-mono text-xs text-stone-900 focus:outline-none focus:border-stone-900"
+                    />
+                    <button
+                      type="button"
+                      onClick={saveCourierCharge}
+                      disabled={savingCourierCharge}
+                      className="h-8 px-2.5 rounded bg-stone-900 hover:bg-stone-800 text-white text-[11px] font-semibold transition disabled:opacity-60 cursor-pointer"
+                    >
+                      {savingCourierCharge ? "Saving..." : "Save"}
+                    </button>
+                  </div>
+                </label>
+              </div>
+
+              {/* Total Expenses & Net Profit */}
+              <div className="pt-2 border-t border-stone-200/80 space-y-1">
+                <div className="flex justify-between text-stone-500">
+                  <span>Total Expenses:</span>
+                  {typeof order.totalExpense === "number" && order.totalExpense !== null ? (
+                    <span className="font-semibold text-stone-900">{formatINR(order.totalExpense)}</span>
+                  ) : (
+                    <span className="font-semibold text-amber-700 bg-amber-50 border border-amber-200 px-1.5 py-0.5 rounded text-[11px]">
+                      Not Available
+                    </span>
+                  )}
+                </div>
+                <div className="flex items-baseline justify-between pt-1 border-t border-dashed border-stone-200">
+                  <span className="font-bold text-xs text-stone-900">Net Profit:</span>
+                  <div className="text-right">
+                    {typeof order.netProfit === "number" && order.netProfit !== null ? (
+                      <>
+                        <span
+                          className={`font-bold text-base ${
+                            order.netProfit >= 0 ? "text-emerald-700" : "text-rose-600"
+                          }`}
+                        >
+                          {formatINR(order.netProfit)}
+                        </span>
+                        {order.total > 0 && (
+                          <span className="block text-[10px] font-semibold text-stone-400">
+                            {((order.netProfit / order.total) * 100).toFixed(1)}% Margin
+                          </span>
+                        )}
+                      </>
+                    ) : (
+                      <>
+                        <span className="font-semibold text-stone-500 text-xs">
+                          Not Available
+                        </span>
+                        <span className="block text-[10px] text-stone-400">
+                          Historical cost data not recorded
+                        </span>
+                      </>
+                    )}
+                  </div>
+                </div>
+              </div>
             </div>
           </div>
         </div>

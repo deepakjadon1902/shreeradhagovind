@@ -29,7 +29,7 @@ import {
   X as XIcon,
 } from "lucide-react";
 import { useEffect, useState, useCallback } from "react";
-import { api, isApiEnabled } from "@/lib/api";
+import { api, isApiEnabled, getToken, API_URL } from "@/lib/api";
 import { slugify } from "@/lib/seo";
 import { toast } from "sonner";
 
@@ -69,6 +69,7 @@ function OrderDetail() {
   const [reviewRating, setReviewRating] = useState(5);
   const [reviewComment, setReviewComment] = useState("");
   const [submittingReview, setSubmittingReview] = useState(false);
+  const [downloadingInvoice, setDownloadingInvoice] = useState(false);
 
   const submitProductReview = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -117,6 +118,7 @@ function OrderDetail() {
           id: o._id,
           orderNo: o.orderNo,
           customerEmail: o.customerEmail,
+          guestAccessToken: o.guestAccessToken,
           trackingId: o.trackingId,
           courier: o.courier,
           courierTrackingUrl: o.courierTrackingUrl,
@@ -195,19 +197,71 @@ function OrderDetail() {
 
   const order = liveOrder || initialOrder;
 
+  const handleDownloadInvoice = async () => {
+    if (!order) return;
+    try {
+      setDownloadingInvoice(true);
+      const token = getToken();
+      const guestToken = search.token || (order as any).guestAccessToken;
+      const queryParam = guestToken ? `?token=${encodeURIComponent(guestToken)}` : "";
+      const headers: Record<string, string> = {};
+      if (token) headers.Authorization = `Bearer ${token}`;
+
+      const targetId = order.id || id;
+      const res = await fetch(`${API_URL}/orders/${targetId}/invoice${queryParam}`, {
+        headers,
+      });
+
+      if (!res.ok) {
+        if (res.status === 403) {
+          throw new Error("Unable to download invoice: Access forbidden. Please ensure you are logged in or using the link from your email.");
+        }
+        if (res.status === 404) {
+          throw new Error("Invoice not found for this order.");
+        }
+        throw new Error(`Failed to download invoice (${res.status})`);
+      }
+
+      const contentType = res.headers.get("content-type");
+      if (contentType && contentType.includes("application/json")) {
+        const json = await res.json();
+        throw new Error(json.error || json.message || "Failed to generate invoice PDF");
+      }
+
+      const blob = await res.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      const orderNum = displayOrderNumber(order);
+      a.href = url;
+      a.download = `Invoice-${orderNum}.pdf`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      window.URL.revokeObjectURL(url);
+      toast.success(`Invoice for Order #${orderNum} downloaded successfully`);
+    } catch (err: any) {
+      toast.error(err?.message || "Failed to download invoice");
+    } finally {
+      setDownloadingInvoice(false);
+    }
+  };
+
   if (!order) {
     return (
       <Layout>
-        <div className="container-app py-20 text-center">
-          <h1 className="font-serif text-3xl text-stone-900">Order not found</h1>
-          <p className="text-sm text-stone-500 mt-2">
-            The order you requested could not be located. Please check your orders page.
+        <div className="container py-20 text-center max-w-md mx-auto">
+          <div className="w-16 h-16 rounded-full bg-stone-100 flex items-center justify-center mx-auto mb-4 text-stone-400">
+            <Package className="w-8 h-8" />
+          </div>
+          <h1 className="font-serif text-2xl text-stone-900">Order not found</h1>
+          <p className="text-stone-500 text-sm mt-2">
+            We couldn't find details for this order. It might have been placed as a guest or on another device.
           </p>
           <Link
             to="/orders"
-            className="mt-6 inline-flex items-center justify-center h-10 px-6 rounded-full bg-[#166F77] text-white text-sm font-medium hover:bg-[#125B62] transition"
+            className="inline-block mt-6 px-6 py-2.5 rounded-full bg-[#166F77] text-white text-sm font-semibold hover:bg-[#125B62] transition shadow-sm"
           >
-            View All Orders
+            View Your Orders
           </Link>
         </div>
       </Layout>
@@ -225,43 +279,60 @@ function OrderDetail() {
 
   return (
     <Layout>
-      <div className="container-app py-10 max-w-5xl">
-        <div className="flex flex-wrap items-center justify-between gap-4 mb-2">
-          <Link to="/orders" className="text-sm font-medium text-stone-500 hover:text-[#166F77] transition">
-            ← All orders
+      <div className="bg-[#FAF8F5] border-b border-stone-200/80 py-3 sm:py-4">
+        <div className="w-full max-w-4xl mx-auto px-3.5 sm:px-6 lg:px-8">
+          <Link to="/orders" className="text-xs sm:text-sm font-medium text-stone-500 hover:text-[#166F77] transition inline-flex items-center gap-1">
+            ← Back to orders
           </Link>
-          {isRefreshing && (
-            <span className="inline-flex items-center gap-1.5 text-xs text-[#166F77] bg-teal-50 px-3 py-1 rounded-full border border-teal-200">
-              <RefreshCw className="w-3.5 h-3.5 animate-spin" /> Live sync
-            </span>
-          )}
         </div>
+      </div>
 
-        <div className="flex flex-wrap items-baseline justify-between gap-4 mt-1">
-          <div>
-            <h1 className="font-serif text-3xl sm:text-4xl text-stone-900">
-              Order #{displayOrderNumber(order)}
-            </h1>
-            <p className="text-xs text-stone-500 mt-1">
+      <div className="w-full max-w-4xl mx-auto px-3.5 sm:px-6 lg:px-8 py-4 sm:py-8 pb-24 sm:pb-12 min-w-0">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3.5 sm:gap-4 mt-1">
+          <div className="space-y-1">
+            <div className="flex items-center gap-2 sm:gap-2.5 flex-wrap">
+              <h1 className="font-serif text-2xl sm:text-3xl lg:text-4xl text-stone-900 font-bold tracking-tight">
+                Order #{displayOrderNumber(order)}
+              </h1>
+              <span
+                className={`px-2.5 py-1 rounded-full text-xs font-bold uppercase tracking-wider shadow-2xs ${
+                  order.status === "Delivered"
+                    ? "bg-emerald-50 text-emerald-800 border border-emerald-200"
+                    : order.status === "Cancelled"
+                    ? "bg-rose-50 text-rose-800 border border-rose-200"
+                    : order.status === "Hold"
+                    ? "bg-amber-50 text-amber-800 border border-amber-200"
+                    : "bg-teal-50 text-teal-800 border border-teal-200"
+                }`}
+              >
+                {order.status}
+              </span>
+            </div>
+            <p className="text-xs sm:text-sm text-stone-500">
               Placed on {new Date(order.createdAt).toLocaleString("en-IN", { dateStyle: "medium", timeStyle: "short" })}
             </p>
           </div>
 
-          <div className="flex items-center gap-2">
+          <div className="grid grid-cols-1 sm:flex sm:items-center gap-2.5 w-full sm:w-auto pt-1 sm:pt-0">
             {isApiEnabled() && (
-              <a
-                href={`/api/orders/${order.id}/invoice${search.token ? `?token=${encodeURIComponent(search.token)}` : ""}`}
-                target="_blank"
-                rel="noreferrer"
-                className="h-10 px-4 rounded-full border border-stone-300 hover:border-[#166F77] text-stone-700 hover:text-[#166F77] text-xs font-semibold inline-flex items-center gap-1.5 transition bg-white shadow-sm"
+              <button
+                type="button"
+                onClick={handleDownloadInvoice}
+                disabled={downloadingInvoice}
+                className="h-11 sm:h-10 px-4 rounded-xl sm:rounded-full border border-stone-300 hover:border-[#166F77] text-stone-700 hover:text-[#166F77] text-xs sm:text-sm font-semibold inline-flex items-center justify-center gap-2 transition bg-white shadow-xs disabled:opacity-60 cursor-pointer active:scale-[0.98] w-full sm:w-auto"
               >
-                <FileText className="w-4 h-4 text-[#166F77]" /> Download Invoice PDF
-              </a>
+                {downloadingInvoice ? (
+                  <RefreshCw className="w-4 h-4 animate-spin text-[#166F77]" />
+                ) : (
+                  <FileText className="w-4 h-4 text-[#166F77]" />
+                )}
+                {downloadingInvoice ? "Downloading..." : "Download Invoice PDF"}
+              </button>
             )}
             <Link
               to="/track"
               search={{ id: order.trackingId || displayOrderNumber(order) } as never}
-              className="h-10 px-5 rounded-full bg-[#166F77] hover:bg-[#125B62] text-white text-xs font-semibold inline-flex items-center gap-1.5 transition shadow-sm"
+              className="h-11 sm:h-10 px-5 rounded-xl sm:rounded-full bg-[#166F77] hover:bg-[#125B62] text-white text-xs sm:text-sm font-semibold inline-flex items-center justify-center gap-2 transition shadow-xs active:scale-[0.98] w-full sm:w-auto"
             >
               Public Tracker <ExternalLink className="w-3.5 h-3.5" />
             </Link>
@@ -269,14 +340,14 @@ function OrderDetail() {
         </div>
 
         {/* Shipment Details Bar */}
-        <div className="bg-white rounded-2xl p-5 mt-6 border border-stone-200 shadow-sm flex flex-wrap items-center justify-between gap-4">
-          <div className="flex-1 min-w-0 space-y-1">
+        <div className="bg-white rounded-xl sm:rounded-2xl p-3.5 sm:p-5 mt-4 sm:mt-5 border border-stone-200 shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-3 sm:gap-3.5">
+          <div className="flex-1 min-w-0 space-y-1.5">
             <p className="text-[11px] font-semibold uppercase tracking-wider text-stone-400">
               Shipment & Tracking
             </p>
             {order.trackingId ? (
-              <div className="inline-flex items-center gap-2 px-3 py-1 rounded-lg bg-teal-50 border border-teal-200 text-teal-900 font-mono text-sm font-bold">
-                <span>AWB: {order.trackingId}</span>
+              <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg bg-teal-50 border border-teal-200 text-teal-900 font-mono text-xs sm:text-sm font-bold max-w-full truncate">
+                <span className="truncate">AWB: {order.trackingId}</span>
               </div>
             ) : (
               <p className="text-xs text-stone-500 italic">
@@ -294,7 +365,7 @@ function OrderDetail() {
               href={order.courierTrackingUrl}
               target="_blank"
               rel="noreferrer"
-              className="h-9 px-4 rounded-full border border-[#166F77] text-[#166F77] hover:bg-[#166F77]/10 text-xs font-semibold inline-flex items-center gap-1.5 transition"
+              className="h-11 sm:h-9 px-4 rounded-xl sm:rounded-full border border-[#166F77] text-[#166F77] hover:bg-[#166F77]/10 text-xs sm:text-sm font-semibold inline-flex items-center justify-center gap-1.5 transition w-full sm:w-auto shrink-0"
             >
               Track on {order.courier || "Courier"} <ExternalLink className="w-3.5 h-3.5" />
             </a>
@@ -303,10 +374,10 @@ function OrderDetail() {
 
         {/* Hold Alert Banner */}
         {isHold && (
-          <div className="mt-6 p-5 rounded-2xl bg-amber-50/90 border border-amber-300 text-amber-900 space-y-2">
+          <div className="mt-5 p-4 sm:p-5 rounded-2xl bg-amber-50/90 border border-amber-300 text-amber-900 space-y-2">
             <div className="flex items-start gap-3">
               <AlertTriangle className="w-5 h-5 text-amber-700 shrink-0 mt-0.5" />
-              <div className="flex-1">
+              <div className="flex-1 min-w-0">
                 <p className="font-semibold text-sm text-amber-950">
                   Your Order is on Temporary Hold
                 </p>
@@ -316,16 +387,16 @@ function OrderDetail() {
                 </p>
                 <div className="mt-3 flex flex-wrap items-center gap-2">
                   <a
-                    href="https://wa.me/917412589641?text=Hare%20Krishna!%20Inquiry%20regarding%20Order%20Hold%20status"
+                    href="https://wa.me/917500533505?text=Hare%20Krishna!%20Inquiry%20regarding%20Order%20Hold%20status"
                     target="_blank"
                     rel="noreferrer"
-                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-medium transition shadow-sm"
+                    className="inline-flex items-center justify-center gap-1.5 h-10 sm:h-8 px-3.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold transition shadow-xs w-full sm:w-auto"
                   >
                     <MessageCircle className="w-3.5 h-3.5" /> Chat on WhatsApp
                   </a>
                   <a
-                    href="tel:+917412589641"
-                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white border border-amber-300 text-amber-900 text-xs font-medium hover:bg-amber-100 transition shadow-sm"
+                    href="tel:+917500533505"
+                    className="inline-flex items-center justify-center gap-1.5 h-10 sm:h-8 px-3.5 rounded-lg bg-white border border-amber-300 text-amber-900 text-xs font-semibold hover:bg-amber-100 transition shadow-xs w-full sm:w-auto"
                   >
                     <Phone className="w-3.5 h-3.5 text-amber-700" /> Call Support
                   </a>
@@ -353,12 +424,12 @@ function OrderDetail() {
 
         {/* Stepper Card */}
         {!isCancelled && (
-          <div className="bg-white rounded-2xl p-6 sm:p-8 border border-stone-200 shadow-sm mt-6">
-            <h2 className="font-serif text-xl text-stone-900 mb-6">Track your order</h2>
+          <div className="bg-white rounded-xl sm:rounded-2xl p-3.5 sm:p-6 sm:p-8 border border-stone-200 shadow-xs mt-4 sm:mt-5">
+            <h2 className="font-serif text-lg sm:text-xl text-stone-900 font-bold mb-4 sm:mb-5">Track your order</h2>
 
             {/* Delivered Celebration Notice */}
             {order.status === "Delivered" && (
-              <div className="mb-6 p-4 rounded-xl bg-gradient-to-r from-emerald-50 via-teal-50/70 to-emerald-50 border border-emerald-200/80 text-emerald-950 flex items-center gap-3.5 shadow-sm">
+              <div className="mb-5 sm:mb-6 p-3.5 sm:p-4 rounded-xl sm:rounded-2xl bg-gradient-to-r from-emerald-50 via-teal-50/70 to-emerald-50 border border-emerald-200/80 text-emerald-950 flex flex-col sm:flex-row items-start sm:items-center gap-3 sm:gap-3.5 shadow-xs">
                 <div className="w-10 h-10 rounded-full bg-emerald-600 text-white grid place-items-center shrink-0 shadow-md shadow-emerald-600/20">
                   <CheckCircle2 className="w-5 h-5 stroke-[2.5]" />
                 </div>
@@ -470,7 +541,7 @@ function OrderDetail() {
             </div>
 
             {/* Mobile Stepper (Vertical Timeline) */}
-            <div className="md:hidden mt-4 space-y-0">
+            <div className="md:hidden mt-2 space-y-0">
               {MAIN_STAGES.map((s, i) => {
                 const isDelivered = s === "Delivered" && currentIdx >= i;
                 const isCompleted = currentIdx > i || isDelivered;
@@ -479,7 +550,7 @@ function OrderDetail() {
                 const isLast = i === MAIN_STAGES.length - 1;
 
                 return (
-                  <div key={s} className="relative flex items-start gap-3.5 pb-5 last:pb-0">
+                  <div key={s} className="relative flex items-start gap-3.5 pb-5 last:pb-1">
                     {/* Vertical Connector Line (strictly !isLast, NEVER after Delivered) */}
                     {!isLast && (
                       <div
@@ -525,6 +596,8 @@ function OrderDetail() {
                           className={`text-sm ${
                             isDelivered
                               ? "text-emerald-800 font-bold"
+                              : isCurrent
+                              ? "text-[#166F77] font-bold"
                               : isPastOrCurrent
                               ? "text-stone-900 font-semibold"
                               : "text-stone-400"
@@ -553,12 +626,12 @@ function OrderDetail() {
 
         {/* Live Shipment Tracking Card */}
         {hasShipment && (
-          <div className="bg-white rounded-2xl p-6 sm:p-8 border border-stone-200 shadow-sm mt-6 space-y-6">
-            <div className="flex flex-wrap items-center justify-between gap-3 border-b border-stone-100 pb-4">
+          <div className="bg-white rounded-xl sm:rounded-2xl p-3.5 sm:p-6 sm:p-8 border border-stone-200 shadow-xs mt-4 sm:mt-5 space-y-4 sm:space-y-6">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-stone-100 pb-3.5 sm:pb-4">
               <div>
                 <div className="flex items-center gap-2">
                   <span className="h-2.5 w-2.5 rounded-full bg-emerald-500 animate-pulse" />
-                  <h2 className="font-serif text-xl text-stone-900">Live Shipment Tracking</h2>
+                  <h2 className="font-serif text-lg sm:text-xl text-stone-900 font-bold">Live Shipment Tracking</h2>
                 </div>
                 <p className="text-xs text-stone-500 mt-0.5">
                   Real-time package status and courier updates for your order.
@@ -570,7 +643,7 @@ function OrderDetail() {
                   href={order.courierTrackingUrl}
                   target="_blank"
                   rel="noreferrer"
-                  className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg border border-stone-200 bg-stone-50 hover:bg-stone-100 text-stone-700 text-xs font-semibold transition shadow-sm"
+                  className="inline-flex items-center justify-center gap-1.5 h-11 sm:h-9 px-3.5 rounded-xl sm:rounded-lg border border-stone-200 bg-stone-50 hover:bg-stone-100 text-stone-700 text-xs sm:text-sm font-semibold transition shadow-xs w-full sm:w-auto"
                 >
                   <span>Official {order.courier || "Courier"} Tracker</span>
                   <ExternalLink className="w-3.5 h-3.5 text-stone-500" />
@@ -579,15 +652,15 @@ function OrderDetail() {
             </div>
 
             {/* Shipment Meta Overview Grid */}
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 bg-stone-50/80 p-4 rounded-xl border border-stone-200/70 text-xs">
-              <div>
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 sm:gap-3 bg-stone-50/90 p-3 sm:p-4 rounded-xl border border-stone-200/80 text-xs">
+              <div className="min-w-0">
                 <p className="text-stone-400 font-medium uppercase tracking-wider text-[10px]">Courier Partner</p>
-                <p className="font-bold text-stone-900 mt-0.5">{order.courier || "Assigned Partner"}</p>
+                <p className="font-bold text-stone-900 mt-0.5 text-xs sm:text-sm truncate">{order.courier || "Assigned Partner"}</p>
               </div>
-              <div>
-                <p className="text-stone-400 font-medium uppercase tracking-wider text-[10px]">AWB / Tracking Number</p>
-                <div className="flex items-center gap-1.5 mt-0.5">
-                  <span className="font-mono font-bold text-stone-900 truncate">{order.trackingId || "Pending"}</span>
+              <div className="min-w-0">
+                <p className="text-stone-400 font-medium uppercase tracking-wider text-[10px]">AWB / Tracking No.</p>
+                <div className="flex items-center gap-1.5 mt-0.5 min-w-0">
+                  <span className="font-mono font-bold text-stone-900 text-xs sm:text-sm truncate">{order.trackingId || "Pending"}</span>
                   {order.trackingId && (
                     <button
                       type="button"
@@ -595,30 +668,24 @@ function OrderDetail() {
                         navigator.clipboard.writeText(order.trackingId!);
                         toast.success("AWB Number copied to clipboard");
                       }}
-                      className="text-stone-400 hover:text-stone-700 p-0.5 rounded"
+                      className="text-stone-400 hover:text-stone-700 p-1 rounded shrink-0 hover:bg-stone-200/60 transition"
                       title="Copy AWB Number"
+                      aria-label="Copy AWB Number"
                     >
-                      <Copy className="w-3 h-3" />
+                      <Copy className="w-3.5 h-3.5" />
                     </button>
                   )}
                 </div>
               </div>
-              <div>
-                <p className="text-stone-400 font-medium uppercase tracking-wider text-[10px]">Current Status</p>
-                <p className="font-bold text-[#166F77] mt-0.5">
-                  {tracking?.latestStatus ||
-                    (order.status === "Delivered"
-                      ? "Delivered"
-                      : order.status === "Out for delivery"
-                      ? "Out for Delivery"
-                      : order.status === "Shipped"
-                      ? "In Transit"
-                      : order.status)}
+              <div className="min-w-0">
+                <p className="text-stone-400 font-medium uppercase tracking-wider text-[10px]">Courier Live Status</p>
+                <p className="font-bold text-[#166F77] mt-0.5 text-xs sm:text-sm truncate">
+                  {tracking?.latestStatus || "Awaiting Carrier Scan"}
                 </p>
               </div>
-              <div>
+              <div className="min-w-0">
                 <p className="text-stone-400 font-medium uppercase tracking-wider text-[10px]">Expected Delivery</p>
-                <p className="font-semibold text-stone-800 mt-0.5">
+                <p className="font-semibold text-stone-800 mt-0.5 text-xs sm:text-sm truncate">
                   {tracking?.expectedDeliveryDate
                     ? new Date(tracking.expectedDeliveryDate).toLocaleDateString("en-IN", {
                         day: "numeric",
@@ -631,7 +698,7 @@ function OrderDetail() {
             </div>
 
             {/* Route & Latest Update Card */}
-            <div className="p-4 rounded-xl border border-teal-100 bg-teal-50/40 text-xs space-y-2">
+            <div className="p-3.5 sm:p-4 rounded-xl border border-teal-100 bg-teal-50/40 text-xs space-y-2">
               <div className="flex flex-wrap items-center justify-between gap-2 text-stone-700">
                 <div className="flex items-center gap-2 font-medium">
                   <MapPin className="w-4 h-4 text-[#166F77] shrink-0" />
@@ -701,21 +768,26 @@ function OrderDetail() {
                 </ol>
               </div>
             ) : (
-              <div className="p-3 bg-stone-50 rounded-lg text-stone-500 text-xs text-center border border-stone-100">
-                Tracking information is synchronized with {order.courier || "the courier partner"}. Detailed checkpoint scans will update automatically.
+              <div className="p-4 bg-stone-50 rounded-xl text-stone-600 text-xs leading-relaxed border border-stone-200/70 space-y-1">
+                <p className="font-semibold text-stone-800">
+                  Consignment booked with {order.courier || "courier partner"}.
+                </p>
+                <p className="text-stone-500">
+                  Live transit checkpoints and hub scans will appear here automatically once the package is scanned at the carrier's sorting facility.
+                </p>
               </div>
             )}
           </div>
         )}
 
         {/* Details Grid */}
-        <div className="grid lg:grid-cols-[1fr_360px] gap-6 mt-6">
+        <div className="grid lg:grid-cols-[1fr_360px] gap-4 sm:gap-6 mt-4 sm:mt-5">
           {/* Ordered Items */}
-          <div className="bg-white rounded-2xl p-6 border border-stone-200 shadow-sm">
-            <h2 className="font-serif text-lg text-stone-900 mb-4 flex items-center gap-2">
+          <div className="bg-white rounded-xl sm:rounded-2xl p-3.5 sm:p-6 border border-stone-200 shadow-xs">
+            <h2 className="font-serif text-base sm:text-lg font-bold text-stone-900 mb-3.5 sm:mb-4 flex items-center gap-2">
               <Package className="h-5 w-5 text-[#166F77]" /> Ordered Items ({order.items.length})
             </h2>
-            <div className="space-y-4 divide-y divide-stone-100">
+            <div className="space-y-3.5 sm:space-y-4 divide-y divide-stone-100">
               {order.items.map((i, idx) => {
                 const productTarget =
                   i.product.slug ||
@@ -724,14 +796,14 @@ function OrderDetail() {
                   "";
 
                 return (
-                  <div key={i.product.id || idx} className="pt-4 first:pt-0 flex items-center gap-4">
+                  <div key={i.product.id || idx} className="pt-3.5 first:pt-0 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                     {productTarget ? (
                       <Link
                         to="/product/$id"
                         params={{ id: productTarget }}
-                        className="group flex items-center gap-4 flex-1 min-w-0"
+                        className="group flex items-center gap-3 sm:gap-3.5 flex-1 min-w-0"
                       >
-                        <div className="h-16 w-16 rounded-xl overflow-hidden bg-stone-100 border border-stone-200 shrink-0 group-hover:border-[#166F77]/30 transition-colors">
+                        <div className="h-16 w-16 sm:h-18 sm:w-18 rounded-xl overflow-hidden bg-stone-100 border border-stone-200 shrink-0 group-hover:border-[#166F77]/30 transition-colors">
                           <img
                             src={i.product.image}
                             alt={i.product.name}
@@ -743,58 +815,58 @@ function OrderDetail() {
                             <p className="font-medium text-sm text-stone-900 group-hover:text-[#166F77] truncate transition-colors">
                               {i.product.name}
                             </p>
-                            <ExternalLink className="w-3.5 h-3.5 text-stone-400 opacity-0 group-hover:opacity-100 group-hover:text-[#166F77] transition-all shrink-0" />
+                            <ExternalLink className="w-3.5 h-3.5 text-stone-400 opacity-0 group-hover:opacity-100 group-hover:text-[#166F77] transition-all shrink-0 hidden sm:inline" />
                           </div>
                           <p className="text-xs text-stone-500 mt-0.5">
-                            Qty: {i.qty} × {formatINR(i.product.price)}
+                            Qty: <strong className="text-stone-800">{i.qty}</strong> × {formatINR(i.product.price)}
                           </p>
-                          <span className="text-[11px] text-[#166F77] font-medium opacity-0 group-hover:opacity-100 transition-opacity">
+                          <span className="text-[11px] text-[#166F77] font-medium hidden sm:inline-block">
                             View product →
                           </span>
                         </div>
                       </Link>
                     ) : (
-                      <>
-                        <div className="h-16 w-16 rounded-xl overflow-hidden bg-stone-100 border border-stone-200 shrink-0">
+                      <div className="flex items-center gap-3 sm:gap-3.5 flex-1 min-w-0">
+                        <div className="h-16 w-16 sm:h-18 sm:w-18 rounded-xl overflow-hidden bg-stone-100 border border-stone-200 shrink-0">
                           <img src={i.product.image} alt={i.product.name} className="h-full w-full object-cover" />
                         </div>
                         <div className="flex-1 min-w-0">
-                          <p className="font-medium text-sm text-stone-900">{i.product.name}</p>
+                          <p className="font-medium text-sm text-stone-900 truncate">{i.product.name}</p>
                           <p className="text-xs text-stone-500 mt-0.5">
-                            Qty: {i.qty} × {formatINR(i.product.price)}
+                            Qty: <strong className="text-stone-800">{i.qty}</strong> × {formatINR(i.product.price)}
                           </p>
                         </div>
-                      </>
+                      </div>
                     )}
-                  <div className="text-right shrink-0">
-                    <span className="font-semibold text-sm text-stone-900 block">
-                      {formatINR(i.product.price * i.qty)}
-                    </span>
-                    {order.status === "Delivered" && (
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setReviewingProduct(i.product);
-                          setReviewRating(5);
-                          setReviewComment("");
-                        }}
-                        className="mt-1.5 inline-flex items-center gap-1 text-xs font-semibold text-[#166F77] hover:underline"
-                      >
-                        <Star className="w-3.5 h-3.5 text-amber-500 fill-amber-400" />
-                        Write a Review
-                      </button>
-                    )}
+                    <div className="flex sm:flex-col items-center sm:items-end justify-between sm:justify-center gap-2 pt-2 sm:pt-0 border-t sm:border-t-0 border-stone-100 shrink-0">
+                      <span className="font-semibold text-sm sm:text-base text-stone-900">
+                        {formatINR(i.product.price * i.qty)}
+                      </span>
+                      {order.status === "Delivered" && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setReviewingProduct(i.product);
+                            setReviewRating(5);
+                            setReviewComment("");
+                          }}
+                          className="min-h-[38px] sm:min-h-0 sm:h-8 px-3 rounded-xl sm:rounded-lg border border-amber-200 bg-amber-50/70 hover:bg-amber-100/70 text-[#166F77] hover:text-[#125B62] inline-flex items-center gap-1.5 text-xs font-semibold transition shadow-2xs"
+                        >
+                          <Star className="w-3.5 h-3.5 text-amber-500 fill-amber-400" />
+                          Write a Review
+                        </button>
+                      )}
+                    </div>
                   </div>
-                </div>
-              );
-            })}
+                );
+              })}
             </div>
           </div>
 
           {/* Shipping & Payment Summary */}
-          <aside className="space-y-6">
-            <div className="bg-white rounded-2xl p-5 border border-stone-200 shadow-sm">
-              <h3 className="font-serif text-base text-stone-900 mb-3 flex items-center gap-2">
+          <aside className="space-y-4 sm:space-y-6">
+            <div className="bg-white rounded-xl sm:rounded-2xl p-3.5 sm:p-5 border border-stone-200 shadow-xs">
+              <h3 className="font-serif text-base font-bold text-stone-900 mb-2.5 sm:mb-3 flex items-center gap-2">
                 <Home className="h-4 w-4 text-[#166F77]" /> Shipping Address
               </h3>
               <p className="text-sm font-semibold text-stone-900">{order.address.name}</p>
@@ -814,25 +886,33 @@ function OrderDetail() {
                   .join(", ")}{" "}
                 <span className="font-semibold">{order.address.pincode}</span>
               </p>
-              <p className="mt-2 flex items-center gap-1.5 text-xs text-stone-600">
-                <Phone className="h-3.5 w-3.5 text-stone-400" /> Phone: {order.address.phone}
+              <p className="mt-2.5 flex items-center gap-1.5 text-xs text-stone-600">
+                <Phone className="h-3.5 w-3.5 text-stone-400 shrink-0" /> Phone:{" "}
+                <a href={`tel:${order.address.phone}`} className="font-medium text-[#166F77] hover:underline">
+                  {order.address.phone}
+                </a>
               </p>
               {(order.address.alternatePhone || order.alternatePhone) && (
-                <p className="mt-1 flex items-center gap-1.5 text-xs text-stone-600">
-                  <Phone className="h-3.5 w-3.5 text-stone-400" /> Alt Phone:{" "}
-                  {order.address.alternatePhone || order.alternatePhone}
+                <p className="mt-1.5 flex items-center gap-1.5 text-xs text-stone-600">
+                  <Phone className="h-3.5 w-3.5 text-stone-400 shrink-0" /> Alt Phone:{" "}
+                  <a
+                    href={`tel:${order.address.alternatePhone || order.alternatePhone}`}
+                    className="font-medium text-[#166F77] hover:underline"
+                  >
+                    {order.address.alternatePhone || order.alternatePhone}
+                  </a>
                 </p>
               )}
             </div>
 
-            <div className="bg-white rounded-2xl p-5 border border-stone-200 shadow-sm">
-              <h3 className="font-serif text-base text-stone-900 mb-3 flex items-center gap-2">
+            <div className="bg-white rounded-xl sm:rounded-2xl p-3.5 sm:p-5 border border-stone-200 shadow-xs">
+              <h3 className="font-serif text-base font-bold text-stone-900 mb-2.5 sm:mb-3 flex items-center gap-2">
                 <CreditCard className="h-4 w-4 text-[#166F77]" /> Payment Summary
               </h3>
               <div className="flex items-center justify-between text-xs">
                 <span className="text-stone-500">Method</span>
                 <span className="font-semibold uppercase text-stone-900">
-                  {order.payment.method === "razorpay" ? "Online Payment (Razorpay)" : "Cash on Delivery"}
+                  {order.payment.method === "razorpay" ? "Online (Razorpay)" : "Cash on Delivery"}
                 </span>
               </div>
               <div className="flex items-center justify-between text-xs mt-2">

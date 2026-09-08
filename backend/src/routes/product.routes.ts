@@ -2,7 +2,7 @@ import { Router } from "express";
 import { z } from "zod";
 import { Product } from "../models/Product";
 import { Category } from "../models/Category";
-import { requireAuth, requireAdmin } from "../middleware/auth";
+import { requireAuth, requireAdmin, optionalAuth } from "../middleware/auth";
 import { HttpError } from "../middleware/error";
 
 const r = Router();
@@ -15,7 +15,7 @@ const slugify = (value: string) =>
     .replace(/[^a-z0-9]+/g, "-")
     .replace(/^-|-$/g, "");
 
-r.get("/", async (req, res, next) => {
+r.get("/", optionalAuth, async (req, res, next) => {
   try {
     const { category, q, sort } = req.query as Record<string, string | undefined>;
     const filter: any = { isActive: true };
@@ -36,22 +36,30 @@ r.get("/", async (req, res, next) => {
       price_desc: { price: -1 },
       rating: { rating: -1 },
     };
-    const products = await Product.find(filter).sort(sortMap[sort ?? "newest"] ?? { createdAt: -1 });
+    const isAdmin = req.user?.role === "admin";
+    const query = Product.find(filter).sort(sortMap[sort ?? "newest"] ?? { createdAt: -1 });
+    if (!isAdmin) {
+      query.select("-costPrice");
+    }
+    const products = await query;
     res.json({ products });
   } catch (e) {
     next(e);
   }
 });
 
-r.get("/:idOrSlug", async (req, res, next) => {
+r.get("/:idOrSlug", optionalAuth, async (req, res, next) => {
   try {
-    const idOrSlug = req.params.idOrSlug;
+    const idOrSlug = String(req.params.idOrSlug);
     const looksLikeObjectId = /^[a-f\d]{24}$/i.test(idOrSlug);
+    const isAdmin = req.user?.role === "admin";
+    const selectStr = isAdmin ? "" : "-costPrice";
+
     let p = looksLikeObjectId
-      ? await Product.findById(idOrSlug)
-      : await Product.findOne({ slug: idOrSlug, isActive: true });
+      ? await Product.findById(idOrSlug).select(selectStr)
+      : await Product.findOne({ slug: idOrSlug, isActive: true }).select(selectStr);
     if (!p && !looksLikeObjectId) {
-      const products = await Product.find({ isActive: true });
+      const products = await Product.find({ isActive: true }).select(selectStr);
       p = products.find((product) => slugify(product.name) === idOrSlug) ?? null;
     }
     if (!p) throw new HttpError(404, "Product not found");
@@ -66,6 +74,7 @@ const productSchema = z.object({
   description: z.string().optional().default(""),
   price: z.number().min(0),
   mrp: z.number().min(0).optional().default(0),
+  costPrice: z.number().min(0).optional().default(0),
   image: z.string().optional().default(""),
   images: z.array(z.string()).optional().default([]),
   slug: z.string().optional().default(""),

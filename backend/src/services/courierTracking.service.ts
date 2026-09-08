@@ -4,7 +4,7 @@ import { Order } from "../models/Order";
 import { SyncLock } from "../models/SyncLock";
 import { TrackingUsage } from "../models/TrackingUsage";
 import {
-  sendOrderStatusUpdateWithInvoice,
+  sendOrderStatusUpdate,
   buildEmailOrderPayload,
 } from "../utils/email";
 
@@ -259,7 +259,18 @@ export function normalizeTrackCourierResponse(
   }
 
   const data = raw?.data || raw || {};
-  const rawStatus = String(data.status || "").toLowerCase().trim();
+  const rawStatus = String(
+    data.ShipmentState ||
+    data.MostRecentStatus ||
+    data.status ||
+    ""
+  ).toLowerCase().trim();
+
+  // If carrier has no record yet or table is empty
+  const isEmptyOrPendingFailure = Boolean(
+    data.isEmptyTable === true ||
+    (data.Result === "failure" && (!data.Checkpoints || data.Checkpoints.length === 0))
+  );
 
   let normalizedStatus: NormalizedTrackingData["status"] = "unknown";
   let latestStatusLabel = "In Transit";
@@ -267,6 +278,9 @@ export function normalizeTrackCourierResponse(
   if (!raw || raw.success === false || raw.notFound || !rawStatus) {
     normalizedStatus = "unknown";
     latestStatusLabel = "Tracking Initialized";
+  } else if (isEmptyOrPendingFailure) {
+    normalizedStatus = "info_received";
+    latestStatusLabel = "Awaiting Carrier Pickup";
   } else if (rawStatus.includes("deliver") && !rawStatus.includes("out")) {
     normalizedStatus = "delivered";
     latestStatusLabel = "Delivered";
@@ -301,30 +315,56 @@ export function normalizeTrackCourierResponse(
     latestStatusLabel = "Delivery Exception";
   } else {
     normalizedStatus = "unknown";
-    latestStatusLabel = "In Transit";
+    latestStatusLabel = data.MostRecentStatus || "In Transit";
   }
 
-  const rawCheckpoints: any[] = Array.isArray(data.checkpoints)
-    ? data.checkpoints
-    : Array.isArray(data.scans)
-      ? data.scans
-      : [];
+  const rawCheckpoints: any[] = Array.isArray(data.Checkpoints)
+    ? data.Checkpoints
+    : Array.isArray(data.checkpoints)
+      ? data.checkpoints
+      : Array.isArray(data.scans)
+        ? data.scans
+        : [];
 
-  const checkpoints: CourierCheckpoint[] = rawCheckpoints.map((cp) => ({
-    time: cp.time || cp.date || cp.timestamp || new Date().toISOString(),
-    location: cp.location || cp.city || "",
-    description: cp.description || cp.status || cp.message || "Status update",
-    status: cp.status || undefined,
-  }));
+  // Filter out notice messages (e.g. "No information present for consignment...") when isEmptyTable is true
+  const validRawCheckpoints = rawCheckpoints.filter((cp) => {
+    if (isEmptyOrPendingFailure) {
+      const act = String(cp.Activity || cp.description || "").toLowerCase();
+      if (act.includes("no information present") || act.includes("bookmark the page")) {
+        return false;
+      }
+    }
+    return true;
+  });
+
+  const checkpoints: CourierCheckpoint[] = validRawCheckpoints.map((cp) => {
+    // Format timestamp cleanly
+    let timeStr = "";
+    if (cp.Date && cp.Time) {
+      timeStr = `${cp.Date} ${cp.Time}`.trim();
+    } else if (cp.Date) {
+      timeStr = String(cp.Date).trim();
+    } else {
+      timeStr = cp.time || cp.date || cp.timestamp || new Date().toISOString();
+    }
+
+    return {
+      time: timeStr,
+      location: cp.Location || cp.location || cp.city || "",
+      description: cp.Activity || cp.description || cp.status || cp.message || "Status update",
+      status: cp.CheckpointState || cp.status || undefined,
+    };
+  });
 
   const latestCheckpoint = checkpoints.length > 0 ? checkpoints[checkpoints.length - 1] : null;
 
-  const latestMessage =
-    data.MostRecentStatus ||
-    data.latest_status ||
-    data.status_description ||
-    latestCheckpoint?.description ||
-    `Shipment update from ${courierName}`;
+  const latestMessage = isEmptyOrPendingFailure
+    ? `Consignment booked with ${courierName}. Awaiting initial scan from carrier.`
+    : data.MostRecentStatus ||
+      data.latest_status ||
+      data.status_description ||
+      latestCheckpoint?.description ||
+      `Shipment update from ${courierName}`;
 
   const currentLocation =
     latestCheckpoint?.location ||
@@ -597,7 +637,7 @@ export async function syncOrderTracking<T = any>(
         const recipientEmail = order.customerEmail || (order.user as any)?.email;
         const recipientName = order.address?.name || (order.user as any)?.name || "Customer";
         if (recipientEmail) {
-          sendOrderStatusUpdateWithInvoice(
+          sendOrderStatusUpdate(
             recipientEmail,
             recipientName,
             buildEmailOrderPayload(order) as any

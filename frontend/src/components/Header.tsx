@@ -282,10 +282,10 @@ function MobileNavIcon({
   return (
     <Link
       to={to}
-      className="relative grid h-9 w-8 min-[360px]:h-10 min-[360px]:w-9 place-items-center rounded-md text-[#2B211C] hover:bg-[#F8F4EC] transition"
+      className="relative grid h-10 w-9 min-[360px]:w-10 place-items-center rounded-lg text-[#2B211C] hover:bg-[#F8F4EC] active:bg-[#F8F4EC] transition"
       aria-label={label}
     >
-      <Icon className="h-4 w-4 min-[360px]:h-5 min-[360px]:w-5" />
+      <Icon className="h-5 w-5" />
       {!!count && <Badge>{count}</Badge>}
     </Link>
   );

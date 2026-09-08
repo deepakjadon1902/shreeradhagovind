@@ -1,4 +1,5 @@
 import { Router } from "express";
+import mongoose from "mongoose";
 import { z } from "zod";
 import { Order } from "../models/Order";
 import { User } from "../models/User";
@@ -7,7 +8,9 @@ import { HttpError } from "../middleware/error";
 import {
   sendEmail,
   sendOrderConfirmationWithInvoice,
+  sendOrderStatusUpdate,
   sendOrderStatusUpdateWithInvoice,
+  dispatchOrderInvoiceEmailOnce,
   tpl,
   formatOrderNumber,
 } from "../utils/email";
@@ -22,10 +25,163 @@ import {
 const r = Router();
 r.use(requireAuth, requireAdmin);
 
+export function isOrderPaidForFinance(order: any): boolean {
+  if (!order || order.status === "Cancelled") return false;
+  const pStatus = order.payment?.status;
+  if (pStatus === "failed" || pStatus === "refunded") return false;
+  if (pStatus === "paid") return true;
+  // For COD orders, cash is collected upon successful delivery
+  if (order.payment?.method === "cod" && order.status === "Delivered") return true;
+  return false;
+}
+
+export function computeOrderFinances(order: any, customCourierCharge?: number) {
+  const isPaidSale = isOrderPaidForFinance(order);
+  const items = order.items || [];
+  let isCostAvailable = items.length > 0;
+  let totalProductCost = 0;
+
+  for (const item of items) {
+    if (item.comboComponents && item.comboComponents.length > 0) {
+      const allCompsHaveCost = item.comboComponents.every(
+        (c: any) => typeof c.costPrice === "number" && c.costPrice > 0
+      );
+      if (allCompsHaveCost) {
+        const compCost = item.comboComponents.reduce(
+          (sum: number, c: any) => sum + Number(c.costPrice) * (Number(c.qty) || 1),
+          0
+        );
+        totalProductCost += compCost * (Number(item.qty) || 1);
+      } else if (typeof item.costPrice === "number" && item.costPrice > 0) {
+        totalProductCost += Number(item.costPrice) * (Number(item.qty) || 1);
+      } else {
+        isCostAvailable = false;
+        break;
+      }
+    } else {
+      if (typeof item.costPrice === "number" && item.costPrice > 0) {
+        totalProductCost += Number(item.costPrice) * (Number(item.qty) || 1);
+      } else {
+        isCostAvailable = false;
+        break;
+      }
+    }
+  }
+
+  const subtotal = Number(order.subtotal);
+  const total = Number(order.total) || 0;
+  const shipping = Number(order.shipping) || 0;
+  // Packaging Cost = ORDER VALUE x 2%. Excludes shipping! Only applicable to paid sales
+  const orderValue = !isNaN(subtotal) && subtotal > 0 ? subtotal : Math.max(0, total - shipping);
+  const packagingCost = isPaidSale ? Math.round(orderValue * 0.02 * 100) / 100 : 0;
+
+  const isPaidOnline = order.payment?.method === "razorpay" && order.payment?.status === "paid";
+  const razorpayFee = isPaidOnline ? Math.round(total * 0.0236 * 100) / 100 : 0;
+
+  const courierCharge =
+    customCourierCharge !== undefined
+      ? Number(customCourierCharge)
+      : (typeof order.courierCharge === "number" ? order.courierCharge : 0);
+
+  if (!isPaidSale) {
+    return {
+      isCostAvailable,
+      isPaidSale: false,
+      productCost: isCostAvailable ? Math.round(totalProductCost * 100) / 100 : null,
+      packagingCost: 0,
+      razorpayFee: 0,
+      courierCharge,
+      totalExpense: null,
+      netProfit: null,
+    };
+  }
+
+  if (isCostAvailable) {
+    const productCost = Math.round(totalProductCost * 100) / 100;
+    const totalExpense = Math.round((productCost + packagingCost + razorpayFee + courierCharge) * 100) / 100;
+    const netProfit = Math.round((total - totalExpense) * 100) / 100;
+    return {
+      isCostAvailable: true,
+      isPaidSale: true,
+      productCost,
+      packagingCost,
+      razorpayFee,
+      courierCharge,
+      totalExpense,
+      netProfit,
+    };
+  } else {
+    return {
+      isCostAvailable: false,
+      isPaidSale: true,
+      productCost: null,
+      packagingCost,
+      razorpayFee,
+      courierCharge,
+      totalExpense: null,
+      netProfit: null,
+    };
+  }
+}
+
 r.get("/orders", async (_req, res, next) => {
   try {
     const orders = await Order.find().sort({ createdAt: -1 }).populate("user", "name email");
-    res.json({ orders });
+    const enriched = orders.map((o) => {
+      const obj = o.toObject();
+      const isPaid = isOrderPaidForFinance(obj);
+      if (typeof obj.productCost === "number" && obj.productCost !== null && typeof obj.netProfit === "number" && isPaid) {
+        return {
+          ...obj,
+          isCostAvailable: true,
+        };
+      }
+      const f = computeOrderFinances(obj);
+      return {
+        ...obj,
+        productCost: f.productCost,
+        packagingCost: isPaid ? (obj.packagingCost ?? f.packagingCost) : 0,
+        razorpayFee: isPaid ? (obj.razorpayFee ?? f.razorpayFee) : 0,
+        courierCharge: obj.courierCharge ?? f.courierCharge,
+        totalExpense: isPaid ? (obj.totalExpense ?? f.totalExpense) : null,
+        netProfit: isPaid ? (obj.netProfit ?? f.netProfit) : null,
+        isCostAvailable: f.isCostAvailable,
+      };
+    });
+    res.json({ orders: enriched });
+  } catch (e) {
+    next(e);
+  }
+});
+
+// Update courier charge and recalculate finances for an order
+r.patch("/orders/:id/courier-charge", async (req, res, next) => {
+  try {
+    const { courierCharge } = z
+      .object({
+        courierCharge: z.number().min(0),
+      })
+      .parse(req.body);
+
+    const order = await Order.findById(req.params.id).populate("user", "name email");
+    if (!order) throw new HttpError(404, "Order not found");
+
+    const finances = computeOrderFinances(order, courierCharge);
+    order.courierCharge = finances.courierCharge;
+    order.packagingCost = finances.packagingCost;
+    order.razorpayFee = finances.razorpayFee;
+    if (finances.isCostAvailable && finances.isPaidSale) {
+      order.productCost = finances.productCost as number;
+      order.totalExpense = finances.totalExpense as number;
+      order.netProfit = finances.netProfit as number;
+    } else {
+      order.productCost = undefined;
+      order.totalExpense = undefined;
+      order.netProfit = undefined;
+    }
+    await order.save();
+
+    res.json({ order });
   } catch (e) {
     next(e);
   }
@@ -43,7 +199,11 @@ r.patch("/orders/:id/status", async (req, res, next) => {
     if (!o) throw new HttpError(404, "Not found");
     const u: any = o.user;
     if (u?.email) {
-      sendOrderStatusUpdateWithInvoice(u.email, u.name, buildEmailOrder(o)).catch(() => {});
+      if (!o.invoiceSentAt && (status === "Confirmed" || status === "Processing")) {
+        dispatchOrderInvoiceEmailOnce(o._id, u.email, u.name, buildEmailOrder(o)).catch(() => {});
+      } else {
+        sendOrderStatusUpdate(u.email, u.name, buildEmailOrder(o)).catch(() => {});
+      }
     }
     res.json({ order: o });
   } catch (e) {
@@ -176,7 +336,11 @@ r.patch("/orders/:id", async (req, res, next) => {
       recipientEmail &&
       (statusChanged || (existing.status === "Shipped" && (trackingChanged || courierChanged)))
     ) {
-      sendOrderStatusUpdateWithInvoice(recipientEmail, recipientName, buildEmailOrder(o)).catch(() => {});
+      if (!o.invoiceSentAt && (o.status === "Confirmed" || o.status === "Processing")) {
+        dispatchOrderInvoiceEmailOnce(o._id, recipientEmail, recipientName, buildEmailOrder(o)).catch(() => {});
+      } else {
+        sendOrderStatusUpdate(recipientEmail, recipientName, buildEmailOrder(o)).catch(() => {});
+      }
     }
 
     // Trigger background courier tracking sync if shipped with trackingId
@@ -188,7 +352,21 @@ r.patch("/orders/:id", async (req, res, next) => {
       syncOrderTracking(o).catch(() => {});
     }
 
-    res.json({ order: o });
+    const obj = o.toObject();
+    const isPaid = isOrderPaidForFinance(obj);
+    const f = computeOrderFinances(obj);
+    const enriched = {
+      ...obj,
+      productCost: f.productCost,
+      packagingCost: isPaid ? (obj.packagingCost !== undefined && obj.packagingCost !== 0 ? obj.packagingCost : f.packagingCost) : 0,
+      razorpayFee: isPaid ? (obj.razorpayFee !== undefined && obj.razorpayFee !== 0 ? obj.razorpayFee : f.razorpayFee) : 0,
+      courierCharge: obj.courierCharge ?? f.courierCharge,
+      totalExpense: isPaid ? (obj.totalExpense !== undefined && obj.totalExpense !== 0 ? obj.totalExpense : f.totalExpense) : null,
+      netProfit: isPaid ? (obj.netProfit !== undefined && obj.netProfit !== 0 ? obj.netProfit : f.netProfit) : null,
+      isCostAvailable: f.isCostAvailable,
+    };
+
+    res.json({ order: enriched });
   } catch (e) {
     next(e);
   }
@@ -275,7 +453,13 @@ r.get("/tracking/quota", async (_req, res) => {
 // Download / Stream Invoice PDF for Admin
 r.get("/orders/:id/invoice", async (req, res, next) => {
   try {
-    const o = await Order.findById(req.params.id).populate("user", "name email");
+    let o = null;
+    if (mongoose.isValidObjectId(req.params.id)) {
+      o = await Order.findById(req.params.id).populate("user", "name email");
+    }
+    if (!o && !isNaN(Number(req.params.id))) {
+      o = await Order.findOne({ orderNo: Number(req.params.id) }).populate("user", "name email");
+    }
     if (!o) throw new HttpError(404, "Order not found");
 
     const u: any = o.user;
@@ -299,7 +483,7 @@ r.get("/orders/:id/invoice", async (req, res, next) => {
       subtotal: o.subtotal,
       shipping: o.shipping,
       total: o.total,
-      address: o.address as any,
+      address: (o.billingAddress?.line1 ? o.billingAddress : o.address) as any,
       payment: {
         method: o.payment?.method ?? "cod",
         status: o.payment?.status ?? "pending",

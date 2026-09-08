@@ -31,6 +31,10 @@ r.patch("/", requireAuth, requireAdmin, async (req, res, next) => {
         codEnabled: z.boolean().optional(),
         homeHeroImage: z.string().optional(),
         vrindavanStoryImage: z.string().optional(),
+        aboutHeroImage: z.string().optional(),
+        aboutStoryImage: z.string().optional(),
+        aboutManojImage: z.string().optional(),
+        aboutGovindImage: z.string().optional(),
         whatsappTemplate: z.string().optional(),
       })
       .parse(req.body);

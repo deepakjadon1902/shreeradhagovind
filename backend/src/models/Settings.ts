@@ -14,6 +14,10 @@ const settingsSchema = new Schema(
     razorpayKeyId: { type: String, default: "" },
     homeHeroImage: { type: String, default: "" },
     vrindavanStoryImage: { type: String, default: "" },
+    aboutHeroImage: { type: String, default: "" },
+    aboutStoryImage: { type: String, default: "" },
+    aboutManojImage: { type: String, default: "" },
+    aboutGovindImage: { type: String, default: "" },
     whatsappTemplate: { type: String, default: "" },
   },
   { timestamps: true }

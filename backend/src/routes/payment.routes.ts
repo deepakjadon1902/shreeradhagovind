@@ -12,6 +12,7 @@ import { WebhookEvent } from "../models/WebhookEvent";
 import {
   sendEmail,
   sendOrderConfirmationWithInvoice,
+  dispatchOrderInvoiceEmailOnce,
   buildEmailOrderPayload,
   tpl,
   formatOrderNumber,
@@ -148,8 +149,9 @@ export async function processRazorpayWebhookEvent(event: any): Promise<void> {
       const recipientEmail = order.customerEmail || (order.user as any)?.email;
       const recipientName = order.address?.name || (order.user as any)?.name || "Customer";
 
-      if (recipientEmail) {
-        sendOrderConfirmationWithInvoice(
+      if (recipientEmail && !order.invoiceSentAt) {
+        dispatchOrderInvoiceEmailOnce(
+          order._id,
           recipientEmail,
           recipientName,
           buildEmailOrderPayload(order)

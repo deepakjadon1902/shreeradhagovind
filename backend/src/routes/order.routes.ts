@@ -1,4 +1,5 @@
 import { Router } from "express";
+import mongoose from "mongoose";
 import crypto from "crypto";
 import bcrypt from "bcryptjs";
 import { z } from "zod";
@@ -13,6 +14,7 @@ import { signToken } from "../utils/jwt";
 import {
   sendEmail,
   sendOrderConfirmationWithInvoice,
+  dispatchOrderInvoiceEmailOnce,
   tpl,
   formatOrderNumber,
 } from "../utils/email";
@@ -22,6 +24,7 @@ import {
   syncOrderTracking,
   requestManualTrackingRefresh,
 } from "../services/courierTracking.service";
+import { computeOrderFinances } from "./admin.routes";
 import { env } from "../config/env";
 
 const r = Router();
@@ -170,29 +173,81 @@ r.post("/track/:trackingId/refresh", async (req, res, next) => {
   }
 });
 
+function sanitizeCustomerOrder(orderDoc: any) {
+  if (!orderDoc) return orderDoc;
+  const obj = orderDoc.toObject ? orderDoc.toObject() : { ...orderDoc };
+  delete obj.courierCharge;
+  delete obj.packagingCost;
+  delete obj.razorpayFee;
+  delete obj.productCost;
+  delete obj.totalExpense;
+  delete obj.netProfit;
+  if (Array.isArray(obj.items)) {
+    obj.items = obj.items.map((item: any) => {
+      const copy = { ...item };
+      delete copy.costPrice;
+      return copy;
+    });
+  }
+  return obj;
+}
+
 r.get("/", requireAuth, async (req, res, next) => {
   try {
     const userId = req.user!.sub;
     const orders = await Order.find({ user: userId }).sort({
       createdAt: -1,
     });
-    res.json({ orders });
+    res.json({ orders: orders.map(sanitizeCustomerOrder) });
   } catch (e) {
     next(e);
   }
 });
 
+async function findOrderByIdOrNo(idOrNo: string | string[] | undefined) {
+  const cleanId = Array.isArray(idOrNo) ? idOrNo[0] : idOrNo;
+  if (!cleanId) return null;
+  let o = null;
+  if (mongoose.isValidObjectId(cleanId)) {
+    o = await Order.findById(cleanId);
+  }
+  if (!o && !isNaN(Number(cleanId))) {
+    o = await Order.findOne({ orderNo: Number(cleanId) });
+  }
+  return o;
+}
+
+function checkOrderAccess(
+  o: any,
+  user?: Express.Request["user"],
+  queryToken?: unknown
+): { isOwner: boolean; isAdmin: boolean; isTokenAuthorized: boolean; allowed: boolean } {
+  const userId = user?.sub;
+  const userEmail = user?.email ? user.email.toLowerCase().trim() : "";
+  const orderEmail = o.customerEmail ? o.customerEmail.toLowerCase().trim() : "";
+  const orderUserId = (o.user as any)?._id ? String((o.user as any)._id) : o.user ? String(o.user) : null;
+  const isOwner = Boolean(
+    (userId && orderUserId && orderUserId === userId) ||
+    (userEmail && orderEmail && userEmail === orderEmail)
+  );
+  const isAdmin = user?.role === "admin";
+  const token = typeof queryToken === "string" ? queryToken.trim() : "";
+  const isTokenAuthorized = Boolean(token && o.guestAccessToken && token === o.guestAccessToken);
+
+  return {
+    isOwner,
+    isAdmin,
+    isTokenAuthorized,
+    allowed: isOwner || isAdmin || isTokenAuthorized,
+  };
+}
+
 r.get("/:id", optionalAuth, async (req, res, next) => {
   try {
-    let o = await Order.findById(req.params.id);
+    let o = await findOrderByIdOrNo(req.params.id);
     if (!o) throw new HttpError(404, "Order not found");
-    const userId = req.user?.sub;
-    const isOwner = userId && String(o.user) === userId;
-    const isAdmin = req.user?.role === "admin";
-    const token = typeof req.query.token === "string" ? req.query.token.trim() : "";
-    const isTokenAuthorized = Boolean(token && o.guestAccessToken && token === o.guestAccessToken);
-
-    if (!isOwner && !isAdmin && !isTokenAuthorized) {
+    const access = checkOrderAccess(o, req.user, req.query.token);
+    if (!access.allowed) {
       throw new HttpError(403, "Access forbidden. Please sign in or use your secure order link.");
     }
 
@@ -203,7 +258,8 @@ r.get("/:id", optionalAuth, async (req, res, next) => {
       trackingData = synced.tracking;
     }
 
-    res.json({ order: o, tracking: trackingData });
+    const payload = access.isAdmin ? o : sanitizeCustomerOrder(o);
+    res.json({ order: payload, tracking: trackingData });
   } catch (e) {
     next(e);
   }
@@ -212,15 +268,10 @@ r.get("/:id", optionalAuth, async (req, res, next) => {
 // Explicit manual refresh for customer order detail (cooldown & budget protected)
 r.post("/:id/refresh", optionalAuth, async (req, res, next) => {
   try {
-    const o = await Order.findById(req.params.id);
+    const o = await findOrderByIdOrNo(req.params.id);
     if (!o) throw new HttpError(404, "Order not found");
-    const userId = req.user?.sub;
-    const isOwner = userId && String(o.user) === userId;
-    const isAdmin = req.user?.role === "admin";
-    const token = typeof req.query.token === "string" ? req.query.token.trim() : "";
-    const isTokenAuthorized = Boolean(token && o.guestAccessToken && token === o.guestAccessToken);
-
-    if (!isOwner && !isAdmin && !isTokenAuthorized) {
+    const access = checkOrderAccess(o, req.user, req.query.token);
+    if (!access.allowed) {
       throw new HttpError(403, "Access forbidden. Please sign in or use your secure order link.");
     }
 
@@ -233,15 +284,10 @@ r.post("/:id/refresh", optionalAuth, async (req, res, next) => {
 
 r.get("/:id/invoice", optionalAuth, async (req, res, next) => {
   try {
-    const o = await Order.findById(req.params.id);
+    const o = await findOrderByIdOrNo(req.params.id);
     if (!o) throw new HttpError(404, "Order not found");
-    const userId = req.user?.sub;
-    const isOwner = userId && String(o.user) === userId;
-    const isAdmin = req.user?.role === "admin";
-    const token = typeof req.query.token === "string" ? req.query.token.trim() : "";
-    const isTokenAuthorized = Boolean(token && o.guestAccessToken && token === o.guestAccessToken);
-
-    if (!isOwner && !isAdmin && !isTokenAuthorized) {
+    const access = checkOrderAccess(o, req.user, req.query.token);
+    if (!access.allowed) {
       throw new HttpError(403, "Access forbidden. Please sign in or use your secure order link.");
     }
 
@@ -536,6 +582,7 @@ r.post("/", optionalAuth, async (req, res, next) => {
             hsnCode: c.hsnCode || "",
             gstRate: cRate,
             gstInclusive: cInclusive,
+            costPrice: typeof c.costPrice === "number" && c.costPrice > 0 ? Number(c.costPrice) : undefined,
             baseValue: Number(c.baseValue) || 0,
             allocatedPrice,
             taxableAmount: compTaxable,
@@ -568,11 +615,17 @@ r.post("/", optionalAuth, async (req, res, next) => {
         finalGstAmount = Math.round(comboSnapshot.reduce((s, c) => s + c.gstAmount, 0) * 100) / 100;
       }
 
+      const itemCostPrice =
+        typeof (p as any).costPrice === "number" && (p as any).costPrice > 0
+          ? Number((p as any).costPrice)
+          : undefined;
+
       return {
         productId: p._id,
         name: p.name,
         image: p.image,
         price: p.price,
+        costPrice: itemCostPrice,
         qty: i.qty,
         hsnCode,
         gstRate,
@@ -595,6 +648,24 @@ r.post("/", optionalAuth, async (req, res, next) => {
     const shipping =
       subtotal >= settings.freeShipThreshold ? 0 : settings.shippingFee;
     const total = subtotal + shipping;
+
+    // Packaging Cost = ORDER VALUE x 2% (subtotal, excluding shipping)
+    const packagingCost = Math.round(subtotal * 0.02 * 100) / 100;
+    const razorpayFee = body.payment.method === "razorpay" ? Math.round(total * 0.0236 * 100) / 100 : 0;
+    const courierCharge = 0;
+
+    const initialFinances = computeOrderFinances({
+      items,
+      subtotal,
+      shipping,
+      total,
+      payment: body.payment,
+      courierCharge,
+    }, courierCharge);
+
+    const productCost = initialFinances.isCostAvailable ? initialFinances.productCost : undefined;
+    const totalExpense = initialFinances.isCostAvailable ? initialFinances.totalExpense : undefined;
+    const netProfit = initialFinances.isCostAvailable ? initialFinances.netProfit : undefined;
 
     const stockUpdate = await Product.bulkWrite(
       items.map((item) => ({
@@ -629,6 +700,12 @@ r.post("/", optionalAuth, async (req, res, next) => {
       subtotal,
       shipping,
       total,
+      courierCharge,
+      packagingCost,
+      razorpayFee,
+      productCost,
+      totalExpense,
+      netProfit,
       courier: body.payment.method === "cod" ? "DTDC" : null,
       alternatePhone: body.address.alternatePhone || "",
       address: {
@@ -681,7 +758,7 @@ r.post("/", optionalAuth, async (req, res, next) => {
       normalizedEmail &&
       (payment?.status === "paid" || payment?.method === "cod")
     ) {
-      sendOrderConfirmationWithInvoice(normalizedEmail, customerRecipientName, {
+      dispatchOrderInvoiceEmailOnce(order._id, normalizedEmail, customerRecipientName, {
         _id: order._id,
         orderNo: order.orderNo,
         trackingId: order.trackingId ?? undefined,
