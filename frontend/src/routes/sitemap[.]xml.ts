@@ -42,7 +42,10 @@ function toDate(value: unknown, fallback: string) {
 async function fetchApi<T>(path: string): Promise<T | null> {
   if (!API_URL) return null;
   try {
-    const response = await fetch(`${API_URL}${path}`);
+    const baseApi = API_URL.startsWith("http")
+      ? API_URL
+      : `https://www.shriradhagovindstore.com${API_URL}`;
+    const response = await fetch(`${baseApi}${path}`);
     if (!response.ok) return null;
     return (await response.json()) as T;
   } catch {
@@ -68,11 +71,21 @@ async function productEntries(today: string): Promise<SitemapEntry[]> {
     });
 }
 
+const INACTIVE_CATEGORIES = new Set([
+  "Temple Collection",
+  "Braj Raj",
+  "Temple Prasad",
+  "Holy Water",
+  "Festival Collection",
+]);
+
 async function categoryEntries(today: string): Promise<SitemapEntry[]> {
   const data = await fetchApi<{ categories?: Record<string, unknown>[] }>("/categories");
   const categories = data?.categories?.length
-    ? data.categories.map((category) => String(category.name ?? "")).filter(Boolean)
-    : DEFAULT_CATEGORIES;
+    ? data.categories
+        .filter((category) => category && category.name && category.isActive !== false)
+        .map((category) => String(category.name))
+    : DEFAULT_CATEGORIES.filter((category) => !INACTIVE_CATEGORIES.has(category));
 
   return Array.from(new Set(categories)).map((category) => ({
     path: `/shop?cat=${encodeURIComponent(category)}`,
