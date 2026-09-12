@@ -4,7 +4,7 @@ import { Layout } from "@/components/Layout";
 import { ProductCard } from "@/components/ProductCard";
 import { useStore } from "@/lib/store";
 import { SlidersHorizontal, ChevronRight, Home, Sparkles, X, RotateCcw } from "lucide-react";
-import { pageSeo } from "@/lib/seo";
+import { pageSeo, SITE_URL, cleanMetaText, DEFAULT_IMAGE } from "@/lib/seo";
 
 type Search = { q?: string; cat?: string; filter?: string };
 
@@ -16,30 +16,122 @@ export const Route = createFileRoute("/shop")({
   }),
   component: Shop,
   head: (ctx: any) => {
+    const rawQ = typeof ctx?.search?.q === "string" ? ctx.search.q.trim() : "";
     const isSacredPicks =
-      ctx?.search?.q?.toLowerCase() === "sacred-picks" ||
+      rawQ.toLowerCase() === "sacred-picks" ||
       ctx?.search?.filter?.toLowerCase() === "sacred-picks";
-    const category = ctx?.search?.cat;
+    const category = typeof ctx?.search?.cat === "string" && ctx.search.cat !== "All"
+      ? ctx.search.cat.trim()
+      : undefined;
+
+    // Filter & Search Control:
+    // Arbitrary internal search queries (e.g. ?q=mala) should not bloat the index with thin results.
+    // Sacred Picks is a curated editorial landing page and is allowed.
+    const isArbitrarySearch = Boolean(rawQ && !isSacredPicks);
+    const hasArbitraryFilter = Boolean(ctx?.search?.filter && !isSacredPicks);
+    const robots = (isArbitrarySearch || hasArbitraryFilter)
+      ? "noindex, follow"
+      : "index, follow";
+
     const title = isSacredPicks
       ? "Sacred Picks — Devotional Favorites | Shri Radha Govind Store"
       : category
-      ? `Buy ${category} Online | Shri Radha Govind Store`
-      : "Shop Tulsi Mala, Puja Items, Itra & Temple Gifts | Shri Radha Govind Store";
-    const description = isSacredPicks
-      ? "Explore our curated Sacred Picks from Vrindavan: top-rated authentic Tulsi malas, pure Chandan, sacred Itra, and devotional essentials."
-      : category
-      ? `Buy authentic ${category} online from Shri Radha Govind Store, Vrindavan. Explore trusted devotional products with fast shipping across India.`
-      : "Shop Tulsi Mala, Kanthi Mala, Puja Essentials, Chandan, Tilak, Itra, Keychains, Temple Gifts and spiritual products from Vrindavan.";
+      ? cleanMetaText(`Buy ${category} Online | Authentic Vrindavan Collection | Shri Radha Govind Store`, 70)
+      : isArbitrarySearch
+      ? cleanMetaText(`Search: "${rawQ}" | Shri Radha Govind Store`, 70)
+      : "Shop Sacred Tulsi Mala, Puja Items & Vrindavan Essentials | Shri Radha Govind Store";
 
-    return pageSeo({
+    const description = isSacredPicks
+      ? "Explore curated Sacred Picks from Vrindavan: top-rated authentic Tulsi malas, pure Chandan, sacred Itra, and devotional essentials with fast all-India delivery."
+      : category
+      ? cleanMetaText(
+          `Buy authentic ${category} handcrafted by Vrindavan artisans. Pure sacred devotional essentials with fast delivery across India. Shri Radha Govind Store.`,
+          160,
+        )
+      : "Shop authentic Tulsi malas, Kanthi malas, Puja essentials, Chandan, Tilak, Itra and spiritual items directly from Vrindavan. Fast pan-India shipping.";
+
+    const canonicalPath = isSacredPicks
+      ? "/shop?q=sacred-picks"
+      : category
+      ? `/shop?cat=${encodeURIComponent(category)}`
+      : "/shop";
+
+    const canonicalUrl = `${SITE_URL}${canonicalPath}`;
+
+    const breadcrumbSchema = {
+      "@context": "https://schema.org",
+      "@type": "BreadcrumbList",
+      itemListElement: [
+        {
+          "@type": "ListItem",
+          position: 1,
+          name: "Home",
+          item: SITE_URL,
+        },
+        {
+          "@type": "ListItem",
+          position: 2,
+          name: "Shop",
+          item: `${SITE_URL}/shop`,
+        },
+        ...(category
+          ? [
+              {
+                "@type": "ListItem",
+                position: 3,
+                name: category,
+                item: canonicalUrl,
+              },
+            ]
+          : isSacredPicks
+          ? [
+              {
+                "@type": "ListItem",
+                position: 3,
+                name: "Sacred Picks",
+                item: canonicalUrl,
+              },
+            ]
+          : []),
+      ],
+    };
+
+    const collectionSchema = category
+      ? {
+          "@context": "https://schema.org",
+          "@type": "CollectionPage",
+          name: `${category} - Shri Radha Govind Store`,
+          url: canonicalUrl,
+          description,
+        }
+      : undefined;
+
+    const baseSeo = pageSeo({
       title,
       description,
-      path: isSacredPicks
-        ? "/shop?q=sacred-picks"
-        : category
-        ? `/shop?cat=${encodeURIComponent(category)}`
-        : "/shop",
+      path: canonicalPath,
+      robots,
     });
+
+    const scripts = [
+      {
+        type: "application/ld+json",
+        children: JSON.stringify(breadcrumbSchema),
+      },
+      ...(collectionSchema
+        ? [
+            {
+              type: "application/ld+json",
+              children: JSON.stringify(collectionSchema),
+            },
+          ]
+        : []),
+    ];
+
+    return {
+      ...baseSeo,
+      scripts,
+    };
   },
 });
 
@@ -200,15 +292,14 @@ function Shop() {
             <Home className="h-3.5 w-3.5" /> Home
           </Link>
           <ChevronRight className="h-3 w-3 text-muted-foreground/60" />
-          <button
-            type="button"
-            onClick={() => selectCategory("All")}
+          <Link
+            to="/shop"
             className={`hover:text-[#166F77] transition ${
               cat === "All" && !isSacredPicks ? "font-semibold text-foreground" : ""
             }`}
           >
             Shop
-          </button>
+          </Link>
           {isSacredPicks && (
             <>
               <ChevronRight className="h-3 w-3 text-muted-foreground/60" />
@@ -218,15 +309,15 @@ function Shop() {
           {activeCategoryInfo && (
             <>
               <ChevronRight className="h-3 w-3 text-muted-foreground/60" />
-              <button
-                type="button"
-                onClick={() => selectCategory(activeCategoryInfo.parent.name)}
+              <Link
+                to="/shop"
+                search={{ cat: activeCategoryInfo.parent.name } as never}
                 className={`hover:text-[#166F77] transition ${
                   activeCategoryInfo.isParent ? "font-semibold text-foreground" : ""
                 }`}
               >
                 {activeCategoryInfo.parent.name}
-              </button>
+              </Link>
             </>
           )}
           {activeCategoryInfo && !activeCategoryInfo.isParent && (

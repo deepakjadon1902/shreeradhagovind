@@ -14,6 +14,7 @@ export const Route = createFileRoute("/signup")({
       { name: "description", content: "Create a free devotee account to shop sacred Vrindavan essentials and track your orders." },
       { property: "og:title", content: "Create Account - Shri Radha Govind Store" },
       { property: "og:url", content: "https://www.shriradhagovindstore.com/signup" },
+      { name: "robots", content: "noindex, nofollow" },
     ],
     links: [{ rel: "canonical", href: "https://www.shriradhagovindstore.com/signup" }],
   }),

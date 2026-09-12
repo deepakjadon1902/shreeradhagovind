@@ -14,6 +14,7 @@ export const Route = createFileRoute("/login")({
       { name: "description", content: "Sign in to your Shri Radha Govind Store account to view orders, wishlist and track shipments." },
       { property: "og:title", content: "Sign In - Shri Radha Govind Store" },
       { property: "og:url", content: "https://www.shriradhagovindstore.com/login" },
+      { name: "robots", content: "noindex, nofollow" },
     ],
     links: [{ rel: "canonical", href: "https://www.shriradhagovindstore.com/login" }],
   }),

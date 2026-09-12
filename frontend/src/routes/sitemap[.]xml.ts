@@ -19,7 +19,6 @@ const staticEntries: SitemapEntry[] = [
   { path: "/about", changefreq: "monthly", priority: "0.7" },
   { path: "/contact", changefreq: "monthly", priority: "0.7" },
   { path: "/blog", changefreq: "weekly", priority: "0.6" },
-  { path: "/track", changefreq: "weekly", priority: "0.5" },
   { path: "/shipping", changefreq: "monthly", priority: "0.4" },
   { path: "/returns", changefreq: "monthly", priority: "0.4" },
   { path: "/privacy", changefreq: "yearly", priority: "0.3" },
@@ -56,7 +55,7 @@ async function productEntries(today: string): Promise<SitemapEntry[]> {
   const products = data?.products ?? [];
 
   return products
-    .filter((product) => product && product.name)
+    .filter((product) => product && product.name && product.isActive !== false)
     .map((product) => {
       const name = String(product.name);
       const slug = String(product.slug ?? slugify(name));

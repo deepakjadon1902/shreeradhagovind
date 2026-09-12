@@ -1,4 +1,4 @@
-import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
+import { createFileRoute, Link, useNavigate, notFound } from "@tanstack/react-router";
 import { Layout } from "@/components/Layout";
 import { useStore, formatINR } from "@/lib/store";
 import { API_URL, api, isApiEnabled } from "@/lib/api";
@@ -26,7 +26,7 @@ import {
 } from "lucide-react";
 import { useEffect, useState, useRef } from "react";
 import { ProductCard } from "@/components/ProductCard";
-import { cleanMetaText, pageSeo, slugify } from "@/lib/seo";
+import { cleanMetaText, pageSeo, slugify, SITE_URL, DEFAULT_IMAGE, absoluteUrl } from "@/lib/seo";
 import { FormattedText } from "@/components/SimpleRichEditor";
 import { toast } from "sonner";
 
@@ -63,40 +63,233 @@ async function loadProductForMeta(idOrSlug: string) {
   if (!API_URL) return null;
 
   try {
-    const response = await fetch(`${API_URL}/products/${encodeURIComponent(idOrSlug)}`);
+    const baseApi = API_URL.startsWith("http") ? API_URL : `https://www.shriradhagovindstore.com${API_URL}`;
+    const response = await fetch(`${baseApi}/products/${encodeURIComponent(idOrSlug)}`);
     if (!response.ok) return null;
     const data = (await response.json()) as { product?: Record<string, unknown> };
-    return data.product ? normalizeProduct(data.product) : null;
+    if (!data.product) return null;
+    const product = normalizeProduct(data.product);
+
+    let reviews: any[] = [];
+    try {
+      const revRes = await fetch(`${baseApi}/reviews/product/${encodeURIComponent(product.id)}`);
+      if (revRes.ok) {
+        const revData = await revRes.json();
+        if (Array.isArray(revData)) reviews = revData;
+      }
+    } catch {
+      // ignore
+    }
+
+    return { product, reviews };
   } catch {
     return null;
   }
 }
 
+function ProductNotFoundComponent() {
+  return (
+    <Layout>
+      <div className="container-app py-20 text-center">
+        <div className="mx-auto w-14 h-14 rounded-full bg-amber-50 border border-amber-200 flex items-center justify-center text-amber-700 mb-3">
+          <Info className="h-7 w-7" />
+        </div>
+        <h1 className="font-serif text-2xl sm:text-3xl font-bold text-[#2B211C]">Product Not Found</h1>
+        <p className="mt-2 text-xs sm:text-sm text-stone-500 max-w-md mx-auto">
+          This devotional item may have been moved or is temporarily unavailable from our Vrindavan ashram store.
+        </p>
+        <Link
+          to="/shop"
+          className="mt-5 inline-flex items-center gap-2 rounded-xl bg-[#166F77] px-5 py-2.5 text-xs sm:text-sm font-semibold text-white shadow-xs hover:bg-[#125A61] transition"
+        >
+          Explore Sacred Catalog
+        </Link>
+      </div>
+    </Layout>
+  );
+}
+
 export const Route = createFileRoute("/product/$id")({
   component: ProductDetail,
-  loader: ({ params }) => loadProductForMeta(params.id),
-  head: ({ params, loaderData: product }) => {
-    const productName = product?.name || "Sacred Product";
-    const title = cleanMetaText(productName, 300);
-    const description = cleanMetaText(
-      product?.description || `Shop ${productName}, an authentic sacred essential from Vrindavan.`,
-      1000,
-    );
-    const slug = product?.slug ?? params.id;
+  loader: async ({ params }) => {
+    const data = await loadProductForMeta(params.id);
+    if (!data || !data.product) {
+      throw notFound();
+    }
+    return data;
+  },
+  notFoundComponent: ProductNotFoundComponent,
+  head: ({ params, loaderData }) => {
+    const product = loaderData?.product;
+    if (!product) {
+      return {
+        meta: [
+          { title: "Product Not Found | Shri Radha Govind Store" },
+          { name: "robots", content: "noindex, nofollow" },
+        ],
+      };
+    }
 
-    return pageSeo({
+    const productName = product.name || "Sacred Product";
+    const title = cleanMetaText(`${productName} | Buy Online | Shri Radha Govind Store`, 70);
+    const rawDesc = product.description
+      ? product.description
+      : `Buy authentic ${productName} online from Shri Radha Govind Store, Vrindavan. Handcrafted devotional essentials with fast all-India delivery.`;
+    const description = cleanMetaText(rawDesc, 160);
+
+    const slug = product.slug || slugify(productName) || params.id;
+    const canonicalPath = `/product/${slug}`;
+    const canonicalUrl = `${SITE_URL}${canonicalPath}`;
+    const primaryImage = product.image ? absoluteUrl(product.image) : DEFAULT_IMAGE;
+    const allImages = Array.from(
+      new Set(
+        [product.image, ...(product.images || [])]
+          .filter(Boolean)
+          .map((img) => absoluteUrl(img)),
+      ),
+    );
+
+    const reviews = loaderData?.reviews || [];
+    const avgRating =
+      reviews.length > 0
+        ? Number(
+            (
+              reviews.reduce((sum: number, r: any) => sum + (Number(r.rating) || 5), 0) /
+              reviews.length
+            ).toFixed(1),
+          )
+        : Number((product.rating || 5).toFixed(1));
+    const reviewCount = reviews.length > 0 ? reviews.length : (product.reviews || 0);
+
+    const breadcrumbSchema = {
+      "@context": "https://schema.org",
+      "@type": "BreadcrumbList",
+      itemListElement: [
+        {
+          "@type": "ListItem",
+          position: 1,
+          name: "Home",
+          item: SITE_URL,
+        },
+        {
+          "@type": "ListItem",
+          position: 2,
+          name: "Shop",
+          item: `${SITE_URL}/shop`,
+        },
+        ...(product.category
+          ? [
+              {
+                "@type": "ListItem",
+                position: 3,
+                name: product.category,
+                item: `${SITE_URL}/shop?cat=${encodeURIComponent(product.category)}`,
+              },
+              {
+                "@type": "ListItem",
+                position: 4,
+                name: productName,
+                item: canonicalUrl,
+              },
+            ]
+          : [
+              {
+                "@type": "ListItem",
+                position: 3,
+                name: productName,
+                item: canonicalUrl,
+              },
+            ]),
+      ],
+    };
+
+    const productSchema: Record<string, any> = {
+      "@context": "https://schema.org",
+      "@type": "Product",
+      name: productName,
+      description,
+      image: allImages.length > 0 ? allImages : [primaryImage],
+      sku: product.id,
+      category: product.category || "Devotional",
+      brand: {
+        "@type": "Brand",
+        name: "Shri Radha Govind Store",
+      },
+      offers: {
+        "@type": "Offer",
+        url: canonicalUrl,
+        priceCurrency: "INR",
+        price: product.price,
+        priceValidUntil: "2027-12-31",
+        itemCondition: "https://schema.org/NewCondition",
+        availability: product.stock > 0 ? "https://schema.org/InStock" : "https://schema.org/OutOfStock",
+        seller: {
+          "@type": "Organization",
+          name: "Shri Radha Govind Store",
+        },
+      },
+    };
+
+    if (reviewCount > 0) {
+      productSchema.aggregateRating = {
+        "@type": "AggregateRating",
+        ratingValue: avgRating,
+        reviewCount: reviewCount,
+        bestRating: "5",
+        worstRating: "1",
+      };
+
+      if (reviews.length > 0) {
+        productSchema.review = reviews.slice(0, 5).map((rev: any) => ({
+          "@type": "Review",
+          author: {
+            "@type": "Person",
+            name: rev.userName || rev.name || "Devotee",
+          },
+          datePublished: rev.createdAt
+            ? new Date(rev.createdAt).toISOString().slice(0, 10)
+            : new Date().toISOString().slice(0, 10),
+          reviewBody: rev.comment || rev.text || "",
+          reviewRating: {
+            "@type": "Rating",
+            ratingValue: rev.rating || 5,
+            bestRating: "5",
+            worstRating: "1",
+          },
+        }));
+      }
+    }
+
+    const baseSeo = pageSeo({
       title,
       description,
-      path: `/product/${slug}`,
-      image: product?.image,
+      path: canonicalPath,
+      image: primaryImage,
       type: "product",
+      robots: "index, follow",
     });
+
+    return {
+      ...baseSeo,
+      scripts: [
+        {
+          type: "application/ld+json",
+          children: JSON.stringify(breadcrumbSchema),
+        },
+        {
+          type: "application/ld+json",
+          children: JSON.stringify(productSchema),
+        },
+      ],
+    };
   },
 });
 
 function ProductDetail() {
   const { id } = Route.useParams();
-  const loadedProduct = Route.useLoaderData();
+  const loaderData = Route.useLoaderData();
+  const loadedProduct = loaderData?.product;
+  const loadedReviews = loaderData?.reviews || [];
   const { adminProducts, addToCart, buyNow, wishlist, toggleWishlist } = useStore();
   const nav = useNavigate();
   const product = adminProducts.find((p) => matchesProduct(p, id)) ?? loadedProduct;
@@ -104,7 +297,7 @@ function ProductDetail() {
   const [qty, setQty] = useState(1);
   const [recentIds, setRecentIds] = useState<string[]>([]);
   const [selectedImage, setSelectedImage] = useState("");
-  const [reviewsList, setReviewsList] = useState<any[]>([]);
+  const [reviewsList, setReviewsList] = useState<any[]>(loadedReviews);
   const [loadingReviews, setLoadingReviews] = useState(false);
   const [activeTab, setActiveTab] = useState<"description" | "details" | "care" | "shipping">("description");
 
@@ -130,9 +323,12 @@ function ProductDetail() {
     if (!product?.id) return;
     let alive = true;
     const fetchReviews = async () => {
-      setLoadingReviews(true);
+      if (loadedReviews.length === 0) {
+        setLoadingReviews(true);
+      }
       try {
-        const res = await fetch(`${API_URL}/reviews/product/${encodeURIComponent(product.id)}`);
+        const baseApi = API_URL.startsWith("http") ? API_URL : `https://www.shriradhagovindstore.com${API_URL}`;
+        const res = await fetch(`${baseApi}/reviews/product/${encodeURIComponent(product.id)}`);
         if (res.ok) {
           const data = await res.json();
           if (alive && Array.isArray(data)) {
@@ -254,25 +450,7 @@ function ProductDetail() {
   };
 
   if (!product) {
-    return (
-      <Layout>
-        <div className="container-app py-20 text-center">
-          <div className="mx-auto w-14 h-14 rounded-full bg-amber-50 border border-amber-200 flex items-center justify-center text-amber-700 mb-3">
-            <Info className="h-7 w-7" />
-          </div>
-          <h1 className="font-serif text-2xl sm:text-3xl font-bold text-[#2B211C]">Product Not Found</h1>
-          <p className="mt-2 text-xs sm:text-sm text-stone-500 max-w-md mx-auto">
-            This devotional item may have been moved or is temporarily unavailable from our Vrindavan ashram store.
-          </p>
-          <Link
-            to="/shop"
-            className="mt-5 inline-flex items-center gap-2 rounded-xl bg-[#166F77] px-5 py-2.5 text-xs sm:text-sm font-semibold text-white shadow-xs hover:bg-[#125A61] transition"
-          >
-            Explore Sacred Catalog
-          </Link>
-        </div>
-      </Layout>
-    );
+    return <ProductNotFoundComponent />;
   }
 
   const wished = wishlist.includes(product.id);

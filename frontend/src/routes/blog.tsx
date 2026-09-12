@@ -2,20 +2,51 @@ import { createFileRoute, Link, Outlet, useLocation } from "@tanstack/react-rout
 import { Layout } from "@/components/Layout";
 import { useStore } from "@/lib/store";
 import { CalendarDays } from "lucide-react";
-import { slugify } from "@/lib/seo";
+import { slugify, pageSeo, SITE_URL } from "@/lib/seo";
 
 export const Route = createFileRoute("/blog")({
   component: BlogIndex,
-  head: () => ({
-    meta: [
-      { title: "Blog | Shri Radha Govind Store" },
-      {
-        name: "description",
-        content:
-          "Read devotional guides, festival notes, product care tips and Vrindavan stories from Shri Radha Govind Store.",
-      },
-    ],
-  }),
+  head: () => {
+    const title = "Devotional Blog & Articles | Shri Radha Govind Store";
+    const description =
+      "Read devotional guides, Tulsi mala care tips, Vrindavan festival notes, and spiritual stories from Shri Radha Govind Store.";
+    const breadcrumbSchema = {
+      "@context": "https://schema.org",
+      "@type": "BreadcrumbList",
+      itemListElement: [
+        {
+          "@type": "ListItem",
+          position: 1,
+          name: "Home",
+          item: SITE_URL,
+        },
+        {
+          "@type": "ListItem",
+          position: 2,
+          name: "Blog",
+          item: `${SITE_URL}/blog`,
+        },
+      ],
+    };
+
+    const baseSeo = pageSeo({
+      title,
+      description,
+      path: "/blog",
+      type: "blog",
+      robots: "index, follow",
+    });
+
+    return {
+      ...baseSeo,
+      scripts: [
+        {
+          type: "application/ld+json",
+          children: JSON.stringify(breadcrumbSchema),
+        },
+      ],
+    };
+  },
 });
 
 function BlogIndex() {
@@ -43,12 +74,16 @@ function BlogIndex() {
                 key={post.id}
                 to="/blog/$slug"
                 params={{ slug: post.slug || slugify(post.title) }}
-                target="_blank"
-                rel="noreferrer"
-                className="overflow-hidden rounded-lg border bg-card hover:border-primary"
+                className="overflow-hidden rounded-lg border bg-card hover:border-primary transition duration-200 hover:shadow-md"
               >
                 {post.image && (
-                  <img src={post.image} alt={post.title} className="h-44 w-full object-cover" />
+                  <img
+                    src={post.image}
+                    alt={post.title}
+                    loading="lazy"
+                    decoding="async"
+                    className="h-44 w-full object-cover"
+                  />
                 )}
                 <div className="p-5">
                   <p className="flex items-center gap-1 text-xs text-muted-foreground">

@@ -30,8 +30,41 @@ export const Route = createFileRoute("/")({
           "@type": "Organization",
           name: "Shri Radha Govind Store",
           url: "https://www.shriradhagovindstore.com/",
+          logo: "https://www.shriradhagovindstore.com/brand-logo-large.png",
           description:
-            "Sacred essentials from Vrindavan: authentic Tulsi mala, Chandan, Itra, and Puja items.",
+            "Authentic sacred Tulsi malas, Kanthi malas, Puja essentials, Chandan, and devotional items sourced directly from Vrindavan Dham.",
+          telephone: "+917500533505",
+          email: "support@shriradhagovindstore.com",
+          address: {
+            "@type": "PostalAddress",
+            streetAddress: "155, 2nd Floor, Madan Mohan Ghera",
+            addressLocality: "Vrindavan, Mathura",
+            addressRegion: "Uttar Pradesh",
+            postalCode: "281121",
+            addressCountry: "IN",
+          },
+          sameAs: [
+            "https://youtube.com/@shriradhagovindstore?si=mXapbranPLnBCYsj",
+            "https://www.instagram.com/shriradhagovind_store?stkn=ZjZhYjVtNjV0bDYz",
+            "https://www.facebook.com/profile.php?id=61580313882838",
+          ],
+        }),
+      },
+      {
+        type: "application/ld+json",
+        children: JSON.stringify({
+          "@context": "https://schema.org",
+          "@type": "WebSite",
+          name: "Shri Radha Govind Store",
+          url: "https://www.shriradhagovindstore.com/",
+          potentialAction: {
+            "@type": "SearchAction",
+            target: {
+              "@type": "EntryPoint",
+              urlTemplate: "https://www.shriradhagovindstore.com/shop?q={search_term_string}",
+            },
+            "query-input": "required name=search_term_string",
+          },
         }),
       },
     ],

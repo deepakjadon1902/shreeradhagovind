@@ -7,7 +7,7 @@ import { toast } from "sonner";
 
 export const Route = createFileRoute("/forgot-password")({
   component: ForgotPassword,
-  head: () => ({ meta: [{ title: "Forgot Password | Shri Radha Govind Store" }, { name: "robots", content: "noindex" }] }),
+  head: () => ({ meta: [{ title: "Forgot Password | Shri Radha Govind Store" }, { name: "robots", content: "noindex, nofollow" }] }),
 });
 
 function ForgotPassword() {
