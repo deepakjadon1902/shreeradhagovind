@@ -26,6 +26,7 @@ export type Product = {
     hsnCode?: string;
     gstRate: number;
     gstInclusive?: boolean;
+    costPrice?: number;
     baseValue: number;
   }>;
 };

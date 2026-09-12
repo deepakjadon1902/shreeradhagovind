@@ -58,6 +58,7 @@ export type Order = {
   productCost?: number;
   totalExpense?: number;
   netProfit?: number;
+  isCostAvailable?: boolean;
   invoiceSentAt?: string | null;
   alternatePhone?: string;
   needsGstInvoice?: boolean;
@@ -140,6 +141,8 @@ export interface NormalizedTrackingData {
   expectedDeliveryDate: string | null;
   checkpoints: CourierCheckpoint[];
   lastUpdated: string;
+  lastCarrierScanAt?: string | null;
+  hasCarrierScans?: boolean;
   provider: "trackcourier";
   quotaExceeded?: boolean;
 }
@@ -351,6 +354,7 @@ const mapProduct = (p: any): Product => ({
   description: p.description ?? "",
   price: p.price,
   mrp: p.mrp ?? p.compareAtPrice ?? 0,
+  costPrice: typeof p.costPrice === "number" ? p.costPrice : (p.costPrice ? Number(p.costPrice) : undefined),
   image: p.image ?? "",
   images: p.images ?? [],
   featuredDeal: !!p.featuredDeal,
@@ -365,7 +369,17 @@ const mapProduct = (p: any): Product => ({
   isTaxable: p.isTaxable !== undefined ? Boolean(p.isTaxable) : true,
   metaTitle: p.metaTitle ?? "",
   metaDescription: p.metaDescription ?? "",
-  comboComponents: Array.isArray(p.comboComponents) ? p.comboComponents : [],
+  comboComponents: Array.isArray(p.comboComponents)
+    ? p.comboComponents.map((c: any) => ({
+        name: c.name || "",
+        qty: Number(c.qty) || 1,
+        hsnCode: c.hsnCode || "",
+        gstRate: Number(c.gstRate) || 0,
+        baseValue: Number(c.baseValue) || 0,
+        gstInclusive: c.gstInclusive !== false,
+        costPrice: typeof c.costPrice === "number" ? c.costPrice : (c.costPrice ? Number(c.costPrice) : undefined),
+      }))
+    : [],
 });
 
 const mapSettings = (s: any): Partial<Settings> => ({
@@ -516,7 +530,7 @@ const mapOrder = (o: any, productLookup: Map<string, Product>): Order => {
             qty: Number(i?.qty) || 1,
             hsnCode: i?.hsnCode || baseProd.hsnCode || "",
             price: typeof i?.price === "number" ? i.price : baseProd.price,
-            costPrice: typeof i?.costPrice === "number" ? i.costPrice : (baseProd as any).costPrice,
+            costPrice: typeof i?.costPrice === "number" ? i.costPrice : undefined,
             mrp: typeof i?.mrp === "number" ? i.mrp : baseProd.mrp,
             taxableAmount: typeof i?.taxableAmount === "number" ? i.taxableAmount : undefined,
             gstAmount: typeof i?.gstAmount === "number" ? i.gstAmount : undefined,
@@ -537,9 +551,10 @@ const mapOrder = (o: any, productLookup: Map<string, Product>): Order => {
     courierCharge: typeof o?.courierCharge === "number" ? o.courierCharge : 0,
     packagingCost: typeof o?.packagingCost === "number" ? o.packagingCost : 0,
     razorpayFee: typeof o?.razorpayFee === "number" ? o.razorpayFee : 0,
-    productCost: typeof o?.productCost === "number" ? o.productCost : 0,
-    totalExpense: typeof o?.totalExpense === "number" ? o.totalExpense : 0,
-    netProfit: typeof o?.netProfit === "number" ? o.netProfit : 0,
+    productCost: typeof o?.productCost === "number" && o.productCost !== null ? o.productCost : undefined,
+    totalExpense: typeof o?.totalExpense === "number" && o.totalExpense !== null ? o.totalExpense : undefined,
+    netProfit: typeof o?.netProfit === "number" && o.netProfit !== null ? o.netProfit : undefined,
+    isCostAvailable: Boolean(o?.isCostAvailable),
     invoiceSentAt: o?.invoiceSentAt ? String(o.invoiceSentAt) : null,
     alternatePhone: o?.alternatePhone ?? safeAddress.alternatePhone,
     needsGstInvoice: Boolean(o?.needsGstInvoice),
@@ -1027,6 +1042,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
           description: p.description,
           price: Number(p.price),
           mrp: Number(p.mrp ?? 0),
+          costPrice: typeof p.costPrice === "number" ? p.costPrice : Number(p.costPrice) || 0,
           image: p.image,
           images: p.images ?? [],
           featuredDeal: !!p.featuredDeal,
@@ -1049,6 +1065,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
                 hsnCode: String(c.hsnCode || "").trim(),
                 gstRate: Number(c.gstRate) || 0,
                 gstInclusive: c.gstInclusive !== false,
+                costPrice: typeof c.costPrice === "number" ? c.costPrice : Number(c.costPrice) || 0,
                 baseValue: Math.max(0, Number(c.baseValue) || 0),
               }))
             : [],

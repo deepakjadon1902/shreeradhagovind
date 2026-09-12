@@ -99,6 +99,7 @@ const productSchema = z.object({
         hsnCode: z.string().trim().min(2, "HSN code is required for each combo component"),
         gstRate: z.number().min(0).max(28),
         gstInclusive: z.boolean().optional().default(true),
+        costPrice: z.number().min(0).optional().default(0),
         baseValue: z.number().min(0).optional().default(0),
       })
     )

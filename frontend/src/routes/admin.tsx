@@ -368,8 +368,10 @@ function AdminRoot() {
   const [orderStatusFilter, setOrderStatusFilter] = useState<string>("all");
 
   useEffect(() => {
-    if (adminAuthed && tab === "users") fetchRegisteredUsers();
-    if (adminAuthed && tab === "products" && adminProducts.length === 0) fetchProductsSafely();
+    if (adminAuthed) {
+      fetchProductsSafely();
+      if (tab === "users") fetchRegisteredUsers();
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [adminAuthed, tab]);
 
@@ -2127,6 +2129,7 @@ function ProductEditor({
     category: product?.category ?? "",
     price: Number(product?.price) || 0,
     mrp: Number(product?.mrp) || 0,
+    costPrice: product?.costPrice !== undefined ? Number(product.costPrice) : 0,
     stock: Number(product?.stock ?? 100),
     rating: Number(product?.rating ?? 5),
     reviews: Number(product?.reviews ?? 1),
@@ -2149,6 +2152,7 @@ function ProductEditor({
     gstRate: number;
     baseValue: number;
     gstInclusive: boolean;
+    costPrice?: number;
   }>>(() => {
     return Array.isArray((product as any)?.comboComponents) && (product as any).comboComponents.length > 0
       ? (product as any).comboComponents.map((c: any) => ({
@@ -2158,6 +2162,7 @@ function ProductEditor({
           gstRate: Number(c.gstRate) || 0,
           baseValue: Number(c.baseValue) || 0,
           gstInclusive: c.gstInclusive !== false,
+          costPrice: c.costPrice !== undefined ? Number(c.costPrice) : 0,
         }))
       : [];
   });
@@ -3367,9 +3372,9 @@ function OrderManager({
           courierCharge: res.order.courierCharge,
           packagingCost: res.order.packagingCost,
           razorpayFee: res.order.razorpayFee,
-          productCost: res.order.productCost,
-          totalExpense: res.order.totalExpense,
-          netProfit: res.order.netProfit,
+          productCost: typeof res.order.productCost === "number" ? res.order.productCost : undefined,
+          totalExpense: typeof res.order.totalExpense === "number" ? res.order.totalExpense : undefined,
+          netProfit: typeof res.order.netProfit === "number" ? res.order.netProfit : undefined,
         }));
         toast.success("Courier charge updated and finances recalculated");
       }
@@ -3956,109 +3961,128 @@ function OrderManager({
               </span>
             </div>
 
-            <div className="space-y-1.5">
-              <div className="flex justify-between text-stone-500">
-                <span>Order Value (Subtotal):</span>
-                <span className="font-semibold text-stone-900">{formatINR(computedSubtotal)}</span>
-              </div>
-              <div className="flex justify-between text-stone-500">
-                <span>Product Cost (COGS):</span>
-                {typeof order.productCost === "number" && order.productCost !== null ? (
-                  <span className="font-medium text-stone-800">{formatINR(order.productCost)}</span>
-                ) : (
-                  <span className="font-semibold text-amber-700 bg-amber-50 border border-amber-200 px-1.5 py-0.5 rounded text-[11px]">
-                    Not Available
-                  </span>
-                )}
-              </div>
-              <div className="flex justify-between text-stone-500">
-                <span>Packaging Cost (2%):</span>
-                <span className="font-medium text-stone-800">
-                  {formatINR(
-                    order.packagingCost ?? Math.round(computedSubtotal * 0.02 * 100) / 100
-                  )}
-                </span>
-              </div>
-              <div className="flex justify-between text-stone-500">
-                <span>Razorpay Fee (2.36%):</span>
-                <span className="font-medium text-stone-800">
-                  {formatINR(
-                    order.razorpayFee ??
-                      (order.payment?.method === "razorpay" && (order.payment?.status === "paid" || order.status !== "Cancelled")
-                        ? Math.round(order.total * 0.0236 * 100) / 100
-                        : 0)
-                  )}
-                </span>
-              </div>
+            {(() => {
+              const packCost = order.packagingCost ?? Math.round(computedSubtotal * 0.02 * 100) / 100;
+              const isPaidOnline =
+                order.payment?.method === "razorpay" &&
+                (order.payment?.status === "paid" || order.status !== "Cancelled");
+              const rFee =
+                order.razorpayFee ?? (isPaidOnline ? Math.round(order.total * 0.0236 * 100) / 100 : 0);
+              const cCharge = typeof order.courierCharge === "number" ? order.courierCharge : 0;
+              const hasCost = typeof order.productCost === "number" && order.productCost !== null;
+              const calcExpenses = hasCost
+                ? Math.round((order.productCost! + packCost + rFee + cCharge) * 100) / 100
+                : null;
+              const calcProfit = calcExpenses !== null ? Math.round((order.total - calcExpenses) * 100) / 100 : null;
 
-              {/* Editable Courier Charge */}
-              <div className="pt-2 border-t border-stone-200/80">
-                <label className="block">
-                  <span className="text-stone-500 font-medium text-[11px]">Courier Charge (₹):</span>
-                  <div className="flex items-center gap-1.5 mt-1">
-                    <input
-                      type="number"
-                      min="0"
-                      value={courierChargeInput}
-                      onChange={(e) => setCourierChargeInput(Math.max(0, Number(e.target.value) || 0))}
-                      className="h-8 w-24 rounded border border-stone-300 bg-white px-2 font-mono text-xs text-stone-900 focus:outline-none focus:border-stone-900"
-                    />
-                    <button
-                      type="button"
-                      onClick={saveCourierCharge}
-                      disabled={savingCourierCharge}
-                      className="h-8 px-2.5 rounded bg-stone-900 hover:bg-stone-800 text-white text-[11px] font-semibold transition disabled:opacity-60 cursor-pointer"
-                    >
-                      {savingCourierCharge ? "Saving..." : "Save"}
-                    </button>
+              return (
+                <div className="space-y-1.5">
+                  <div className="flex justify-between text-stone-500">
+                    <span>Product Subtotal:</span>
+                    <span className="font-semibold text-stone-900">{formatINR(computedSubtotal)}</span>
                   </div>
-                </label>
-              </div>
-
-              {/* Total Expenses & Net Profit */}
-              <div className="pt-2 border-t border-stone-200/80 space-y-1">
-                <div className="flex justify-between text-stone-500">
-                  <span>Total Expenses:</span>
-                  {typeof order.totalExpense === "number" && order.totalExpense !== null ? (
-                    <span className="font-semibold text-stone-900">{formatINR(order.totalExpense)}</span>
-                  ) : (
-                    <span className="font-semibold text-amber-700 bg-amber-50 border border-amber-200 px-1.5 py-0.5 rounded text-[11px]">
-                      Not Available
+                  <div className="flex justify-between text-stone-500">
+                    <span>Shipping Charged:</span>
+                    <span className="font-semibold text-stone-900">
+                      {order.shipping === 0 ? "FREE (₹0)" : order.shipping ? formatINR(order.shipping) : "₹0"}
                     </span>
-                  )}
-                </div>
-                <div className="flex items-baseline justify-between pt-1 border-t border-dashed border-stone-200">
-                  <span className="font-bold text-xs text-stone-900">Net Profit:</span>
-                  <div className="text-right">
-                    {typeof order.netProfit === "number" && order.netProfit !== null ? (
-                      <>
-                        <span
-                          className={`font-bold text-base ${
-                            order.netProfit >= 0 ? "text-emerald-700" : "text-rose-600"
-                          }`}
-                        >
-                          {formatINR(order.netProfit)}
-                        </span>
-                        {order.total > 0 && (
-                          <span className="block text-[10px] font-semibold text-stone-400">
-                            {((order.netProfit / order.total) * 100).toFixed(1)}% Margin
-                          </span>
-                        )}
-                      </>
-                    ) : (
-                      <>
-                        <span className="font-semibold text-stone-500 text-xs">
+                  </div>
+                  <div className="flex justify-between text-stone-700 bg-stone-50 px-2 py-1 rounded border border-stone-200/60 font-medium">
+                    <span>Total Revenue:</span>
+                    <span className="font-bold text-stone-900">{formatINR(order.total)}</span>
+                  </div>
+
+                  <div className="pt-2 border-t border-stone-200/80 space-y-1.5">
+                    <div className="flex justify-between text-stone-500">
+                      <span>Product Cost (COGS):</span>
+                      {hasCost ? (
+                        <span className="font-medium text-stone-800">{formatINR(order.productCost!)}</span>
+                      ) : (
+                        <span className="font-semibold text-amber-700 bg-amber-50 border border-amber-200 px-1.5 py-0.5 rounded text-[11px]">
                           Not Available
                         </span>
-                        <span className="block text-[10px] text-stone-400">
-                          Historical cost data not recorded
-                        </span>
-                      </>
-                    )}
+                      )}
+                    </div>
+                    <div className="flex justify-between text-stone-500">
+                      <span>Packaging Cost (2%):</span>
+                      <span className="font-medium text-stone-800">{formatINR(packCost)}</span>
+                    </div>
+                    <div className="flex justify-between text-stone-500">
+                      <span>Razorpay Fee (2.36%):</span>
+                      <span className="font-medium text-stone-800">{formatINR(rFee)}</span>
+                    </div>
+
+                    {/* Editable Courier Charge */}
+                    <div className="pt-2 border-t border-stone-200/80">
+                      <label className="block">
+                        <span className="text-stone-500 font-medium text-[11px]">Courier Charge (₹):</span>
+                        <div className="flex items-center gap-1.5 mt-1">
+                          <input
+                            type="number"
+                            min="0"
+                            value={courierChargeInput}
+                            onChange={(e) => setCourierChargeInput(Math.max(0, Number(e.target.value) || 0))}
+                            className="h-8 w-24 rounded border border-stone-300 bg-white px-2 font-mono text-xs text-stone-900 focus:outline-none focus:border-stone-900"
+                          />
+                          <button
+                            type="button"
+                            onClick={saveCourierCharge}
+                            disabled={savingCourierCharge}
+                            className="h-8 px-2.5 rounded bg-stone-900 hover:bg-stone-800 text-white text-[11px] font-semibold transition disabled:opacity-60 cursor-pointer"
+                          >
+                            {savingCourierCharge ? "Saving..." : "Save"}
+                          </button>
+                        </div>
+                      </label>
+                    </div>
+
+                    {/* Total Expenses & Net Profit */}
+                    <div className="pt-2 border-t border-stone-200/80 space-y-1">
+                      <div className="flex justify-between text-stone-500">
+                        <span>Total Expenses:</span>
+                        {calcExpenses !== null ? (
+                          <span className="font-semibold text-stone-900">{formatINR(calcExpenses)}</span>
+                        ) : (
+                          <span className="font-semibold text-amber-700 bg-amber-50 border border-amber-200 px-1.5 py-0.5 rounded text-[11px]">
+                            Not Available
+                          </span>
+                        )}
+                      </div>
+                      <div className="flex items-baseline justify-between pt-1 border-t border-dashed border-stone-200">
+                        <span className="font-bold text-xs text-stone-900">Net Profit:</span>
+                        <div className="text-right">
+                          {calcProfit !== null ? (
+                            <>
+                              <span
+                                className={`font-bold text-base ${
+                                  calcProfit >= 0 ? "text-emerald-700" : "text-rose-600"
+                                }`}
+                              >
+                                {formatINR(calcProfit)}
+                              </span>
+                              {order.total > 0 && (
+                                <span className="block text-[10px] font-semibold text-stone-400">
+                                  {((calcProfit / order.total) * 100).toFixed(1)}% Margin
+                                </span>
+                              )}
+                            </>
+                          ) : (
+                            <>
+                              <span className="font-semibold text-stone-500 text-xs">
+                                Not Available
+                              </span>
+                              <span className="block text-[10px] text-stone-400">
+                                Historical cost data not recorded
+                              </span>
+                            </>
+                          )}
+                        </div>
+                      </div>
+                    </div>
                   </div>
                 </div>
-              </div>
-            </div>
+              );
+            })()}
           </div>
         </div>
 

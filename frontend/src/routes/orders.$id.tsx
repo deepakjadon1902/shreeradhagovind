@@ -680,7 +680,7 @@ function OrderDetail() {
               <div className="min-w-0">
                 <p className="text-stone-400 font-medium uppercase tracking-wider text-[10px]">Courier Live Status</p>
                 <p className="font-bold text-[#166F77] mt-0.5 text-xs sm:text-sm truncate">
-                  {tracking?.latestStatus || "Awaiting Carrier Scan"}
+                  {tracking?.latestStatus || (tracking?.hasCarrierScans ? "In Transit" : "Awaiting Carrier Scan")}
                 </p>
               </div>
               <div className="min-w-0">
@@ -698,34 +698,75 @@ function OrderDetail() {
             </div>
 
             {/* Route & Latest Update Card */}
-            <div className="p-3.5 sm:p-4 rounded-xl border border-teal-100 bg-teal-50/40 text-xs space-y-2">
+            <div className="p-3.5 sm:p-4 rounded-xl border border-teal-100 bg-teal-50/40 text-xs space-y-2.5">
               <div className="flex flex-wrap items-center justify-between gap-2 text-stone-700">
                 <div className="flex items-center gap-2 font-medium">
                   <MapPin className="w-4 h-4 text-[#166F77] shrink-0" />
-                  <span>
-                    {tracking?.origin ? (
+                  {tracking?.origin ? (
+                    <span>
                       <span className="font-semibold text-stone-900">{tracking.origin}</span>
-                    ) : null}
-                    {tracking?.origin && (tracking?.destination || order.address.city) ? " → " : null}
-                    <span className="font-semibold text-stone-900">{tracking?.destination || order.address.city || "Destination"}</span>
-                  </span>
+                      {" → "}
+                      <span className="font-semibold text-stone-900">
+                        {tracking.destination || `${order.address.city}, ${order.address.state}`}
+                      </span>
+                    </span>
+                  ) : (
+                    <span>
+                      <span className="text-stone-500 font-normal">Delivery Destination: </span>
+                      <span className="font-semibold text-stone-900">
+                        {order.address.city ? `${order.address.city}, ${order.address.state}` : (tracking?.destination || "Destination")}
+                      </span>
+                    </span>
+                  )}
                 </div>
                 {tracking?.lastUpdated && (
                   <span className="text-[11px] text-stone-500 font-mono">
-                    Updated {new Date(tracking.lastUpdated).toLocaleTimeString("en-IN", { hour: "numeric", minute: "2-digit", hour12: true })}
+                    Provider Checked: {new Date(tracking.lastUpdated).toLocaleTimeString("en-IN", { hour: "numeric", minute: "2-digit", hour12: true })}
                   </span>
                 )}
               </div>
 
-              {(tracking?.latestMessage || tracking?.currentLocation) && (
-                <div className="pt-2 border-t border-teal-100/80 text-stone-800">
-                  <span className="font-semibold text-[#166F77]">Latest Courier Update: </span>
-                  <span>{tracking?.latestMessage}</span>
-                  {tracking?.currentLocation && (
-                    <span className="text-stone-500 font-medium"> ({tracking.currentLocation})</span>
+              {/* Carrier Movement / Scan Status */}
+              <div className="pt-2 border-t border-teal-100/80 text-stone-800 space-y-1.5">
+                <div className="flex flex-wrap items-baseline gap-1.5">
+                  <span className="font-semibold text-[#166F77]">Carrier Scan Status: </span>
+                  {tracking?.hasCarrierScans && (tracking.latestMessage || tracking.checkpoints?.length) ? (
+                    <span className="font-semibold text-stone-900">
+                      {tracking.latestMessage || "In Transit"}
+                      {tracking.lastCarrierScanAt && (
+                        <span className="text-stone-500 font-normal text-[11px] ml-1">
+                          ({new Date(tracking.lastCarrierScanAt).toLocaleString("en-IN", {
+                            day: "numeric",
+                            month: "short",
+                            hour: "numeric",
+                            minute: "2-digit",
+                            hour12: true,
+                          })})
+                        </span>
+                      )}
+                    </span>
+                  ) : (
+                    <span className="font-medium text-amber-800 bg-amber-50 border border-amber-200/70 px-2 py-0.5 rounded text-[11px]">
+                      Awaiting Carrier Scan (No physical scan recorded yet)
+                    </span>
                   )}
                 </div>
-              )}
+
+                {tracking?.hasCarrierScans && tracking?.currentLocation && (
+                  <div className="flex items-center gap-1.5 text-xs text-stone-700 font-medium">
+                    <MapPin className="w-3.5 h-3.5 text-[#166F77] shrink-0" />
+                    <span>
+                      Location: <span className="font-bold text-stone-900">{tracking.currentLocation}</span>
+                    </span>
+                  </div>
+                )}
+
+                {!tracking?.hasCarrierScans && (
+                  <p className="text-stone-600 leading-relaxed text-[11px]">
+                    Consignment booked with {order.courier || "courier partner"}. No physical hub scans or movement updates have been received from the carrier yet. Live transit checkpoints will update automatically once scanned at the origin sorting facility.
+                  </p>
+                )}
+              </div>
             </div>
 
             {/* Tracking Checkpoints History */}
@@ -927,10 +968,48 @@ function OrderDetail() {
                   {order.payment.status}
                 </span>
               </div>
-              <div className="border-t border-stone-100 my-3" />
+
+              {/* Order Cost Breakdown */}
+              {(() => {
+                const subtotalVal =
+                  typeof order.subtotal === "number" && order.subtotal > 0
+                    ? order.subtotal
+                    : (order.items || []).reduce(
+                        (sum, item) => sum + (typeof item.price === "number" ? item.price : 0) * (item.qty || 1),
+                        0
+                      );
+                const shippingVal =
+                  typeof order.shipping === "number"
+                    ? order.shipping
+                    : Math.max(0, (order.total || 0) - subtotalVal + (order.discount || 0));
+                const discountVal = typeof order.discount === "number" ? order.discount : 0;
+
+                return (
+                  <div className="border-t border-stone-100 my-3 pt-2.5 space-y-1.5 text-xs">
+                    <div className="flex justify-between text-stone-600">
+                      <span>Product Subtotal</span>
+                      <span className="font-semibold text-stone-900">{formatINR(subtotalVal)}</span>
+                    </div>
+                    <div className="flex justify-between text-stone-600">
+                      <span>Shipping</span>
+                      <span className="font-semibold text-stone-900">
+                        {shippingVal === 0 ? "FREE" : formatINR(shippingVal)}
+                      </span>
+                    </div>
+                    {discountVal > 0 && (
+                      <div className="flex justify-between text-emerald-700">
+                        <span>Discount</span>
+                        <span className="font-semibold">-{formatINR(discountVal)}</span>
+                      </div>
+                    )}
+                  </div>
+                );
+              })()}
+
+              <div className="border-t border-stone-100 my-2 pt-1" />
               <div className="flex justify-between items-center font-semibold text-stone-900">
                 <span>Grand Total</span>
-                <span className="text-base text-[#166F77]">{formatINR(order.total)}</span>
+                <span className="text-base font-bold text-[#166F77]">{formatINR(order.total)}</span>
               </div>
             </div>
           </aside>
