@@ -41,7 +41,7 @@ const orderSchema = new Schema(
     trackingId: { type: String, unique: true, sparse: true, index: true },
     courier: {
       type: String,
-      enum: ["Ekart", "DTDC", "Shree Maruti", "Shree Murti", "India Post", "Delhivery", "Bluedart", null],
+      enum: ["Ekart", "DTDC", "Shree Maruti", "Shree Murti", "India Post", "Delhivery", "Bluedart", "Blue Dart", null],
       default: null,
     },
     courierTrackingUrl: { type: String, default: "" },
@@ -101,6 +101,8 @@ const orderSchema = new Schema(
     holdAt: { type: Date },
     invoiceSentAt: { type: Date, default: null },
     invoiceLockUntil: { type: Date, default: null },
+    deliveredSentAt: { type: Date, default: null },
+    deliveredLockUntil: { type: Date, default: null },
     courierCharge: { type: Number, default: 0, min: 0 },
     packagingCost: { type: Number, min: 0 },
     razorpayFee: { type: Number, min: 0 },

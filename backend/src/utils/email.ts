@@ -140,7 +140,7 @@ export async function sendOrderConfirmationWithInvoice(
     // eslint-disable-next-line no-console
     console.error("[invoice:error]", e);
   }
-  return sendEmail({
+  return exports.sendEmail({
     to,
     bcc: SUPPORT_EMAIL_BCC,
     subject: built.subject,
@@ -219,7 +219,7 @@ export async function dispatchOrderInvoiceEmailOnce(
     const attachments: EmailAttachment[] = [{ filename: fname, content: pdf }];
 
     const built = tpl.orderConfirmed(name, order);
-    const sendResult = await sendEmail({
+    const sendResult = await exports.sendEmail({
       to,
       bcc: SUPPORT_EMAIL_BCC,
       subject: built.subject,
@@ -253,12 +253,17 @@ export async function dispatchOrderInvoiceEmailOnce(
 
 /**
  * Sends a status update email WITHOUT invoice attachment.
- * Per business rules, invoices are sent only once upon order confirmation.
+ * Per business rules:
+ * - Routine intermediate status updates (Processing, Hold, Packed, Shipped, Out for delivery, etc.)
+ *   are sent to the customer ONLY with NO support BCC.
+ * - Delivered notifications must be dispatched via dispatchOrderDeliveredEmailOnce to guarantee
+ *   exactly ONE email with support BCC and prevent duplicate notifications on subsequent edits.
  */
 export async function sendOrderStatusUpdate(
   to: string,
   name: string,
-  order: EmailOrderPayload & { status: string }
+  order: EmailOrderPayload & { status: string },
+  options?: { includeSupportBcc?: boolean }
 ) {
   const orderNum = formatOrderNumber(order);
   const built = tpl.statusUpdate(
@@ -270,12 +275,80 @@ export async function sendOrderStatusUpdate(
     order.courierTrackingUrl,
     order,
   );
-  return sendEmail({
+  return exports.sendEmail({
     to,
-    bcc: SUPPORT_EMAIL_BCC,
+    bcc: options?.includeSupportBcc ? SUPPORT_EMAIL_BCC : undefined,
     subject: built.subject,
     html: built.html,
   });
+}
+
+/**
+ * Safely and idempotently dispatches the Delivered order email.
+ * Strict rules enforced:
+ * 1. Check order.deliveredSentAt. If already sent, do NOT send another email.
+ * 2. Atomic lock via deliveredLockUntil prevents duplicate concurrent sends (e.g. concurrent webhook/admin/carrier sync).
+ * 3. Sends email to customer with SUPPORT_EMAIL_BCC attached (so support receives exactly ONE Delivered email).
+ * 4. ONLY AFTER the email sending operation succeeds: persist deliveredSentAt and clear the lock.
+ * 5. If email provider fails: deliveredSentAt MUST remain null/unset, lock is cleared, allowing legitimate retries.
+ */
+export async function dispatchOrderDeliveredEmailOnce(
+  orderId: any,
+  to: string,
+  name: string,
+  order: EmailOrderPayload & { status: string }
+): Promise<{ success: boolean; reason?: string; skipped?: boolean }> {
+  if (!orderId || !to) return { success: false, reason: "missing_recipient_or_order_id" };
+
+  const now = new Date();
+  const lockExpiry = new Date(now.getTime() + 60 * 1000); // 60-second atomic lock window
+
+  // Atomic check and lock: order must NOT have deliveredSentAt set, and must NOT have an active lock
+  const lockedOrder = await Order.findOneAndUpdate(
+    {
+      _id: orderId,
+      deliveredSentAt: null,
+      $or: [
+        { deliveredLockUntil: null },
+        { deliveredLockUntil: { $lt: now } },
+      ],
+    },
+    {
+      $set: { deliveredLockUntil: lockExpiry },
+    },
+    { new: true }
+  );
+
+  if (!lockedOrder) {
+    // Either already sent (deliveredSentAt is not null) or another worker is actively sending right now
+    return { success: false, reason: "already_sent_or_in_progress", skipped: true };
+  }
+
+  try {
+    const sendResult = await sendOrderStatusUpdate(to, name, order, { includeSupportBcc: true });
+
+    if (sendResult && (sendResult as any).error) {
+      throw new Error(`Email provider error: ${JSON.stringify((sendResult as any).error)}`);
+    }
+
+    // ONLY AFTER the email sending operation succeeds: persist deliveredSentAt and release lock
+    const sentDate = new Date();
+    await Order.findByIdAndUpdate(orderId, {
+      $set: {
+        deliveredSentAt: sentDate,
+        deliveredLockUntil: null,
+      },
+    });
+
+    return { success: true };
+  } catch (err: any) {
+    console.error("[dispatchOrderDeliveredEmailOnce] Failed to send delivered email:", err);
+    // Release the lock so a legitimate retry remains possible. deliveredSentAt MUST remain null/unset!
+    await Order.findByIdAndUpdate(orderId, {
+      $set: { deliveredLockUntil: null },
+    }).catch(() => {});
+    return { success: false, reason: err?.message || String(err) };
+  }
 }
 
 export async function sendOrderStatusUpdateWithInvoice(
@@ -322,7 +395,7 @@ export async function sendOrderStatusUpdateWithInvoice(
     // eslint-disable-next-line no-console
     console.error("[invoice:error]", e);
   }
-  return sendEmail({
+  return exports.sendEmail({
     to,
     bcc: SUPPORT_EMAIL_BCC,
     subject: built.subject,

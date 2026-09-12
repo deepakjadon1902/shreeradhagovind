@@ -11,6 +11,7 @@ import {
   sendOrderStatusUpdate,
   sendOrderStatusUpdateWithInvoice,
   dispatchOrderInvoiceEmailOnce,
+  dispatchOrderDeliveredEmailOnce,
   tpl,
   formatOrderNumber,
 } from "../utils/email";
@@ -130,12 +131,6 @@ r.get("/orders", async (_req, res, next) => {
     const enriched = orders.map((o) => {
       const obj = o.toObject();
       const isPaid = isOrderPaidForFinance(obj);
-      if (typeof obj.productCost === "number" && obj.productCost !== null && typeof obj.netProfit === "number" && isPaid) {
-        return {
-          ...obj,
-          isCostAvailable: true,
-        };
-      }
       const f = computeOrderFinances(obj);
       return {
         ...obj,
@@ -143,8 +138,8 @@ r.get("/orders", async (_req, res, next) => {
         packagingCost: isPaid ? (obj.packagingCost ?? f.packagingCost) : 0,
         razorpayFee: isPaid ? (obj.razorpayFee ?? f.razorpayFee) : 0,
         courierCharge: obj.courierCharge ?? f.courierCharge,
-        totalExpense: isPaid ? (obj.totalExpense ?? f.totalExpense) : null,
-        netProfit: isPaid ? (obj.netProfit ?? f.netProfit) : null,
+        totalExpense: isPaid && f.isCostAvailable ? f.totalExpense : null,
+        netProfit: isPaid && f.isCostAvailable ? f.netProfit : null,
         isCostAvailable: f.isCostAvailable,
       };
     });
@@ -201,6 +196,8 @@ r.patch("/orders/:id/status", async (req, res, next) => {
     if (u?.email) {
       if (!o.invoiceSentAt && (status === "Confirmed" || status === "Processing")) {
         dispatchOrderInvoiceEmailOnce(o._id, u.email, u.name, buildEmailOrder(o)).catch(() => {});
+      } else if (status === "Delivered") {
+        dispatchOrderDeliveredEmailOnce(o._id, u.email, u.name, buildEmailOrder(o) as any).catch(() => {});
       } else {
         sendOrderStatusUpdate(u.email, u.name, buildEmailOrder(o)).catch(() => {});
       }
@@ -338,6 +335,8 @@ r.patch("/orders/:id", async (req, res, next) => {
     ) {
       if (!o.invoiceSentAt && (o.status === "Confirmed" || o.status === "Processing")) {
         dispatchOrderInvoiceEmailOnce(o._id, recipientEmail, recipientName, buildEmailOrder(o)).catch(() => {});
+      } else if (o.status === "Delivered") {
+        dispatchOrderDeliveredEmailOnce(o._id, recipientEmail, recipientName, buildEmailOrder(o) as any).catch(() => {});
       } else {
         sendOrderStatusUpdate(recipientEmail, recipientName, buildEmailOrder(o)).catch(() => {});
       }
@@ -349,7 +348,7 @@ r.patch("/orders/:id", async (req, res, next) => {
       o.trackingId &&
       (o.status === "Shipped" || o.status === "Out for delivery" || o.status === "Delivered")
     ) {
-      syncOrderTracking(o).catch(() => {});
+      syncOrderTracking(o, { allowRemoteFetch: true }).catch(() => {});
     }
 
     const obj = o.toObject();

@@ -1,12 +1,39 @@
 import fetch from "node-fetch";
 import { env } from "../config/env";
 import { Order } from "../models/Order";
+import "../models/User";
 import { SyncLock } from "../models/SyncLock";
 import { TrackingUsage } from "../models/TrackingUsage";
 import {
   sendOrderStatusUpdate,
+  dispatchOrderDeliveredEmailOnce,
   buildEmailOrderPayload,
 } from "../utils/email";
+import {
+  getDirectCourierAdapter,
+  getAllDirectCourierAdapters,
+  fetchShreeMarutiApi,
+  normalizeShreeMarutiResponse,
+  fetchDelhiveryApi,
+  normalizeDelhiveryResponse,
+  fetchBlueDartApi,
+  normalizeBlueDartResponse,
+  fetchDtdcShipsyApi,
+  normalizeDtdcShipsyResponse,
+} from "./courier/registry";
+
+export {
+  getDirectCourierAdapter,
+  getAllDirectCourierAdapters,
+  fetchShreeMarutiApi,
+  normalizeShreeMarutiResponse,
+  fetchDelhiveryApi,
+  normalizeDelhiveryResponse,
+  fetchBlueDartApi,
+  normalizeBlueDartResponse,
+  fetchDtdcShipsyApi,
+  normalizeDtdcShipsyResponse,
+};
 
 export interface CourierCheckpoint {
   time: string;
@@ -32,7 +59,9 @@ export interface NormalizedTrackingData {
   expectedDeliveryDate: string | null;
   checkpoints: CourierCheckpoint[];
   lastUpdated: string;
-  provider: "trackcourier";
+  lastCarrierScanAt?: string | null;
+  hasCarrierScans?: boolean;
+  provider: "trackcourier" | "carrier_direct";
   quotaExceeded?: boolean;
 }
 
@@ -266,57 +295,12 @@ export function normalizeTrackCourierResponse(
     ""
   ).toLowerCase().trim();
 
-  // If carrier has no record yet or table is empty
-  const isEmptyOrPendingFailure = Boolean(
+  // Check if provider explicitly indicates no shipment record or empty table
+  const noRecord = Boolean(
+    data.CourierHasNoRecordOfShipment === true ||
     data.isEmptyTable === true ||
     (data.Result === "failure" && (!data.Checkpoints || data.Checkpoints.length === 0))
   );
-
-  let normalizedStatus: NormalizedTrackingData["status"] = "unknown";
-  let latestStatusLabel = "In Transit";
-
-  if (!raw || raw.success === false || raw.notFound || !rawStatus) {
-    normalizedStatus = "unknown";
-    latestStatusLabel = "Tracking Initialized";
-  } else if (isEmptyOrPendingFailure) {
-    normalizedStatus = "info_received";
-    latestStatusLabel = "Awaiting Carrier Pickup";
-  } else if (rawStatus.includes("deliver") && !rawStatus.includes("out")) {
-    normalizedStatus = "delivered";
-    latestStatusLabel = "Delivered";
-  } else if (rawStatus.includes("out") || rawStatus.includes("out_for_delivery")) {
-    normalizedStatus = "out_for_delivery";
-    latestStatusLabel = "Out for Delivery";
-  } else if (
-    rawStatus.includes("transit") ||
-    rawStatus.includes("pickup") ||
-    rawStatus.includes("picked") ||
-    rawStatus.includes("reach") ||
-    rawStatus.includes("dispatch")
-  ) {
-    normalizedStatus = "in_transit";
-    latestStatusLabel = "In Transit";
-  } else if (
-    rawStatus.includes("info") ||
-    rawStatus.includes("manifest") ||
-    rawStatus.includes("book") ||
-    rawStatus.includes("created") ||
-    rawStatus.includes("pending")
-  ) {
-    normalizedStatus = "info_received";
-    latestStatusLabel = "Shipment Info Received";
-  } else if (
-    rawStatus.includes("exception") ||
-    rawStatus.includes("undeliver") ||
-    rawStatus.includes("fail") ||
-    rawStatus.includes("rto")
-  ) {
-    normalizedStatus = "exception";
-    latestStatusLabel = "Delivery Exception";
-  } else {
-    normalizedStatus = "unknown";
-    latestStatusLabel = data.MostRecentStatus || "In Transit";
-  }
 
   const rawCheckpoints: any[] = Array.isArray(data.Checkpoints)
     ? data.Checkpoints
@@ -326,19 +310,21 @@ export function normalizeTrackCourierResponse(
         ? data.scans
         : [];
 
-  // Filter out notice messages (e.g. "No information present for consignment...") when isEmptyTable is true
+  // Filter out notice/informational messages that are not physical carrier scans
   const validRawCheckpoints = rawCheckpoints.filter((cp) => {
-    if (isEmptyOrPendingFailure) {
-      const act = String(cp.Activity || cp.description || "").toLowerCase();
-      if (act.includes("no information present") || act.includes("bookmark the page")) {
-        return false;
-      }
+    const act = String(cp.Activity || cp.description || cp.message || "").toLowerCase();
+    if (
+      act.includes("no information present") ||
+      act.includes("bookmark the page") ||
+      act.includes("check the results on") ||
+      act.includes("awaiting results")
+    ) {
+      return false;
     }
     return true;
   });
 
   const checkpoints: CourierCheckpoint[] = validRawCheckpoints.map((cp) => {
-    // Format timestamp cleanly
     let timeStr = "";
     if (cp.Date && cp.Time) {
       timeStr = `${cp.Date} ${cp.Time}`.trim();
@@ -350,30 +336,111 @@ export function normalizeTrackCourierResponse(
 
     return {
       time: timeStr,
-      location: cp.Location || cp.location || cp.city || "",
-      description: cp.Activity || cp.description || cp.status || cp.message || "Status update",
+      location: (cp.Location || cp.location || cp.city || "").trim(),
+      description: (cp.Activity || cp.description || cp.status || cp.message || "Status update").trim(),
       status: cp.CheckpointState || cp.status || undefined,
     };
   });
 
-  const latestCheckpoint = checkpoints.length > 0 ? checkpoints[checkpoints.length - 1] : null;
+  // Sort checkpoints chronologically (oldest first, latest last)
+  checkpoints.sort((a, b) => {
+    const tA = new Date(a.time).getTime();
+    const tB = new Date(b.time).getTime();
+    if (isNaN(tA) || isNaN(tB)) return 0;
+    return tA - tB;
+  });
 
-  const latestMessage = isEmptyOrPendingFailure
-    ? `Consignment booked with ${courierName}. Awaiting initial scan from carrier.`
-    : data.MostRecentStatus ||
+  const hasCarrierScans = checkpoints.length > 0;
+  const latestCheckpoint = hasCarrierScans ? checkpoints[checkpoints.length - 1] : null;
+  const lastCarrierScanAt = latestCheckpoint ? latestCheckpoint.time : null;
+
+  const latestCheckpointDesc = (latestCheckpoint?.description || "").toLowerCase();
+  const latestCheckpointState = String(latestCheckpoint?.status || "").toLowerCase();
+
+  let normalizedStatus: NormalizedTrackingData["status"] = "unknown";
+  let latestStatusLabel = "In Transit";
+
+  if (!raw || raw.success === false || raw.notFound) {
+    normalizedStatus = "unknown";
+    latestStatusLabel = "Tracking Initialized";
+  } else if (
+    noRecord ||
+    (!hasCarrierScans &&
+      (rawStatus.includes("pending") ||
+        rawStatus.includes("book") ||
+        rawStatus.includes("manifest") ||
+        rawStatus.includes("info") ||
+        rawStatus.includes("created") ||
+        !rawStatus))
+  ) {
+    normalizedStatus = "info_received";
+    latestStatusLabel = "Awaiting Carrier Scan";
+  } else if (
+    (rawStatus.includes("deliver") && !rawStatus.includes("out")) ||
+    latestCheckpointDesc.includes("delivered") ||
+    latestCheckpointState === "delivered"
+  ) {
+    normalizedStatus = "delivered";
+    latestStatusLabel = "Delivered";
+  } else if (
+    rawStatus.includes("out") ||
+    rawStatus.includes("out_for_delivery") ||
+    latestCheckpointDesc.includes("out for delivery") ||
+    latestCheckpointState === "out_for_delivery"
+  ) {
+    normalizedStatus = "out_for_delivery";
+    latestStatusLabel = "Out for Delivery";
+  } else if (
+    rawStatus.includes("transit") ||
+    rawStatus.includes("pickup") ||
+    rawStatus.includes("picked") ||
+    rawStatus.includes("reach") ||
+    rawStatus.includes("dispatch") ||
+    latestCheckpointDesc.includes("transit") ||
+    latestCheckpointDesc.includes("in transit")
+  ) {
+    normalizedStatus = "in_transit";
+    latestStatusLabel = "In Transit";
+  } else if (
+    rawStatus.includes("exception") ||
+    rawStatus.includes("undeliver") ||
+    rawStatus.includes("fail") ||
+    rawStatus.includes("rto") ||
+    latestCheckpointDesc.includes("exception") ||
+    latestCheckpointDesc.includes("undelivered") ||
+    latestCheckpointDesc.includes("failed")
+  ) {
+    normalizedStatus = "exception";
+    latestStatusLabel = "Delivery Exception";
+  } else if (
+    rawStatus.includes("info") ||
+    rawStatus.includes("manifest") ||
+    rawStatus.includes("book") ||
+    rawStatus.includes("created") ||
+    rawStatus.includes("pending")
+  ) {
+    normalizedStatus = "info_received";
+    latestStatusLabel = "Awaiting Carrier Scan";
+  } else {
+    normalizedStatus = hasCarrierScans ? "in_transit" : "unknown";
+    latestStatusLabel = data.MostRecentStatus || (hasCarrierScans ? "In Transit" : "Awaiting Carrier Scan");
+  }
+
+  const latestMessage = !hasCarrierScans
+    ? `Consignment booked with ${courierName}. Awaiting initial scan from carrier sorting facility.`
+    : latestCheckpoint?.description ||
+      data.MostRecentStatus ||
       data.latest_status ||
       data.status_description ||
-      latestCheckpoint?.description ||
       `Shipment update from ${courierName}`;
 
-  const currentLocation =
-    latestCheckpoint?.location ||
-    data.CurrentLocation ||
-    data.current_location ||
-    "";
+  // Only report a current location if the carrier has actually reported one; do not fabricate
+  const currentLocation = hasCarrierScans
+    ? (latestCheckpoint?.location || data.CurrentLocation || data.current_location || "").trim()
+    : "";
 
-  const origin = data.OriginCity || data.origin || data.from || null;
-  const destination = data.DestinationCity || data.destination || data.to || null;
+  const origin = (data.OriginCity || data.origin || data.from || null)?.trim() || null;
+  const destination = (data.DestinationCity || data.destination || data.to || null)?.trim() || null;
   const expectedDeliveryDate = data.ExpectedDeliveryDate || data.expected_delivery || null;
 
   return {
@@ -386,6 +453,8 @@ export function normalizeTrackCourierResponse(
     expectedDeliveryDate,
     checkpoints,
     lastUpdated: new Date().toISOString(),
+    lastCarrierScanAt,
+    hasCarrierScans,
     provider: "trackcourier",
   };
 }
@@ -486,13 +555,13 @@ export async function syncOrderTracking<T = any>(
   const courier = order.courier;
   const trackingId = order.trackingId;
 
-  if (!courier || !trackingId) {
-    return { order, tracking: null };
+  if (!courier || !trackingId || !courier.trim() || !trackingId.trim()) {
+    return { order, tracking: order.courierTrackingData || null };
   }
 
   const courierSlug = getTrackCourierSlug(courier);
   if (!courierSlug) {
-    return { order, tracking: null };
+    return { order, tracking: order.courierTrackingData || null };
   }
 
   const cacheKey = `${courierSlug}:${trackingId.trim().toUpperCase()}`;
@@ -540,13 +609,32 @@ export async function syncOrderTracking<T = any>(
     return { order, tracking: order.courierTrackingData };
   }
 
-  // 5. If remote fetch is not explicitly allowed (e.g. general customer read), serve last cached data
-  if (!options?.allowRemoteFetch && !options?.forceRefresh) {
+  const directAdapter = getDirectCourierAdapter(courier);
+  const isDirectActive = Boolean(directAdapter && directAdapter.isConfigured());
+
+  // 5. Remote fetch authorization:
+  // - If caller explicitly disallowed remote fetch ({ allowRemoteFetch: false }), strictly serve cached data
+  if (options?.allowRemoteFetch === false && !options?.forceRefresh) {
     return { order, tracking: order.courierTrackingData || memCached?.data || null };
   }
 
-  // 6. Check budget before proceeding to remote call
-  if (isBudgetExhausted()) {
+  // - When allowRemoteFetch is not explicitly false:
+  //   * Allow if forceRefresh or allowRemoteFetch is true
+  //   * Allow if direct carrier adapter is active (no third-party budget, throttled + in-flight deduped)
+  //   * Allow if order has NO cached tracking data yet (initial sync for shipped order)
+  const isCacheMissing = !order.courierTrackingData && !memCached;
+  const isPermittedFetch =
+    options?.allowRemoteFetch === true ||
+    options?.forceRefresh === true ||
+    isDirectActive ||
+    isCacheMissing;
+
+  if (!isPermittedFetch) {
+    return { order, tracking: order.courierTrackingData || memCached?.data || null };
+  }
+
+  // 6. Check budget before proceeding to remote call (skip budget check if direct carrier adapter handles the request)
+  if (!isDirectActive && isBudgetExhausted()) {
     return { order, tracking: order.courierTrackingData || memCached?.data || null };
   }
 
@@ -555,20 +643,34 @@ export async function syncOrderTracking<T = any>(
   if (!fetchPromise) {
     fetchPromise = (async () => {
       try {
-        const raw = await fetchTrackCourierApi(courierSlug, trackingId.trim());
+        let normalized: NormalizedTrackingData | null = null;
 
-        if (raw?.error?.code === "QUOTA_EXCEEDED") {
-          return order.courierTrackingData || memCached?.data || null;
+        // 1. Query direct carrier adapter if configured (Shree Maruti, Delhivery, Blue Dart)
+        if (directAdapter && directAdapter.isConfigured()) {
+          normalized = await directAdapter.fetchTracking(trackingId.trim());
         }
 
-        if (!raw || raw.notFound || raw.success === false) {
-          return order.courierTrackingData || memCached?.data || null;
-        }
+        // 2. If not handled by direct adapter (or if not configured), query TrackCourier
+        if (!normalized) {
+          if (isBudgetExhausted()) {
+            return order.courierTrackingData || memCached?.data || null;
+          }
 
-        const normalized = normalizeTrackCourierResponse(raw, courier, trackingId.trim());
+          const raw = await fetchTrackCourierApi(courierSlug, trackingId.trim());
 
-        if (normalized.quotaExceeded) {
-          return order.courierTrackingData || memCached?.data || null;
+          if (raw?.error?.code === "QUOTA_EXCEEDED") {
+            return order.courierTrackingData || memCached?.data || null;
+          }
+
+          if (!raw || raw.notFound || raw.success === false) {
+            return order.courierTrackingData || memCached?.data || null;
+          }
+
+          normalized = normalizeTrackCourierResponse(raw, courier, trackingId.trim());
+
+          if (normalized.quotaExceeded) {
+            return order.courierTrackingData || memCached?.data || null;
+          }
         }
 
         return normalized;
@@ -592,14 +694,17 @@ export async function syncOrderTracking<T = any>(
     let newStatus: string | null = null;
     let transitionNote = "";
 
-    // Automatic "Out for delivery" (Only allowed from "Shipped")
+    // 1. pending / info_received / no carrier scan: keep store status Shipped (no state change)
+    // 2. in_transit: keep store status Shipped (no state change)
+    // 3. exception / undelivered: preserve safe store status, do NOT mark Delivered; exception details saved in courierTrackingData
+    // 4. out_for_delivery: only allowed from "Shipped" (never downgrade from "Delivered")
     if (trackingResult.status === "out_for_delivery") {
       if (order.status === "Shipped") {
         newStatus = "Out for delivery";
         transitionNote = trackingResult.latestMessage || "Package is out for delivery with courier";
       }
     }
-    // Automatic "Delivered" (Only allowed from "Shipped" or "Out for delivery")
+    // 5. delivered: allowed from "Shipped" or "Out for delivery" (never downgrade)
     else if (trackingResult.status === "delivered") {
       if (order.status === "Shipped" || order.status === "Out for delivery") {
         newStatus = "Delivered";
@@ -612,14 +717,24 @@ export async function syncOrderTracking<T = any>(
       courierTrackingLastFetchedAt: new Date(now),
     };
 
-    if (newStatus && newStatus !== order.status) {
+    // Duplicate sync must not create duplicate statusHistory records:
+    // Only push if newStatus is valid, different from current order.status,
+    // and not already recorded in statusHistory for this status by courier_sync
+    const lastHistory =
+      Array.isArray(order.statusHistory) && order.statusHistory.length > 0
+        ? order.statusHistory[order.statusHistory.length - 1]
+        : null;
+    const isDuplicate =
+      lastHistory?.status === newStatus && lastHistory?.changedBy === "courier_sync";
+
+    if (newStatus && newStatus !== order.status && !isDuplicate) {
       statusChanged = true;
       updates.status = newStatus;
       updates.$push = {
         statusHistory: {
           status: newStatus,
           changedAt: new Date(),
-          changedBy: "courier_tracking",
+          changedBy: "courier_sync",
           note: transitionNote,
           holdReason: "",
         },
@@ -637,13 +752,24 @@ export async function syncOrderTracking<T = any>(
         const recipientEmail = order.customerEmail || (order.user as any)?.email;
         const recipientName = order.address?.name || (order.user as any)?.name || "Customer";
         if (recipientEmail) {
-          sendOrderStatusUpdate(
-            recipientEmail,
-            recipientName,
-            buildEmailOrderPayload(order) as any
-          ).catch((err) => {
-            console.error("[courierTracking] Failed to send status update email:", err);
-          });
+          if (newStatus === "Delivered") {
+            dispatchOrderDeliveredEmailOnce(
+              order._id,
+              recipientEmail,
+              recipientName,
+              buildEmailOrderPayload(order) as any
+            ).catch((err) => {
+              console.error("[courierTracking] Failed to send delivered status update email:", err);
+            });
+          } else {
+            sendOrderStatusUpdate(
+              recipientEmail,
+              recipientName,
+              buildEmailOrderPayload(order) as any
+            ).catch((err) => {
+              console.error("[courierTracking] Failed to send status update email:", err);
+            });
+          }
         }
       }
     }
@@ -803,9 +929,7 @@ export async function syncAllActiveShipments(): Promise<{
   }
 
   if (isBudgetExhausted()) {
-    console.info(`[courierTracking] Background sync skipped: monthly budget (${getMonthlyBudget()}) reached.`);
-    await releaseDistributedLock(processId);
-    return { totalActive: 0, refreshed: 0, transitions: 0, skippedBudget: true };
+    console.info(`[courierTracking] TrackCourier monthly budget (${getMonthlyBudget()}) reached. Direct carrier shipments will still sync.`);
   }
 
   isSyncRunning = true;
@@ -816,17 +940,29 @@ export async function syncAllActiveShipments(): Promise<{
   try {
     const activeOrders = await Order.find({
       status: { $in: ["Shipped", "Out for delivery"] },
-      courier: { $ne: null },
-      trackingId: { $ne: null },
+      courier: { $ne: null, $nin: ["", " "] },
+      trackingId: { $ne: null, $nin: ["", " "] },
     }).populate("user", "name email");
 
     totalActive = activeOrders.length;
     const now = Date.now();
 
     for (const order of activeOrders) {
-      if (isBudgetExhausted()) {
-        console.warn(`[courierTracking] Background sync halted early: monthly budget (${getMonthlyBudget()}) reached.`);
-        break;
+      const directAdapter = getDirectCourierAdapter(order.courier);
+      const isDirect = Boolean(directAdapter && directAdapter.isConfigured());
+
+      if (!isDirect && isBudgetExhausted()) {
+        continue;
+      }
+
+      // Guard: skip orders missing courier or trackingId
+      if (!order.courier || !order.courier.trim() || !order.trackingId || !order.trackingId.trim()) {
+        continue;
+      }
+
+      // Guard: terminal orders stop polling
+      if (order.status === "Delivered" || order.status === "Cancelled") {
+        continue;
       }
 
       const ttl = getCacheTtlForStatus(order.status);
