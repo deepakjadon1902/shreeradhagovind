@@ -778,6 +778,34 @@ function AboutPage() {
                   </div>
                 </div>
               </div>
+
+              {/* Member 3: Deepak Jadon */}
+              <div className="about-member">
+                <img
+                  src="/deepak-jadon.png"
+                  alt="Deepak Jadon"
+                  className="about-avatar"
+                />
+                <div>
+                  <h4>Deepak Jadon</h4>
+                  <div className="about-role">Full Stack Developer · Platform Architecture (MERN)</div>
+                  <p>
+                    Architect and developer of the Shri Radha Govind Store platform. Anyone who needs technical
+                    or developer assistance can contact Deepak by email or mobile.
+                  </p>
+                  <div className="about-team-links">
+                    <a className="about-team-btn call" href="tel:+919149370081">
+                      📞 Call: +91 9149370081
+                    </a>
+                    <a
+                      className="about-team-btn email"
+                      href="mailto:deepakjadon1907@gmail.com"
+                    >
+                      ✉️ Email
+                    </a>
+                  </div>
+                </div>
+              </div>
             </div>
           </section>
 

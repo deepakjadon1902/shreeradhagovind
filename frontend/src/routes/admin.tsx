@@ -286,7 +286,7 @@ function buildWhatsAppOrderUrl(order: Order, template?: string): { url?: string;
     .replace(/{{TRACKING_LINK}}/g, trackingLink);
 
   return {
-    url: `https://wa.me/${phoneCheck.digits}?text=${encodeURIComponent(msg)}`,
+    url: `https://api.whatsapp.com/send?phone=${phoneCheck.digits}&text=${encodeURIComponent(msg)}`,
   };
 }
 
