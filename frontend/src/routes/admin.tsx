@@ -2144,6 +2144,9 @@ function ProductEditor({
     isTaxable: product?.isTaxable !== false,
     metaTitle: product?.metaTitle ?? "",
     metaDescription: product?.metaDescription ?? "",
+    additionalImage: product?.additionalImage ?? "",
+    additionalHeading: product?.additionalHeading ?? "",
+    additionalContent: product?.additionalContent ?? "",
   }));
   const [comboComponents, setComboComponents] = useState<Array<{
     name: string;
@@ -2234,6 +2237,9 @@ function ProductEditor({
         isTaxable: p.isTaxable !== false,
         metaTitle: (p.metaTitle || "").trim(),
         metaDescription: (p.metaDescription || "").trim(),
+        additionalImage: (p.additionalImage || "").trim(),
+        additionalHeading: (p.additionalHeading || "").trim(),
+        additionalContent: (p.additionalContent || "").trim(),
         rating: Math.max(0, Math.min(5, Number(p.rating) || 0)),
         reviews: Math.max(0, Number(p.reviews) || 0),
         comboComponents: activeComponents,
@@ -2598,6 +2604,40 @@ function ProductEditor({
               placeholder="Detailed description of the product, its spiritual benefits, dimensions, authenticity..."
               rows={6}
             />
+
+            <div className="pt-4 border-t border-border/70 space-y-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h4 className="text-xs font-bold uppercase tracking-wider text-[#166F77]">
+                    Additional Product Content & Visuals (वैकल्पिक अतिरिक्त विवरण एवं चित्र)
+                  </h4>
+                  <p className="text-[11px] text-muted-foreground">
+                    Optional section rendered on customer product page if provided. Leave empty if not needed.
+                  </p>
+                </div>
+              </div>
+
+              <AdminImageUpload
+                label="Additional Product Image (अतिरिक्त उत्पाद चित्र)"
+                value={p.additionalImage || ""}
+                onChange={(url) => setP((prev) => ({ ...prev, additionalImage: url }))}
+              />
+
+              <In
+                label="Additional Section Heading (अतिरिक्त अनुभाग शीर्षक - उदा. About this Product)"
+                placeholder="e.g. About this Sacred Essential"
+                value={p.additionalHeading || ""}
+                onChange={(val) => setP((prev) => ({ ...prev, additionalHeading: val }))}
+              />
+
+              <SimpleRichEditor
+                label="Additional Section Content (अतिरिक्त अनुभाग विवरण)"
+                value={p.additionalContent || ""}
+                onChange={(val) => setP((prev) => ({ ...prev, additionalContent: val }))}
+                placeholder="Enter rich details, craftsmanship story, spiritual context, or instructions..."
+                rows={5}
+              />
+            </div>
           </div>
 
           {/* Section 5: SEO Configuration */}
@@ -3036,7 +3076,7 @@ function SettingsPanel({
             label="Announcement Bar (Top Header)"
             value={s.announcement}
             onChange={(v) => setS({ ...s, announcement: v })}
-            placeholder="॥ Radhe Radhe ॥  -  Free shipping above Rs. 999"
+            placeholder="॥ Radhe Radhe ॥  -  Free shipping on orders above ₹299"
           />
           <In
             label="Hero Banner Title"

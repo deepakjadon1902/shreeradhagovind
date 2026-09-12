@@ -91,6 +91,9 @@ const productSchema = z.object({
   metaTitle: z.string().optional().default(""),
   metaDescription: z.string().optional().default(""),
   isActive: z.boolean().optional().default(true),
+  additionalImage: z.string().optional().default(""),
+  additionalHeading: z.string().optional().default(""),
+  additionalContent: z.string().optional().default(""),
   comboComponents: z
     .array(
       z.object({

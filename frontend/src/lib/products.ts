@@ -20,6 +20,9 @@ export type Product = {
   metaTitle?: string;
   metaDescription?: string;
   stock: number;
+  additionalImage?: string;
+  additionalHeading?: string;
+  additionalContent?: string;
   comboComponents?: Array<{
     name: string;
     qty: number;

@@ -31,6 +31,9 @@ const productSchema = new Schema(
     metaTitle: { type: String, default: "", trim: true },
     metaDescription: { type: String, default: "", trim: true },
     isActive: { type: Boolean, default: true },
+    additionalImage: { type: String, default: "" },
+    additionalHeading: { type: String, default: "", trim: true },
+    additionalContent: { type: String, default: "" },
     comboComponents: [
       {
         name: { type: String, required: true, trim: true },

@@ -9,7 +9,7 @@ By using our website shriradhagovindstore.com, you agree to the terms of this Pr
 1. About Us
 This website is operated by Shri Radha Govind Store.
 Business Address: 155, 2nd Floor, Madan Mohan Ghera, Vrindavan, Mathura, Uttar Pradesh - 281121.
-For privacy, order, support, or data-related queries, you can contact us at: Email: order@shriradhagovindstore.com. Phone: +91 7500533505.
+For privacy, order, support, or data-related queries, you can contact us at: Email: support@shriradhagovindstore.com. Phone: +91 7500533505.
 
 2. Information We Collect
 We may collect personal information including full name, mobile number, email address, shipping address, billing address, pincode, order details, and customer support details shared by you.
@@ -64,7 +64,7 @@ No online platform, website, internet transmission, or electronic storage method
 
 11. Your Rights
 As a customer, you may request access to your personal information, correction of inaccurate or incomplete information, deletion of your personal data where legally possible, withdrawal of marketing consent, information about how your data is being used, and grievance redressal for privacy-related concerns.
-To exercise these rights, please contact us at order@shriradhagovindstore.com.
+To exercise these rights, please contact us at support@shriradhagovindstore.com.
 We may ask for order details, registered mobile number, or email ID to verify your identity before processing any data-related request.
 
 12. Data Correction & Account Updates
@@ -112,7 +112,7 @@ By continuing to use our website after updates, you agree to the revised Privacy
 21. Contact Us
 For privacy, data, account, order, support, or complaint-related questions, please contact us.
 Shri Radha Govind Store, 155, 2nd Floor, Madan Mohan Ghera, Vrindavan, Mathura, Uttar Pradesh - 281121.
-Email: order@shriradhagovindstore.com. Phone: +91 7500533505. Support Hours: Monday to Saturday, 10:00 AM to 7:00 PM IST.
+Email: support@shriradhagovindstore.com. Phone: +91 7500533505. Support Hours: Monday to Saturday, 10:00 AM to 7:00 PM IST.
 
 Thank you for trusting Shri Radha Govind Store.
 We are committed to protecting your privacy and serving you with honesty, care, and respect.

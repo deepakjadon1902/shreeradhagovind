@@ -175,7 +175,7 @@ If any part of these terms is found invalid or unenforceable, the remaining part
 32. Contact Details
 For any order, payment, shipping, return, refund, account, website, or policy-related query, please contact us.
 Shri Radha Govind Store, 155, 2nd Floor, Madan Mohan Ghera, Vrindavan, Mathura, Uttar Pradesh - 281121.
-Email: order@shriradhagovindstore.com. Phone: +91 7500533505. Support Hours: Monday to Saturday, 10:00 AM to 7:00 PM IST. Website: shriradhagovindstore.com.
+Email: support@shriradhagovindstore.com. Phone: +91 7500533505. Support Hours: Monday to Saturday, 10:00 AM to 7:00 PM IST. Website: shriradhagovindstore.com.
 
 Thank you for visiting Shri Radha Govind Store.
 We are committed to serving devotees with authentic products, honest service, secure shopping, and respectful support.

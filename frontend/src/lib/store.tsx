@@ -220,12 +220,12 @@ const DEFAULT_SETTINGS: Settings = {
   storeAddress: "Vrindavan, Mathura, Uttar Pradesh, India - 281121",
   gstin: "",
   currency: "INR",
-  freeShipThreshold: 999,
+  freeShipThreshold: 299,
   shippingFee: 49,
   razorpayKeyId: "",
   codEnabled: true,
   announcement:
-    "॥ Radhe Radhe ॥  -  Made With Love From The Heart Of Vrindavan  -  Free shipping above Rs. 999",
+    "॥ Radhe Radhe ॥  -  Made With Love From The Heart Of Vrindavan  -  Free shipping on orders above ₹299",
   heroTitle: "Sacred Treasures From Vrindavan",
   heroSubtitle: "Handcrafted Japa malas, authentic Tulsi, sacred idols, and pure puja essentials blessed in the holy dham.",
   footerDescription: "Shri Radha Govind Store brings authentic, consecrated devotional items directly from the holy land of Vrindavan Dham to your home.",
@@ -369,6 +369,9 @@ const mapProduct = (p: any): Product => ({
   isTaxable: p.isTaxable !== undefined ? Boolean(p.isTaxable) : true,
   metaTitle: p.metaTitle ?? "",
   metaDescription: p.metaDescription ?? "",
+  additionalImage: p.additionalImage ?? "",
+  additionalHeading: p.additionalHeading ?? "",
+  additionalContent: p.additionalContent ?? "",
   comboComponents: Array.isArray(p.comboComponents)
     ? p.comboComponents.map((c: any) => ({
         name: c.name || "",

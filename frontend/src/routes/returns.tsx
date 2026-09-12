@@ -64,7 +64,7 @@ If the issue is not resolved, please contact us with payment screenshot, transac
 After verification, we will either confirm the order or initiate a refund if payment has been successfully received by us.
 
 12. Return Procedure
-To request a return, replacement, repair, or refund, please email us at order@shriradhagovindstore.com.
+To request a return, replacement, repair, or refund, please email us at support@shriradhagovindstore.com.
 Please include order ID, customer name, registered mobile number, product name, reason for return/replacement/refund, clear photos, complete unboxing video, invoice or delivery proof.
 Our team will review your request and respond within 24 to 48 working hours.
 Please do not send any product back without approval from our team. Returns sent without approval may not be accepted.
@@ -103,7 +103,7 @@ By continuing to use our website or placing an order, you agree to the updated p
 20. Contact Details
 For any return, replacement, repair, refund, or order-related issue, please contact us.
 Shri Radha Govind Store, 155, 2nd Floor, Madan Mohan Ghera, Vrindavan, Mathura, Uttar Pradesh - 281121.
-Phone: +91 7500533505. Email: order@shriradhagovindstore.com. Support Hours: Monday to Saturday, 10:00 AM to 7:00 PM IST.
+Phone: +91 7500533505. Email: support@shriradhagovindstore.com. Support Hours: Monday to Saturday, 10:00 AM to 7:00 PM IST.
 
 Thank you for shopping with Shri Radha Govind Store.
 We are committed to serving devotees with authentic products, careful packaging, and honest support.
