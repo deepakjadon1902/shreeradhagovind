@@ -55,16 +55,31 @@ export const Route = createFileRoute("/")({
       ...baseSeo,
       links: [
         ...(baseSeo.links || []),
-        {
-          rel: "preload",
-          as: "image",
-          href: heroImage,
-          imageSrcSet: isHeroImageKit
-            ? `${optimizeHeroImage(heroImage, 480)} 480w, ${optimizeHeroImage(heroImage, 800)} 800w`
-            : undefined,
-          imageSizes: "(max-width: 640px) 100vw, 800px",
-          fetchpriority: "high",
-        },
+        ...(isHeroImageKit
+          ? [
+              {
+                rel: "preload",
+                as: "image",
+                href: optimizeHeroImage(heroImage, 480),
+                media: "(max-width: 640px)",
+                fetchpriority: "high",
+              },
+              {
+                rel: "preload",
+                as: "image",
+                href: optimizeHeroImage(heroImage, 800),
+                media: "(min-width: 641px)",
+                fetchpriority: "high",
+              },
+            ]
+          : [
+              {
+                rel: "preload",
+                as: "image",
+                href: heroImage,
+                fetchpriority: "high",
+              },
+            ]),
       ],
       scripts: [
         {
@@ -120,7 +135,6 @@ function Home() {
   const loaderData = Route.useLoaderData();
   const { adminProducts, categoryTree, settings, isSettingsLoaded, isProductsLoaded } = useStore();
 
-  const [heroImageLoaded, setHeroImageLoaded] = useState(false);
   const [storyImageLoaded, setStoryImageLoaded] = useState(false);
 
   // Hero image determination:
@@ -221,37 +235,36 @@ function Home() {
           <div className="relative">
             <div className="soft-shadow overflow-hidden rounded-2xl border border-[#E7E1D6] bg-white p-2">
               <div className="relative aspect-[4/3] w-full overflow-hidden rounded-xl bg-[#FAF5EE]">
-                {/* Visual loading backdrop while image network stream completes */}
-                {!heroImageLoaded && (
-                  <div
-                    className="absolute inset-0 z-0 flex flex-col items-center justify-center bg-gradient-to-br from-[#FFFDF8] via-[#FAF4EA] to-[#F2E8DA] p-4 text-center select-none"
-                    aria-hidden="true"
-                  >
-                    <div className="h-8 w-8 rounded-full border-2 border-[#D9A441]/30 border-t-[#D9A441] animate-spin mb-2" />
-                    <span className="text-[11px] font-serif font-semibold tracking-wider text-[#7A4D20]/60">
-                      ॥ श्री राधा गोविन्द ॥
-                    </span>
-                  </div>
-                )}
+                {/* Visual devotional backdrop beneath hero image */}
+                <div
+                  className="absolute inset-0 z-0 flex flex-col items-center justify-center bg-gradient-to-br from-[#FFFDF8] via-[#FAF4EA] to-[#F2E8DA] p-4 text-center select-none"
+                  aria-hidden="true"
+                >
+                  <div className="h-8 w-8 rounded-full border-2 border-[#D9A441]/30 border-t-[#D9A441] animate-spin mb-2" />
+                  <span className="text-[11px] font-serif font-semibold tracking-wider text-[#7A4D20]/60">
+                    ॥ श्री राधा गोविन्द ॥
+                  </span>
+                </div>
 
                 {/* Hero Image is rendered immediately from SSR loader */}
-                <img
-                  src={targetHeroSrc}
-                  srcSet={
-                    rawHero?.includes("ik.imagekit.io")
-                      ? `${optimizeHeroImage(rawHero, 480)} 480w, ${optimizeHeroImage(rawHero, 800)} 800w`
-                      : undefined
-                  }
-                  sizes="(max-width: 640px) 100vw, 800px"
-                  alt="Shri Radha Govind Store devotional collection from Vrindavan"
-                  fetchPriority="high"
-                  loading="eager"
-                  decoding="async"
-                  width={800}
-                  height={600}
-                  onLoad={() => setHeroImageLoaded(true)}
-                  className="relative z-10 aspect-[4/3] w-full rounded-xl object-cover object-center"
-                />
+                <picture>
+                  {rawHero?.includes("ik.imagekit.io") && (
+                    <>
+                      <source media="(max-width: 640px)" srcSet={optimizeHeroImage(rawHero, 480)} />
+                      <source media="(min-width: 641px)" srcSet={optimizeHeroImage(rawHero, 800)} />
+                    </>
+                  )}
+                  <img
+                    src={targetHeroSrc}
+                    alt="Shri Radha Govind Store devotional collection from Vrindavan"
+                    fetchPriority="high"
+                    loading="eager"
+                    decoding="auto"
+                    width={800}
+                    height={600}
+                    className="relative z-10 aspect-[4/3] w-full rounded-xl object-cover object-center"
+                  />
+                </picture>
               </div>
             </div>
           </div>
