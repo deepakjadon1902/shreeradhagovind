@@ -6,6 +6,7 @@ import { useStore, type Category } from "@/lib/store";
 import { type Product } from "@/lib/products";
 import heroKrishna from "@/assets/hero-krishna.jpg";
 import { DEFAULT_DESCRIPTION, DEFAULT_TITLE, pageSeo } from "@/lib/seo";
+import { API_URL } from "@/lib/api";
 import {
   ArrowRight,
   ChevronLeft,
@@ -14,75 +15,131 @@ import {
 
 const homeHero = "/home-devotional-hero.png";
 
+export function optimizeHeroImage(url: string, width = 800) {
+  if (!url || !url.includes("ik.imagekit.io")) return url;
+  try {
+    const parsed = new URL(url);
+    if (parsed.searchParams.has("tr")) {
+      const existing = parsed.searchParams.get("tr") || "";
+      if (!existing.includes("w-")) {
+        parsed.searchParams.set("tr", `${existing},w-${width},q-80,f-auto`);
+      }
+      return parsed.toString();
+    }
+    const pathParts = parsed.pathname.split("/").filter(Boolean);
+    if (pathParts.some((p) => p.startsWith("tr:"))) {
+      return url;
+    }
+    parsed.searchParams.set("tr", `w-${width},q-80,f-auto`);
+    return parsed.toString();
+  } catch {
+    return url;
+  }
+}
+
+async function loadSettingsHero(): Promise<string> {
+  if (!API_URL) return homeHero;
+  try {
+    const baseApi = API_URL.startsWith("http")
+      ? API_URL
+      : `https://www.shriradhagovindstore.com${API_URL}`;
+    const response = await fetch(`${baseApi}/settings`);
+    if (!response.ok) return homeHero;
+    const data = (await response.json()) as { settings?: { homeHeroImage?: string } };
+    const configured = data?.settings?.homeHeroImage?.trim();
+    return configured ? optimizeHeroImage(configured, 800) : homeHero;
+  } catch {
+    return homeHero;
+  }
+}
+
 export const Route = createFileRoute("/")({
+  loader: async () => {
+    const heroImage = await loadSettingsHero();
+    return { heroImage };
+  },
   component: Home,
-  head: () => ({
-    ...pageSeo({
+  head: ({ loaderData }) => {
+    const heroImage = loaderData?.heroImage || homeHero;
+    const baseSeo = pageSeo({
       title: DEFAULT_TITLE,
       description: DEFAULT_DESCRIPTION,
       path: "/",
-    }),
-    scripts: [
-      {
-        type: "application/ld+json",
-        children: JSON.stringify({
-          "@context": "https://schema.org",
-          "@type": "Organization",
-          name: "Shri Radha Govind Store",
-          url: "https://www.shriradhagovindstore.com/",
-          logo: "https://www.shriradhagovindstore.com/brand-logo-large.png",
-          description:
-            "Authentic sacred Tulsi malas, Kanthi malas, Puja essentials, Chandan, and devotional items sourced directly from Vrindavan Dham.",
-          telephone: "+917500533505",
-          email: "support@shriradhagovindstore.com",
-          address: {
-            "@type": "PostalAddress",
-            streetAddress: "155, 2nd Floor, Madan Mohan Ghera",
-            addressLocality: "Vrindavan, Mathura",
-            addressRegion: "Uttar Pradesh",
-            postalCode: "281121",
-            addressCountry: "IN",
-          },
-          sameAs: [
-            "https://youtube.com/@shriradhagovindstore?si=mXapbranPLnBCYsj",
-            "https://www.instagram.com/shriradhagovind_store?stkn=ZjZhYjVtNjV0bDYz",
-            "https://www.facebook.com/profile.php?id=61580313882838",
-          ],
-        }),
-      },
-      {
-        type: "application/ld+json",
-        children: JSON.stringify({
-          "@context": "https://schema.org",
-          "@type": "WebSite",
-          name: "Shri Radha Govind Store",
-          url: "https://www.shriradhagovindstore.com/",
-          potentialAction: {
-            "@type": "SearchAction",
-            target: {
-              "@type": "EntryPoint",
-              urlTemplate: "https://www.shriradhagovindstore.com/shop?q={search_term_string}",
+    });
+
+    return {
+      ...baseSeo,
+      links: [
+        ...(baseSeo.links || []),
+        {
+          rel: "preload",
+          as: "image",
+          href: heroImage,
+          fetchpriority: "high",
+        },
+      ],
+      scripts: [
+        {
+          type: "application/ld+json",
+          children: JSON.stringify({
+            "@context": "https://schema.org",
+            "@type": "Organization",
+            name: "Shri Radha Govind Store",
+            url: "https://www.shriradhagovindstore.com/",
+            logo: "https://www.shriradhagovindstore.com/brand-logo-large.png",
+            description:
+              "Authentic sacred Tulsi malas, Kanthi malas, Puja essentials, Chandan, and devotional items sourced directly from Vrindavan Dham.",
+            telephone: "+917500533505",
+            email: "support@shriradhagovindstore.com",
+            address: {
+              "@type": "PostalAddress",
+              streetAddress: "155, 2nd Floor, Madan Mohan Ghera",
+              addressLocality: "Vrindavan, Mathura",
+              addressRegion: "Uttar Pradesh",
+              postalCode: "281121",
+              addressCountry: "IN",
             },
-            "query-input": "required name=search_term_string",
-          },
-        }),
-      },
-    ],
-  }),
+            sameAs: [
+              "https://youtube.com/@shriradhagovindstore?si=mXapbranPLnBCYsj",
+              "https://www.instagram.com/shriradhagovind_store?stkn=ZjZhYjVtNjV0bDYz",
+              "https://www.facebook.com/profile.php?id=61580313882838",
+            ],
+          }),
+        },
+        {
+          type: "application/ld+json",
+          children: JSON.stringify({
+            "@context": "https://schema.org",
+            "@type": "WebSite",
+            name: "Shri Radha Govind Store",
+            url: "https://www.shriradhagovindstore.com/",
+            potentialAction: {
+              "@type": "SearchAction",
+              target: {
+                "@type": "EntryPoint",
+                urlTemplate: "https://www.shriradhagovindstore.com/shop?q={search_term_string}",
+              },
+              "query-input": "required name=search_term_string",
+            },
+          }),
+        },
+      ],
+    };
+  },
 });
 
 function Home() {
+  const loaderData = Route.useLoaderData();
   const { adminProducts, categoryTree, settings, isSettingsLoaded, isProductsLoaded } = useStore();
 
   const [heroImageLoaded, setHeroImageLoaded] = useState(false);
   const [storyImageLoaded, setStoryImageLoaded] = useState(false);
 
   // Hero image determination:
-  // If settings configured an image, use it. If settings finished and none configured, use fallback.
-  // While settings are resolving, do NOT render the fallback image so it doesn't flash.
-  const configuredHero = settings?.homeHeroImage?.trim();
-  const isHeroKnown = Boolean(configuredHero) || isSettingsLoaded;
-  const targetHeroSrc = configuredHero || (isSettingsLoaded ? homeHero : null);
+  // 1. SSR loader provides the authoritative initial hero immediately so it renders in initial HTML.
+  // 2. If client StoreProvider updates settings later with a different URL, honor it.
+  const rawHero = (settings?.homeHeroImage?.trim()) || loaderData?.heroImage || homeHero;
+  const targetHeroSrc = optimizeHeroImage(rawHero, 800);
 
   // Vrindavan story image determination:
   const configuredStory = settings?.vrindavanStoryImage?.trim();
@@ -175,35 +232,33 @@ function Home() {
           <div className="relative">
             <div className="soft-shadow overflow-hidden rounded-2xl border border-[#E7E1D6] bg-white p-2">
               <div className="relative aspect-[4/3] w-full overflow-hidden rounded-xl bg-[#FAF5EE]">
-                {/* Neutral devotional placeholder while settings are resolving or image is downloading */}
-                {(!isHeroKnown || !heroImageLoaded) && (
+                {/* Visual loading backdrop while image network stream completes */}
+                {!heroImageLoaded && (
                   <div
                     className="absolute inset-0 flex flex-col items-center justify-center bg-gradient-to-br from-[#FFFDF8] via-[#FAF4EA] to-[#F2E8DA] p-4 text-center select-none"
                     aria-hidden="true"
                   >
-                    <div className="h-9 w-9 rounded-full border-2 border-[#D9A441]/30 border-t-[#D9A441] animate-spin mb-2" />
+                    <div className="h-8 w-8 rounded-full border-2 border-[#D9A441]/30 border-t-[#D9A441] animate-spin mb-2" />
                     <span className="text-[11px] font-serif font-semibold tracking-wider text-[#7A4D20]/60">
                       ॥ श्री राधा गोविन्द ॥
                     </span>
                   </div>
                 )}
 
-                {/* Hero Image renders ONLY once the authoritative URL is known */}
-                {targetHeroSrc && (
-                  <img
-                    src={targetHeroSrc}
-                    alt="Shri Radha Govind Store devotional collection from Vrindavan"
-                    fetchPriority="high"
-                    loading="eager"
-                    decoding="async"
-                    width={800}
-                    height={600}
-                    onLoad={() => setHeroImageLoaded(true)}
-                    className={`aspect-[4/3] w-full rounded-xl object-cover object-center transition-opacity duration-300 ${
-                      heroImageLoaded ? "opacity-100" : "opacity-0"
-                    }`}
-                  />
-                )}
+                {/* Hero Image is rendered immediately from SSR loader */}
+                <img
+                  src={targetHeroSrc}
+                  alt="Shri Radha Govind Store devotional collection from Vrindavan"
+                  fetchPriority="high"
+                  loading="eager"
+                  decoding="async"
+                  width={800}
+                  height={600}
+                  onLoad={() => setHeroImageLoaded(true)}
+                  className={`aspect-[4/3] w-full rounded-xl object-cover object-center transition-opacity duration-300 ${
+                    heroImageLoaded ? "opacity-100" : "opacity-0"
+                  }`}
+                />
               </div>
             </div>
           </div>
