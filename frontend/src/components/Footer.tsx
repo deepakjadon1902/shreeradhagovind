@@ -10,7 +10,7 @@ import {
 } from "lucide-react";
 import { useStore } from "@/lib/store";
 
-const logo = "/brand-logo-large.png";
+const logo = "/brand-logo-112.png";
 
 export function Footer() {
   const { settings, user } = useStore();
@@ -26,6 +26,10 @@ export function Footer() {
             <img
               src={logo}
               alt={settings.siteName}
+              loading="lazy"
+              decoding="async"
+              width={52}
+              height={52}
               className="h-13 w-13 rounded-full border border-[#E7E1D6] bg-white object-contain p-0.5 shadow-sm"
             />
             <span className="font-serif text-xl font-semibold leading-tight text-[#2B211C]">

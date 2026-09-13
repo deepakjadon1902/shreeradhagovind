@@ -50,6 +50,7 @@ export const Route = createFileRoute("/")({
       path: "/",
     });
 
+    const isHeroImageKit = heroImage.includes("ik.imagekit.io");
     return {
       ...baseSeo,
       links: [
@@ -58,6 +59,10 @@ export const Route = createFileRoute("/")({
           rel: "preload",
           as: "image",
           href: heroImage,
+          imageSrcSet: isHeroImageKit
+            ? `${optimizeHeroImage(heroImage, 480)} 480w, ${optimizeHeroImage(heroImage, 800)} 800w`
+            : undefined,
+          imageSizes: "(max-width: 640px) 100vw, 800px",
           fetchpriority: "high",
         },
       ],
@@ -219,7 +224,7 @@ function Home() {
                 {/* Visual loading backdrop while image network stream completes */}
                 {!heroImageLoaded && (
                   <div
-                    className="absolute inset-0 flex flex-col items-center justify-center bg-gradient-to-br from-[#FFFDF8] via-[#FAF4EA] to-[#F2E8DA] p-4 text-center select-none"
+                    className="absolute inset-0 z-0 flex flex-col items-center justify-center bg-gradient-to-br from-[#FFFDF8] via-[#FAF4EA] to-[#F2E8DA] p-4 text-center select-none"
                     aria-hidden="true"
                   >
                     <div className="h-8 w-8 rounded-full border-2 border-[#D9A441]/30 border-t-[#D9A441] animate-spin mb-2" />
@@ -232,6 +237,12 @@ function Home() {
                 {/* Hero Image is rendered immediately from SSR loader */}
                 <img
                   src={targetHeroSrc}
+                  srcSet={
+                    rawHero?.includes("ik.imagekit.io")
+                      ? `${optimizeHeroImage(rawHero, 480)} 480w, ${optimizeHeroImage(rawHero, 800)} 800w`
+                      : undefined
+                  }
+                  sizes="(max-width: 640px) 100vw, 800px"
                   alt="Shri Radha Govind Store devotional collection from Vrindavan"
                   fetchPriority="high"
                   loading="eager"
@@ -239,9 +250,7 @@ function Home() {
                   width={800}
                   height={600}
                   onLoad={() => setHeroImageLoaded(true)}
-                  className={`aspect-[4/3] w-full rounded-xl object-cover object-center transition-opacity duration-300 ${
-                    heroImageLoaded ? "opacity-100" : "opacity-0"
-                  }`}
+                  className="relative z-10 aspect-[4/3] w-full rounded-xl object-cover object-center"
                 />
               </div>
             </div>

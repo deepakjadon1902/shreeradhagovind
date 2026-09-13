@@ -15,7 +15,7 @@ import {
 import { useEffect, useState, type ComponentType, type FormEvent, type ReactNode } from "react";
 import { useStore, type Category } from "@/lib/store";
 
-const logo = "/brand-logo-retina.png";
+const logo = "/brand-logo-112.png";
 
 export function Header() {
   const { cart, wishlist, user, settings, categoryTree, logout } = useStore();
@@ -73,8 +73,10 @@ export function Header() {
             <span className="grid h-14 w-14 place-items-center overflow-hidden rounded-full border border-[#E7E1D6] bg-white shadow-sm">
               <img
                 src={logo}
-                srcSet="/brand-logo-retina.png 512w, /brand-logo-large.png 1080w"
+                srcSet="/brand-logo-56.png 56w, /brand-logo-112.png 112w, /brand-logo-168.png 168w"
                 sizes="56px"
+                width={56}
+                height={56}
                 alt="Shri Radha Govind Store"
                 className="h-full w-full object-contain"
               />
