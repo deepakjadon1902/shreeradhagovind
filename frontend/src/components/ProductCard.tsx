@@ -11,6 +11,7 @@ import {
   DialogTitle,
   DialogDescription,
 } from "@/components/ui/dialog";
+import { optimizeImageKit } from "@/lib/image";
 
 export function ProductCard({ product }: { product: Product }) {
   const { wishlist, toggleWishlist, addToCart, buyNow } = useStore();
@@ -60,9 +61,16 @@ export function ProductCard({ product }: { product: Product }) {
         <div className="relative aspect-square w-full overflow-hidden bg-[#fff7ec]">
           <Link to="/product/$id" params={{ id: productSlug }} className="block h-full w-full">
             <img
-              src={product.image}
+              src={optimizeImageKit(product.image, 300)}
+              srcSet={
+                product.image?.includes("ik.imagekit.io")
+                  ? `${optimizeImageKit(product.image, 200)} 200w, ${optimizeImageKit(product.image, 300)} 300w, ${optimizeImageKit(product.image, 400)} 400w`
+                  : undefined
+              }
+              sizes="(max-width: 640px) 160px, 240px"
               alt={product.name}
               loading="lazy"
+              decoding="async"
               className="h-full w-full object-contain p-2 sm:p-3.5 transition-transform duration-300 group-hover:scale-[1.03]"
             />
             {product.featuredDeal && (
@@ -193,8 +201,10 @@ export function ProductCard({ product }: { product: Product }) {
             <div className="flex flex-col gap-3">
               <div className="relative aspect-square w-full overflow-hidden rounded-xl border border-[#eadfce] bg-[#fff7ec] p-4 flex items-center justify-center">
                 <img
-                  src={selectedImg || product.image}
+                  src={optimizeImageKit(selectedImg || product.image, 600)}
                   alt={product.name}
+                  loading="lazy"
+                  decoding="async"
                   className="max-h-full max-w-full object-contain"
                 />
                 {off > 0 && (

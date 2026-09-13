@@ -7,6 +7,7 @@ import { type Product } from "@/lib/products";
 import heroKrishna from "@/assets/hero-krishna.jpg";
 import { DEFAULT_DESCRIPTION, DEFAULT_TITLE, pageSeo } from "@/lib/seo";
 import { API_URL } from "@/lib/api";
+import { optimizeImageKit } from "@/lib/image";
 import {
   ArrowRight,
   ChevronLeft,
@@ -16,25 +17,7 @@ import {
 const homeHero = "/home-devotional-hero.png";
 
 export function optimizeHeroImage(url: string, width = 800) {
-  if (!url || !url.includes("ik.imagekit.io")) return url;
-  try {
-    const parsed = new URL(url);
-    if (parsed.searchParams.has("tr")) {
-      const existing = parsed.searchParams.get("tr") || "";
-      if (!existing.includes("w-")) {
-        parsed.searchParams.set("tr", `${existing},w-${width},q-80,f-auto`);
-      }
-      return parsed.toString();
-    }
-    const pathParts = parsed.pathname.split("/").filter(Boolean);
-    if (pathParts.some((p) => p.startsWith("tr:"))) {
-      return url;
-    }
-    parsed.searchParams.set("tr", `w-${width},q-80,f-auto`);
-    return parsed.toString();
-  } catch {
-    return url;
-  }
+  return optimizeImageKit(url, width, 80);
 }
 
 async function loadSettingsHero(): Promise<string> {
@@ -144,7 +127,8 @@ function Home() {
   // Vrindavan story image determination:
   const configuredStory = settings?.vrindavanStoryImage?.trim();
   const isStoryKnown = Boolean(configuredStory) || isSettingsLoaded;
-  const targetStorySrc = configuredStory || (isSettingsLoaded ? heroKrishna : null);
+  const rawStory = configuredStory || (isSettingsLoaded ? heroKrishna : null);
+  const targetStorySrc = rawStory ? optimizeImageKit(rawStory, 500) : null;
 
   const categoryShelves = useMemo(
     () =>
