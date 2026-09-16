@@ -17,6 +17,7 @@ import { type Product } from "@/lib/products";
 import { api, isApiEnabled, API_URL, getToken } from "@/lib/api";
 import { getCourierTrackingUrl } from "@/lib/courier";
 import { SimpleRichEditor, FormattedText } from "@/components/SimpleRichEditor";
+import { DeliveryOperationsView } from "@/components/DeliveryOperationsView";
 import { slugify } from "@/lib/seo";
 import { toast } from "sonner";
 import {
@@ -64,6 +65,15 @@ import {
   Play,
   MessageCircle,
   Star,
+  Printer,
+  RotateCcw,
+  CheckCircle2,
+  AlertCircle,
+  Filter,
+  ArrowRight,
+  ChevronRight,
+  Info,
+  Layers,
 } from "lucide-react";
 
 export const Route = createFileRoute("/admin")({
@@ -80,6 +90,7 @@ type Tab =
   | "dash"
   | "products"
   | "orders"
+  | "delivery"
   | "categories"
   | "blogs"
   | "users"
@@ -356,6 +367,7 @@ function AdminRoot() {
     fetchOrderEvents,
     settings,
     updateSettings,
+    refreshOrders,
   } = useStore();
   const [u, setU] = useState("");
   const [p, setP] = useState("");
@@ -506,6 +518,9 @@ function AdminRoot() {
               </NavBtn>
               <NavBtn active={tab === "orders"} onClick={() => setTab("orders")} icon={ShoppingCart}>
                 Orders
+              </NavBtn>
+              <NavBtn active={tab === "delivery"} onClick={() => setTab("delivery")} icon={Truck}>
+                Delivery Operations
               </NavBtn>
               <NavBtn active={tab === "users"} onClick={() => setTab("users")} icon={Users}>
                 Customers
@@ -943,19 +958,15 @@ function AdminRoot() {
                 });
               })()}
             </div>
-
-            {editingOrder && (
-              <OrderManager
-                order={editingOrder}
-                fetchEvents={fetchOrderEvents}
-                onClose={() => setEditingOrder(null)}
-                onSave={(patch) => {
-                  updateOrderTracking(editingOrder.id, patch);
-                  setEditingOrder(null);
-                }}
-              />
-            )}
           </div>
+        )}
+
+        {tab === "delivery" && (
+          <DeliveryOperationsView
+            orders={orders}
+            onOpenOrder={(o) => setEditingOrder(o)}
+            onRefreshOrders={() => refreshOrders(true)}
+          />
         )}
 
         {tab === "payments" && (
@@ -1203,6 +1214,18 @@ function AdminRoot() {
           />
         )}
         {tab === "reviews" && <ReviewsManager />}
+
+        {editingOrder && (
+          <OrderManager
+            order={editingOrder}
+            fetchEvents={fetchOrderEvents}
+            onClose={() => setEditingOrder(null)}
+            onSave={(patch) => {
+              updateOrderTracking(editingOrder.id, patch);
+              setEditingOrder(null);
+            }}
+          />
+        )}
       </main>
     </div>
   );

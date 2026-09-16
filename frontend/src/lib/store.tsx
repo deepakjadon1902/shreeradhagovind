@@ -107,6 +107,7 @@ export type Order = {
   holdAt?: string;
   guestAccessToken?: string;
   courierTrackingData?: NormalizedTrackingData | null;
+  courierTrackingLastFetchedAt?: string | null;
   statusHistory?: {
     status: string;
     changedAt: string;
@@ -143,7 +144,7 @@ export interface NormalizedTrackingData {
   lastUpdated: string;
   lastCarrierScanAt?: string | null;
   hasCarrierScans?: boolean;
-  provider: "trackcourier";
+  provider?: "trackcourier" | "carrier_direct";
   quotaExceeded?: boolean;
 }
 export type Address = { line1: string; line2?: string; postOffice?: string; city: string; state: string; pincode: string };
@@ -286,6 +287,7 @@ type Store = {
   adminLogout: () => void;
   adminProducts: Product[];
   refreshProducts: () => Promise<Product[]>;
+  refreshOrders: (asAdmin?: boolean) => Promise<void>;
   saveProduct: (p: Product) => Promise<void> | void;
   deleteProduct: (id: string) => Promise<void> | void;
   updateOrderStatus: (id: string, status: Order["status"]) => Promise<void> | void;
@@ -577,6 +579,12 @@ const mapOrder = (o: any, productLookup: Map<string, Product>): Order => {
       : undefined,
     payment: safePayment,
     status: o?.status ?? "Placed",
+    holdReason: o?.holdReason ? String(o.holdReason) : undefined,
+    holdAt: o?.holdAt ? String(o.holdAt) : undefined,
+    guestAccessToken: o?.guestAccessToken ? String(o.guestAccessToken) : undefined,
+    courierTrackingData: o?.courierTrackingData || null,
+    courierTrackingLastFetchedAt: o?.courierTrackingLastFetchedAt ? String(o.courierTrackingLastFetchedAt) : null,
+    statusHistory: Array.isArray(o?.statusHistory) ? o.statusHistory : [],
     createdAt: o?.createdAt ? new Date(o.createdAt).getTime() : Date.now(),
   };
 };
@@ -1644,6 +1652,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     adminLogout,
     adminProducts,
     refreshProducts,
+    refreshOrders,
     saveProduct,
     deleteProduct,
     updateOrderStatus,

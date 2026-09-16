@@ -20,6 +20,7 @@ import { getCourierTrackingUrl } from "../utils/courier";
 import {
   syncOrderTracking,
   requestManualTrackingRefresh,
+  syncAllActiveShipments,
   getQuotaInfo,
 } from "../services/courierTracking.service";
 
@@ -447,6 +448,21 @@ r.post("/orders/:id/refresh-tracking", async (req, res, next) => {
 // Admin quota & tracking config diagnostics
 r.get("/tracking/quota", async (_req, res) => {
   res.json({ quota: getQuotaInfo() });
+});
+
+// Admin trigger sync of all active shipments (distributed lock + cache TTL + quota protected)
+r.post("/tracking/sync", async (_req, res, next) => {
+  try {
+    const result = await syncAllActiveShipments();
+    const alreadyFresh = Math.max(0, result.totalActive - result.refreshed);
+    res.json({
+      success: true,
+      ...result,
+      alreadyFresh,
+    });
+  } catch (e) {
+    next(e);
+  }
 });
 
 // Download / Stream Invoice PDF for Admin
