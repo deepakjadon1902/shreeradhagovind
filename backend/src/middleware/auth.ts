@@ -15,7 +15,9 @@ export const requireAuth = (req: Request, _res: Response, next: NextFunction) =>
   const h = req.headers.authorization;
   if (!h?.startsWith("Bearer ")) return next(new HttpError(401, "Missing token"));
   try {
-    req.user = verifyToken(h.slice(7));
+    const payload = verifyToken(h.slice(7));
+    if (payload.purpose) return next(new HttpError(401, "Invalid token purpose"));
+    req.user = payload;
     next();
   } catch {
     next(new HttpError(401, "Invalid token"));
@@ -31,7 +33,10 @@ export const optionalAuth = (req: Request, _res: Response, next: NextFunction) =
   const h = req.headers.authorization;
   if (h?.startsWith("Bearer ")) {
     try {
-      req.user = verifyToken(h.slice(7));
+      const payload = verifyToken(h.slice(7));
+      if (!payload.purpose) {
+        req.user = payload;
+      }
     } catch {
       /* ignore */
     }

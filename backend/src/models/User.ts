@@ -21,6 +21,8 @@ const userSchema = new Schema(
     resetOtpHash: { type: String, default: "" },
     resetOtpExpiresAt: { type: Date, default: null },
     resetOtpVerifiedAt: { type: Date, default: null },
+    resetOtpAttempts: { type: Number, default: 0 },
+    resetOtpLastSentAt: { type: Date, default: null },
     loginOtpHash: { type: String, default: "" },
     loginOtpExpiresAt: { type: Date, default: null },
     loginOtpAttempts: { type: Number, default: 0 },

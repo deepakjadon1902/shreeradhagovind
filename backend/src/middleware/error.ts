@@ -23,5 +23,7 @@ export const errorHandler = (err: any, _req: Request, res: Response, _next: Next
   const status = err.status || err.statusCode || 500;
   // eslint-disable-next-line no-console
   if (status >= 500) console.error(err);
-  res.status(status).json({ error: err.message || "Server error" });
+  const isProd = (process.env.NODE_ENV ?? "development") === "production";
+  const errorMessage = status >= 500 && isProd ? "Internal server error" : (err.message || "Server error");
+  res.status(status).json({ error: errorMessage });
 };

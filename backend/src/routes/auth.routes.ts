@@ -226,10 +226,16 @@ r.post("/forgot-password", async (req, res, next) => {
     const lower = email.toLowerCase();
     const user = await User.findOne({ email: lower });
     if (user) {
+      if (user.resetOtpLastSentAt && Date.now() - user.resetOtpLastSentAt.getTime() < 60000) {
+        const remaining = Math.ceil((60000 - (Date.now() - user.resetOtpLastSentAt.getTime())) / 1000);
+        throw new HttpError(429, `Please wait ${remaining}s before requesting another reset code.`);
+      }
       const otp = String(Math.floor(100000 + Math.random() * 900000));
       user.resetOtpHash = await bcrypt.hash(otp, 10);
       user.resetOtpExpiresAt = new Date(Date.now() + 10 * 60 * 1000);
       user.resetOtpVerifiedAt = null;
+      user.resetOtpAttempts = 0;
+      user.resetOtpLastSentAt = new Date();
       await user.save();
       sendEmail({ to: lower, ...tpl.passwordResetOtp(user.name, otp) }).catch(() => {});
     }
@@ -246,9 +252,20 @@ r.post("/verify-reset-otp", async (req, res, next) => {
     if (!user?.resetOtpHash || !user.resetOtpExpiresAt || user.resetOtpExpiresAt.getTime() < Date.now()) {
       throw new HttpError(400, "OTP expired or invalid");
     }
+    if ((user.resetOtpAttempts ?? 0) >= 5) {
+      user.resetOtpHash = "";
+      user.resetOtpExpiresAt = null;
+      await user.save();
+      throw new HttpError(429, "Too many invalid attempts. Please request a new OTP.");
+    }
     const ok = await bcrypt.compare(otp, user.resetOtpHash);
-    if (!ok) throw new HttpError(400, "OTP expired or invalid");
+    if (!ok) {
+      user.resetOtpAttempts = (user.resetOtpAttempts ?? 0) + 1;
+      await user.save();
+      throw new HttpError(400, "Invalid OTP. Please check the code sent to your email.");
+    }
     user.resetOtpVerifiedAt = new Date();
+    user.resetOtpAttempts = 0;
     await user.save();
     res.json({ ok: true });
   } catch (e) {
@@ -269,6 +286,7 @@ r.post("/reset-password", async (req, res, next) => {
     user.resetOtpHash = "";
     user.resetOtpExpiresAt = null;
     user.resetOtpVerifiedAt = null;
+    user.resetOtpAttempts = 0;
     user.lastLoginAt = new Date();
     await user.save();
     await claimUserGuestOrders(user);

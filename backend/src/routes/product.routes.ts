@@ -29,7 +29,10 @@ r.get("/", optionalAuth, async (req, res, next) => {
         filter.category = category;
       }
     }
-    if (q) filter.name = { $regex: q, $options: "i" };
+    if (q && q.trim()) {
+      const safeQ = q.trim().replace(/[-[\]{}()*+?.,\\^$|#\s]/g, "\\$&");
+      if (safeQ) filter.name = { $regex: safeQ, $options: "i" };
+    }
     const sortMap: Record<string, any> = {
       newest: { createdAt: -1 },
       price_asc: { price: 1 },

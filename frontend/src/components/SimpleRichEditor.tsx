@@ -579,10 +579,12 @@ function sanitizeSimpleHtml(text: string): string {
     .replace(/\*([^*]+)\*/g, "<i>$1</i>");
 
   // Keep safe allowed tags with safe class/align attributes
-  // Disallow scripts, onerror, onclick, style injections
+  // Disallow scripts, dangerous tags, unquoted/quoted event handlers, javascript: and data: URLs
   return sanitized
     .replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, "")
-    .replace(/on\w+="[^"]*"/gi, "")
-    .replace(/on\w+='[^']*'/gi, "")
-    .replace(/javascript:[^"']*/gi, "");
+    .replace(/<iframe\b[^<]*(?:(?!<\/iframe>)<[^<]*)*<\/iframe>/gi, "")
+    .replace(/<object\b[^<]*(?:(?!<\/object>)<[^<]*)*<\/object>/gi, "")
+    .replace(/<embed\b[^>]*\/?>/gi, "")
+    .replace(/on\w+\s*=\s*(?:"[^"]*"|'[^']*'|[^\s>]+)/gi, "")
+    .replace(/(?:javascript|data):[^"'\s>]*/gi, "");
 }
