@@ -19,6 +19,7 @@ import blogRoutes from "./routes/blog.routes";
 import postalRoutes from "./routes/postal.routes";
 import reviewRoutes from "./routes/review.routes";
 import aiRoutes from "./routes/ai.routes";
+import llmsRoutes from "./routes/llms.routes";
 
 export const app = express();
 
@@ -68,6 +69,7 @@ app.use("/api/blogs", blogRoutes);
 app.use("/api/postal", postalRoutes);
 app.use("/api/reviews", reviewRoutes);
 app.use("/api/ai", aiRoutes);
+app.use(llmsRoutes);
 
 app.use(notFound);
 app.use(errorHandler);
