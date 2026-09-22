@@ -3,6 +3,7 @@ import { Layout } from "@/components/Layout";
 import { useState } from "react";
 import { toast } from "sonner";
 import { MapPin, Phone, Mail, Globe, MessageCircle, Send } from "lucide-react";
+import { buildDefaultWhatsAppUrl } from "@/lib/whatsapp";
 
 export const Route = createFileRoute("/contact")({
   component: ContactPage,
@@ -53,7 +54,7 @@ function ContactPage() {
             <InfoCard icon={Globe} title="Website">
               <a href="https://www.shriradhagovindstore.com" target="_blank" rel="noreferrer" className="text-primary hover:underline">shriradhagovindstore.com</a>
             </InfoCard>
-            <a href="https://wa.me/917500533505" target="_blank" rel="noreferrer" className="flex items-center gap-3 bg-green-600 text-white rounded-lg p-5 hover:bg-green-700 transition">
+            <a href={buildDefaultWhatsAppUrl()} target="_blank" rel="noreferrer" className="flex items-center gap-3 bg-green-600 text-white rounded-lg p-5 hover:bg-green-700 transition">
               <MessageCircle className="h-5 w-5" />
               <div>
                 <p className="font-medium">Chat on WhatsApp</p>
