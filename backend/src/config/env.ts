@@ -53,4 +53,5 @@ export const env = {
   ADMIN_EMAIL: process.env.ADMIN_EMAIL ?? "shriradhagovindstore@gmail.com",
   ADMIN_PASSWORD: process.env.ADMIN_PASSWORD ?? "shriradhagovindstore108@",
   ADMIN_NAME: process.env.ADMIN_NAME ?? "Shri Radha Govind Store",
+  GEMINI_API_KEY: process.env.GEMINI_API_KEY ?? "",
 };

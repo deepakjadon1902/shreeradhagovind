@@ -18,6 +18,7 @@ import paymentRoutes from "./routes/payment.routes";
 import blogRoutes from "./routes/blog.routes";
 import postalRoutes from "./routes/postal.routes";
 import reviewRoutes from "./routes/review.routes";
+import aiRoutes from "./routes/ai.routes";
 
 export const app = express();
 
@@ -66,6 +67,7 @@ app.use("/api/payments", paymentRoutes);
 app.use("/api/blogs", blogRoutes);
 app.use("/api/postal", postalRoutes);
 app.use("/api/reviews", reviewRoutes);
+app.use("/api/ai", aiRoutes);
 
 app.use(notFound);
 app.use(errorHandler);

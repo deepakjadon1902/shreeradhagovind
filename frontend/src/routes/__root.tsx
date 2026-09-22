@@ -10,6 +10,7 @@ import {
 import { Toaster } from "sonner";
 import { StoreProvider } from "@/lib/store";
 import { DEFAULT_DESCRIPTION, DEFAULT_IMAGE, DEFAULT_TITLE, SITE_URL, STORE_NAME } from "@/lib/seo";
+import { AiShoppingAssistantLauncher } from "@/components/AiAssistant/AiShoppingAssistantLauncher";
 
 import appCss from "../styles.css?url";
 
@@ -109,6 +110,7 @@ function RootComponent() {
     <QueryClientProvider client={queryClient}>
       <StoreProvider>
         <Outlet />
+        <AiShoppingAssistantLauncher />
         <Toaster position="top-center" richColors />
       </StoreProvider>
     </QueryClientProvider>
