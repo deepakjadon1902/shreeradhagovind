@@ -36,6 +36,9 @@ r.patch("/", requireAuth, requireAdmin, async (req, res, next) => {
         aboutManojImage: z.string().optional(),
         aboutGovindImage: z.string().optional(),
         whatsappTemplate: z.string().optional(),
+        showDeveloperProfile: z.boolean().optional(),
+        homeHeroVideo: z.string().optional(),
+        aboutStoryVideo: z.string().optional(),
       })
       .parse(req.body);
     const s = await Settings.findOneAndUpdate({ key: "global" }, data, { new: true, upsert: true });

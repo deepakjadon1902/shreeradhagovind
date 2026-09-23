@@ -3034,6 +3034,11 @@ function SettingsPanel({
   onSave: (p: Partial<Settings>) => void;
 }) {
   const [s, setS] = useState<Settings>(settings);
+  const [savingDevProfile, setSavingDevProfile] = useState(false);
+
+  useEffect(() => {
+    setS(settings);
+  }, [settings]);
   return (
     <div>
       <h1 className="font-display text-3xl">Store Settings & CMS</h1>
@@ -3149,6 +3154,45 @@ function SettingsPanel({
             <p className="text-[11px] text-muted-foreground">
               When unset, defaults to standard devotional hero banner (<code className="bg-slate-100 px-1 py-0.5 rounded">/home-devotional-hero.png</code>).
             </p>
+          </div>
+
+          <div className="pt-3 border-t border-border/70 space-y-2">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-medium text-muted-foreground">
+                Homepage Hero Background Video URL (VIDEO 1)
+              </span>
+              {Boolean(s.homeHeroVideo) && (
+                <button
+                  type="button"
+                  onClick={() => setS({ ...s, homeHeroVideo: "" })}
+                  className="text-[11px] text-destructive hover:underline"
+                >
+                  Clear Video (Use Image Fallback)
+                </button>
+              )}
+            </div>
+            <In
+              label=""
+              placeholder="https://.../homepage-hero.mp4"
+              value={s.homeHeroVideo || ""}
+              onChange={(url) => setS({ ...s, homeHeroVideo: url.trim() })}
+            />
+            <p className="text-[11px] text-muted-foreground">
+              MP4 or WebM video URL for the full-width homepage hero background banner. Autoplays muted on loop. If empty, the hero banner seamlessly displays the hero image above.
+            </p>
+            {Boolean(s.homeHeroVideo) && (
+              <div className="mt-2 rounded-lg border border-stone-200 overflow-hidden bg-black/5 p-2">
+                <p className="text-[10px] font-medium text-stone-600 mb-1">Live Video Preview:</p>
+                <video
+                  src={s.homeHeroVideo}
+                  autoPlay
+                  muted
+                  loop
+                  playsInline
+                  className="w-full max-h-48 object-cover rounded"
+                />
+              </div>
+            )}
           </div>
 
           <div className="pt-3 border-t border-border/70 space-y-2">
@@ -3293,6 +3337,44 @@ function SettingsPanel({
               </p>
             </div>
 
+            {/* 2B. Vrindavan Story Video */}
+            <div className="rounded-xl border border-stone-200 bg-stone-50/50 p-4 space-y-2">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-semibold text-stone-900">Vrindavan Story Video URL (VIDEO 2)</span>
+                {Boolean(s.aboutStoryVideo) && (
+                  <button
+                    type="button"
+                    onClick={() => setS({ ...s, aboutStoryVideo: "" })}
+                    className="text-[11px] text-destructive hover:underline font-medium"
+                  >
+                    Clear Video (Use Image Fallback)
+                  </button>
+                )}
+              </div>
+              <In
+                label=""
+                placeholder="https://.../vrindavan-story.mp4"
+                value={s.aboutStoryVideo || ""}
+                onChange={(url) => setS({ ...s, aboutStoryVideo: url.trim() })}
+              />
+              <p className="text-[11px] text-muted-foreground">
+                MP4/WebM video URL for the Sacred History of Shri Radha Govind Dev Ji section on the About Us page. Autoplays muted on loop. If empty, falls back to the story image above.
+              </p>
+              {Boolean(s.aboutStoryVideo) && (
+                <div className="mt-2 rounded-lg border border-stone-200 overflow-hidden bg-black/5 p-2">
+                  <p className="text-[10px] font-medium text-stone-600 mb-1">Live Video Preview:</p>
+                  <video
+                    src={s.aboutStoryVideo}
+                    autoPlay
+                    muted
+                    loop
+                    playsInline
+                    className="w-full max-h-48 object-cover rounded"
+                  />
+                </div>
+              )}
+            </div>
+
             {/* 3. Manoj K. S. (Founder) Photo */}
             <div className="rounded-xl border border-stone-200 bg-stone-50/50 p-4 space-y-2">
               <div className="flex items-center justify-between">
@@ -3339,6 +3421,66 @@ function SettingsPanel({
               <p className="text-[11px] text-muted-foreground">
                 Packing & Offline Shop Seva photo in the Meet Our Team section.
               </p>
+            </div>
+
+            {/* 5. Developer Profile Control Card */}
+            <div className="rounded-xl border border-stone-200 bg-stone-50/50 p-4 space-y-3 sm:col-span-2">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                <div className="space-y-1">
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm font-semibold text-stone-900">Developer Profile</span>
+                    <span
+                      className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-medium border ${
+                        s.showDeveloperProfile !== false
+                          ? "bg-emerald-50 text-emerald-700 border-emerald-200"
+                          : "bg-stone-100 text-stone-600 border-stone-300"
+                      }`}
+                    >
+                      <span
+                        className={`h-1.5 w-1.5 rounded-full ${
+                          s.showDeveloperProfile !== false ? "bg-emerald-500" : "bg-stone-400"
+                        }`}
+                      />
+                      {s.showDeveloperProfile !== false ? "Enabled" : "Disabled"}
+                    </span>
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    Control whether the developer profile is displayed on the public About Us page.
+                  </p>
+                </div>
+
+                <div className="flex items-center gap-2 shrink-0">
+                  <button
+                    type="button"
+                    disabled={savingDevProfile}
+                    onClick={async () => {
+                      const updated = s.showDeveloperProfile === false;
+                      setSavingDevProfile(true);
+                      try {
+                        setS((prev) => ({ ...prev, showDeveloperProfile: updated }));
+                        await onSave({ showDeveloperProfile: updated });
+                      } finally {
+                        setSavingDevProfile(false);
+                      }
+                    }}
+                    className={`inline-flex items-center justify-center gap-2 min-w-[140px] px-4 py-2 rounded-lg text-xs font-semibold shadow-xs transition-all cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed ${
+                      s.showDeveloperProfile !== false
+                        ? "bg-amber-100 hover:bg-amber-200 text-amber-900 border border-amber-300"
+                        : "bg-[#166F77] hover:bg-[#12585f] text-white"
+                    }`}
+                  >
+                    {savingDevProfile ? (
+                      <span className="inline-flex items-center gap-1.5">
+                        <RefreshCw className="h-3.5 w-3.5 animate-spin" /> Saving...
+                      </span>
+                    ) : s.showDeveloperProfile !== false ? (
+                      "Disable Profile"
+                    ) : (
+                      "Enable Profile"
+                    )}
+                  </button>
+                </div>
+              </div>
             </div>
           </div>
         </section>

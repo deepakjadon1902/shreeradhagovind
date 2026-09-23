@@ -2,6 +2,8 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { useMemo, useRef, useState, useCallback, useEffect } from "react";
 import { Layout } from "@/components/Layout";
 import { ProductCard } from "@/components/ProductCard";
+import { GoogleReviewsSection } from "@/components/GoogleReviews/GoogleReviewsSection";
+import { InstagramSection } from "@/components/InstagramFeed/InstagramSection";
 import { useStore, type Category } from "@/lib/store";
 import { type Product } from "@/lib/products";
 import heroKrishna from "@/assets/hero-krishna.jpg";
@@ -20,26 +22,34 @@ export function optimizeHeroImage(url: string, width = 800) {
   return optimizeImageKit(url, width, 80);
 }
 
-async function loadSettingsHero(): Promise<string> {
-  if (!API_URL) return homeHero;
+async function loadSettingsHero(): Promise<{ heroImage: string; heroVideo: string }> {
+  if (!API_URL) return { heroImage: homeHero, heroVideo: "/Homepage_banner.mp4" };
   try {
     const baseApi = API_URL.startsWith("http")
       ? API_URL
       : `https://www.shriradhagovindstore.com${API_URL}`;
     const response = await fetch(`${baseApi}/settings`);
-    if (!response.ok) return homeHero;
-    const data = (await response.json()) as { settings?: { homeHeroImage?: string } };
+    if (!response.ok) return { heroImage: homeHero, heroVideo: "/Homepage_banner.mp4" };
+    const data = (await response.json()) as {
+      settings?: { homeHeroImage?: string; homeHeroVideo?: string };
+    };
     const configured = data?.settings?.homeHeroImage?.trim();
-    return configured ? optimizeHeroImage(configured, 800) : homeHero;
+    const heroVideo =
+      data?.settings?.homeHeroVideo !== undefined
+        ? data.settings.homeHeroVideo.trim()
+        : "/Homepage_banner.mp4";
+    return {
+      heroImage: configured ? optimizeHeroImage(configured, 800) : homeHero,
+      heroVideo,
+    };
   } catch {
-    return homeHero;
+    return { heroImage: homeHero, heroVideo: "/Homepage_banner.mp4" };
   }
 }
 
 export const Route = createFileRoute("/")({
   loader: async () => {
-    const heroImage = await loadSettingsHero();
-    return { heroImage };
+    return await loadSettingsHero();
   },
   component: Home,
   head: ({ loaderData }) => {
@@ -142,6 +152,10 @@ function Home() {
   // 2. If client StoreProvider updates settings later with a different URL, honor it.
   const rawHero = (settings?.homeHeroImage?.trim()) || loaderData?.heroImage || homeHero;
   const targetHeroSrc = optimizeHeroImage(rawHero, 800);
+  const heroVideo =
+    settings?.homeHeroVideo !== undefined
+      ? settings.homeHeroVideo.trim()
+      : (loaderData?.heroVideo ?? "/Homepage_banner.mp4");
 
   // Vrindavan story image determination:
   const configuredStory = settings?.vrindavanStoryImage?.trim();
@@ -165,127 +179,144 @@ function Home() {
     [adminProducts, categoryTree],
   );
 
+  const splitIndex = Math.min(2, Math.max(1, Math.floor(categoryShelves.length / 2)));
+  const topShelves = useMemo(() => categoryShelves.slice(0, splitIndex), [categoryShelves, splitIndex]);
+  const bottomShelves = useMemo(() => categoryShelves.slice(splitIndex), [categoryShelves, splitIndex]);
+
   return (
     <Layout>
-      {/* 1. HERO SECTION */}
-      <section className="relative overflow-hidden border-b border-[#E7E1D6] bg-[#FFFFF4] py-10 md:py-16 lg:py-20">
-        {/* Subtle decorative background glow */}
-        <div className="pointer-events-none absolute -left-40 top-1/2 h-96 w-96 -translate-y-1/2 rounded-full bg-[#D9A441]/5 blur-3xl" />
-        <div className="pointer-events-none absolute right-0 top-0 h-96 w-96 rounded-full bg-[#166F77]/5 blur-3xl" />
+      {/* 1. FULL-WIDTH HERO/BANNER (VIDEO 1 BACKGROUND) */}
+      <section className="relative overflow-hidden border-b border-[#E7E1D6] bg-[#1a1410] min-h-[500px] sm:min-h-[560px] lg:min-h-[620px] flex items-center">
+        {/* Full-width Media Area */}
+        <div className="absolute inset-0 w-full h-full overflow-hidden pointer-events-none select-none">
+          {heroVideo ? (
+            <video
+              src={heroVideo}
+              poster={targetHeroSrc}
+              autoPlay
+              muted
+              loop
+              playsInline
+              preload="metadata"
+              className="absolute inset-0 h-full w-full object-cover object-center"
+            />
+          ) : (
+            <picture>
+              {rawHero?.includes("ik.imagekit.io") && (
+                <>
+                  <source media="(max-width: 640px)" srcSet={optimizeHeroImage(rawHero, 480)} />
+                  <source media="(min-width: 641px)" srcSet={optimizeHeroImage(rawHero, 800)} />
+                </>
+              )}
+              <img
+                src={targetHeroSrc}
+                alt="Shri Radha Govind Store devotional collection from Vrindavan"
+                fetchPriority="high"
+                loading="eager"
+                decoding="auto"
+                className="absolute inset-0 h-full w-full object-cover object-center"
+              />
+            </picture>
+          )}
 
-        <div className="container-app relative grid items-center gap-8 lg:grid-cols-[1.1fr_0.9fr] lg:gap-14">
+          {/* Devotional dark overlay & gradient for high text readability */}
+          <div className="absolute inset-0 bg-gradient-to-r from-black/75 via-black/50 to-black/20 sm:from-black/70 sm:via-black/40 sm:to-transparent" />
+          <div className="absolute inset-0 bg-black/10" />
+        </div>
+
+        {/* Hero Overlaid Content */}
+        <div className="container-app relative z-10 py-12 sm:py-16 lg:py-20 max-w-3xl">
           <div className="flex flex-col justify-center text-left">
             <div className="inline-flex items-center gap-2">
               <span className="h-px w-6 bg-[#D9A441]" />
-              <p className="text-xs font-bold uppercase tracking-[0.2em] text-[#166F77]">
+              <p className="text-xs font-bold uppercase tracking-[0.2em] text-[#E8B858] drop-shadow-xs">
                 From the Heart of Vrindavan
               </p>
             </div>
 
-            <h1 className="mt-3 font-serif text-3xl font-semibold leading-[1.15] text-[#2B211C] sm:text-5xl lg:text-[3.4rem]">
+            <h1 className="mt-3 font-serif text-3xl font-semibold leading-[1.15] text-[#FFFDF8] sm:text-5xl lg:text-[3.4rem] drop-shadow-sm">
               Shri Radha Govind Store
             </h1>
 
-            <p className="mt-4 max-w-xl text-sm leading-relaxed text-[#6A605A] sm:text-base">
+            <p className="mt-4 max-w-xl text-sm leading-relaxed text-[#F0EAE1] sm:text-base drop-shadow-xs">
               Authentic devotional essentials, thoughtfully sourced from Vrindavan.
             </p>
 
             <div className="mt-6 flex flex-wrap items-center gap-3 sm:gap-4">
               <Link
                 to="/shop"
-                className="inline-flex h-11 sm:h-12 items-center justify-center rounded-xl bg-[#166F77] px-6 sm:px-8 text-xs sm:text-sm font-semibold text-white shadow-sm transition hover:bg-[#135E65] active:scale-[0.99]"
+                className="inline-flex h-11 sm:h-12 items-center justify-center rounded-xl bg-[#D9A441] hover:bg-[#c89433] px-6 sm:px-8 text-xs sm:text-sm font-semibold text-[#2B211C] shadow-md transition active:scale-[0.99]"
               >
                 Shop Sacred Collection
               </Link>
               <a
                 href="#vrindavan-story"
-                className="inline-flex h-11 sm:h-12 items-center justify-center rounded-xl border border-[#E7E1D6] bg-transparent px-5 sm:px-7 text-xs sm:text-sm font-medium text-[#2B211C] transition hover:border-[#D9A441] hover:bg-[#F8F4EC] active:scale-[0.99]"
+                className="inline-flex h-11 sm:h-12 items-center justify-center rounded-xl border border-white/30 bg-black/25 backdrop-blur-xs px-5 sm:px-7 text-xs sm:text-sm font-medium text-white transition hover:border-[#D9A441] hover:bg-white/10 active:scale-[0.99]"
               >
                 Our Vrindavan Story
               </a>
             </div>
 
             {/* Compact footnote trust stats */}
-            <div className="mt-8 border-t border-[#E7E1D6]/80 pt-5">
+            <div className="mt-8 border-t border-white/15 pt-5">
               <div className="flex flex-wrap items-center gap-6 sm:gap-12">
                 <div>
-                  <div className="text-base sm:text-lg font-bold text-[#2B211C]">50K+</div>
-                  <div className="text-[10px] sm:text-[11px] uppercase tracking-wider text-[#6A605A]">
+                  <div className="text-base sm:text-lg font-bold text-[#FFFDF8]">50K+</div>
+                  <div className="text-[10px] sm:text-[11px] uppercase tracking-wider text-[#D5CBC0]">
                     Devotees
                   </div>
                 </div>
-                <div className="h-6 w-px bg-[#E7E1D6]" />
+                <div className="h-6 w-px bg-white/20" />
                 <div>
-                  <div className="text-base sm:text-lg font-bold text-[#2B211C]">4.9 / 5</div>
-                  <div className="text-[10px] sm:text-[11px] uppercase tracking-wider text-[#6A605A]">
+                  <div className="text-base sm:text-lg font-bold text-[#FFFDF8]">4.9 / 5</div>
+                  <div className="text-[10px] sm:text-[11px] uppercase tracking-wider text-[#D5CBC0]">
                     Customer Rating
                   </div>
                 </div>
-                <div className="h-6 w-px bg-[#E7E1D6]" />
+                <div className="h-6 w-px bg-white/20" />
                 <div>
-                  <div className="text-base sm:text-lg font-bold text-[#2B211C]">100%</div>
-                  <div className="text-[10px] sm:text-[11px] uppercase tracking-wider text-[#6A605A]">
+                  <div className="text-base sm:text-lg font-bold text-[#FFFDF8]">100%</div>
+                  <div className="text-[10px] sm:text-[11px] uppercase tracking-wider text-[#D5CBC0]">
                     Authentic Sacred Items
                   </div>
                 </div>
               </div>
             </div>
           </div>
-
-          <div className="relative">
-            <div className="soft-shadow overflow-hidden rounded-2xl border border-[#E7E1D6] bg-white p-2">
-              <div className="relative aspect-[4/3] w-full overflow-hidden rounded-xl bg-[#FAF5EE]">
-                {/* Visual devotional backdrop beneath hero image */}
-                <div
-                  className="absolute inset-0 z-0 flex flex-col items-center justify-center bg-gradient-to-br from-[#FFFDF8] via-[#FAF4EA] to-[#F2E8DA] p-4 text-center select-none"
-                  aria-hidden="true"
-                >
-                  <div className="h-8 w-8 rounded-full border-2 border-[#D9A441]/30 border-t-[#D9A441] animate-spin mb-2" />
-                  <span className="text-[11px] font-serif font-semibold tracking-wider text-[#7A4D20]/60">
-                    ॥ श्री राधा गोविन्द ॥
-                  </span>
-                </div>
-
-                {/* Hero Image is rendered immediately from SSR loader */}
-                <picture>
-                  {rawHero?.includes("ik.imagekit.io") && (
-                    <>
-                      <source media="(max-width: 640px)" srcSet={optimizeHeroImage(rawHero, 480)} />
-                      <source media="(min-width: 641px)" srcSet={optimizeHeroImage(rawHero, 800)} />
-                    </>
-                  )}
-                  <img
-                    src={targetHeroSrc}
-                    alt="Shri Radha Govind Store devotional collection from Vrindavan"
-                    fetchPriority="high"
-                    loading="eager"
-                    decoding="auto"
-                    width={800}
-                    height={600}
-                    className="relative z-10 aspect-[4/3] w-full rounded-xl object-cover object-center"
-                  />
-                </picture>
-              </div>
-            </div>
-          </div>
         </div>
       </section>
 
-      {/* 2. PRODUCT SECTIONS (Horizontal Carousels / Sliders) */}
+      {/* 2. PRODUCT SECTIONS & PRESERVED HERO IMAGE MIDDLE SECTION */}
       {!isProductsLoaded && categoryShelves.length === 0 ? (
         <>
           <ProductShelfSkeleton isAlternate={false} categoryName="Tulsi Mala" />
           <ProductShelfSkeleton isAlternate={true} categoryName="Puja Essentials" />
+          <MiddleHeroSection rawHero={rawHero} targetHeroSrc={targetHeroSrc} />
         </>
       ) : (
-        categoryShelves.map(({ category, products }, index) => (
-          <ProductShelfCarousel
-            key={category.id}
-            category={category}
-            products={products}
-            isAlternate={index % 2 === 1}
-          />
-        ))
+        <>
+          {topShelves.map(({ category, products }, index) => (
+            <ProductShelfCarousel
+              key={category.id}
+              category={category}
+              products={products}
+              isAlternate={index % 2 === 1}
+            />
+          ))}
+
+          {/* 3. MIDDLE HOMEPAGE SECTION: PRESERVED DEVOTIONAL HERO IMAGE */}
+          <MiddleHeroSection rawHero={rawHero} targetHeroSrc={targetHeroSrc} />
+
+          {/* 4. REMAINING PRODUCT SHELVES */}
+          {bottomShelves.map(({ category, products }, index) => (
+            <ProductShelfCarousel
+              key={category.id}
+              category={category}
+              products={products}
+              isAlternate={(index + splitIndex) % 2 === 1}
+            />
+          ))}
+        </>
       )}
 
       {/* 4. VRINDAVAN STORY SECTION (Short & Compact) */}
@@ -356,7 +387,94 @@ function Home() {
           </div>
         </div>
       </section>
+
+      {/* 5. GOOGLE REVIEWS SECTION */}
+      <GoogleReviewsSection />
+
+      {/* 6. INSTAGRAM SHOWCASE SECTION */}
+      <InstagramSection />
     </Layout>
+  );
+}
+
+function MiddleHeroSection({
+  rawHero,
+  targetHeroSrc,
+}: {
+  rawHero: string;
+  targetHeroSrc: string;
+}) {
+  return (
+    <section className="border-b border-[#E7E1D6] bg-[#FFFFF4] py-8 md:py-12">
+      <div className="container-app">
+        <div className="grid items-center gap-6 md:grid-cols-[1.1fr_0.9fr] lg:gap-12">
+          <div className="soft-shadow overflow-hidden rounded-2xl border border-[#E7E1D6] bg-white p-2">
+            <div className="relative aspect-[4/3] w-full overflow-hidden rounded-xl bg-[#FAF5EE]">
+              {/* Visual devotional backdrop beneath hero image */}
+              <div
+                className="absolute inset-0 z-0 flex flex-col items-center justify-center bg-gradient-to-br from-[#FFFDF8] via-[#FAF4EA] to-[#F2E8DA] p-4 text-center select-none"
+                aria-hidden="true"
+              >
+                <div className="h-8 w-8 rounded-full border-2 border-[#D9A441]/30 border-t-[#D9A441] animate-spin mb-2" />
+                <span className="text-[11px] font-serif font-semibold tracking-wider text-[#7A4D20]/60">
+                  ॥ श्री राधा गोविन्द ॥
+                </span>
+              </div>
+
+              <picture>
+                {rawHero?.includes("ik.imagekit.io") && (
+                  <>
+                    <source media="(max-width: 640px)" srcSet={optimizeHeroImage(rawHero, 480)} />
+                    <source media="(min-width: 641px)" srcSet={optimizeHeroImage(rawHero, 800)} />
+                  </>
+                )}
+                <img
+                  src={targetHeroSrc}
+                  alt="Shri Radha Govind Store devotional collection from Vrindavan"
+                  loading="lazy"
+                  decoding="async"
+                  width={800}
+                  height={600}
+                  className="relative z-10 aspect-[4/3] w-full rounded-xl object-cover object-center"
+                />
+              </picture>
+            </div>
+          </div>
+
+          <div className="flex flex-col justify-center text-left">
+            <div className="inline-flex items-center gap-2">
+              <span className="h-px w-6 bg-[#D9A441]" />
+              <p className="text-xs font-bold uppercase tracking-[0.2em] text-[#166F77]">
+                Sacred Heritage of Vrindavan
+              </p>
+            </div>
+
+            <h2 className="mt-2 font-serif text-2xl font-semibold leading-[1.2] text-[#2B211C] sm:text-3xl lg:text-4xl">
+              Consecrated Devotional Essentials
+            </h2>
+
+            <p className="mt-3 text-xs leading-relaxed text-[#6A605A] sm:text-base">
+              Hand-inspected in Sri Vrindavan Dham before dispatch, every sacred mala, kanthi, and puja item carries the pure spiritual atmosphere of Braj. Invite the divine grace and remembrance of Shri Radha Govind Dev Ji into your daily sadhana.
+            </p>
+
+            <div className="mt-5 flex flex-wrap items-center gap-3">
+              <Link
+                to="/shop"
+                className="inline-flex h-10 items-center justify-center rounded-xl bg-[#166F77] px-5 text-xs font-semibold text-white shadow-sm transition hover:bg-[#135E65]"
+              >
+                Explore Sacred Collection
+              </Link>
+              <Link
+                to="/about"
+                className="inline-flex h-10 items-center justify-center rounded-xl border border-[#E7E1D6] bg-white px-4 text-xs font-medium text-[#2B211C] transition hover:border-[#D9A441]"
+              >
+                Our Vrindavan Heritage
+              </Link>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
   );
 }
 

@@ -5,8 +5,19 @@ import { Order } from "../models/Order";
 import { Product } from "../models/Product";
 import { requireAuth, requireAdmin, optionalAuth } from "../middleware/auth";
 import { HttpError } from "../middleware/error";
+import { getGoogleReviews } from "../services/googleReviews.service";
 
 const r = Router();
+
+// Public: Get verified Google Reviews from Google Maps listing
+r.get("/google", async (_req, res, next) => {
+  try {
+    const data = await getGoogleReviews();
+    res.json(data);
+  } catch (e) {
+    next(e);
+  }
+});
 
 // Public: Get only APPROVED reviews for a product
 r.get("/product/:productId", async (req, res, next) => {

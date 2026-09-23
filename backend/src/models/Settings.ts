@@ -19,6 +19,9 @@ const settingsSchema = new Schema(
     aboutManojImage: { type: String, default: "" },
     aboutGovindImage: { type: String, default: "" },
     whatsappTemplate: { type: String, default: "" },
+    showDeveloperProfile: { type: Boolean, default: true },
+    homeHeroVideo: { type: String, default: "/Homepage_banner.mp4" },
+    aboutStoryVideo: { type: String, default: "/About_US_story_video.mp4" },
   },
   { timestamps: true }
 );

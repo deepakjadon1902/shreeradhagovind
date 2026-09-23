@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { Layout } from "@/components/Layout";
 import { useStore } from "@/lib/store";
@@ -39,13 +40,19 @@ export const Route = createFileRoute("/about")({
 
 function AboutPage() {
   const { settings } = useStore();
+  const [videoError, setVideoError] = useState(false);
 
   const heroImage = settings.aboutHeroImage || settings.homeHeroImage || heroKrishna;
   const storyImage = settings.aboutStoryImage || settings.vrindavanStoryImage || "";
+  const configuredVideo = settings.aboutStoryVideo;
+  const rawStoryVideo =
+    configuredVideo !== undefined ? configuredVideo.trim() : "/About_US_story_video.mp4";
+  const activeStoryVideo = !videoError && rawStoryVideo ? rawStoryVideo : "";
   const govindImage =
     settings.aboutGovindImage ||
     "https://shriradhagovindstore.com/wp-content/uploads/2025/05/Screenshot-2025-05-25-080525.png";
   const manojImage = settings.aboutManojImage || "";
+  const showDeveloperProfile = settings.showDeveloperProfile !== false;
 
   return (
     <Layout>
@@ -579,13 +586,29 @@ function AboutPage() {
               “An unbroken 500-year legacy of prema-bhakti, divine protection, and the eternal bond connecting Vrindavan Dham to Jaipur.”
             </p>
 
-            {storyImage && (
-              <div className="my-8 mx-auto max-w-2xl overflow-hidden rounded-2xl border border-amber-200/90 shadow-lg bg-stone-50/60">
-                <img
-                  src={storyImage}
-                  alt="Ancient Shri Radha Govind Dev Ji Mandir in Vrindavan Dham"
-                  className="w-full h-auto max-h-[560px] object-contain mx-auto block rounded-2xl"
-                />
+            {(activeStoryVideo || storyImage) && (
+              <div className="my-8 mx-auto w-full max-w-3xl overflow-hidden rounded-2xl border border-amber-200/90 shadow-lg bg-stone-50/60">
+                <div className="relative aspect-[16/9] w-full overflow-hidden bg-stone-900/10">
+                  {activeStoryVideo ? (
+                    <video
+                      src={activeStoryVideo}
+                      poster={storyImage || undefined}
+                      autoPlay
+                      muted
+                      loop
+                      playsInline
+                      preload="metadata"
+                      onError={() => setVideoError(true)}
+                      className="h-full w-full object-cover"
+                    />
+                  ) : (
+                    <img
+                      src={storyImage}
+                      alt="Ancient Shri Radha Govind Dev Ji Mandir in Vrindavan Dham"
+                      className="h-full w-full object-cover"
+                    />
+                  )}
+                </div>
                 <div className="bg-amber-50/90 px-4 py-2.5 text-center text-xs text-[#7a4d20] border-t border-amber-200/60 font-medium">
                   The Historic Red Sandstone Mandir of Sri Govind Dev Ji, standing tall in Vrindavan Dham since 1590 CE
                 </div>
@@ -779,33 +802,35 @@ function AboutPage() {
                 </div>
               </div>
 
-              {/* Member 3: Deepak Jadon */}
-              <div className="about-member">
-                <img
-                  src="/deepak-jadon.png"
-                  alt="Deepak Jadon"
-                  className="about-avatar"
-                />
-                <div>
-                  <h4>Deepak Jadon</h4>
-                  <div className="about-role">Full Stack Developer · Platform Architecture (MERN)</div>
-                  <p>
-                    Architect and developer of the Shri Radha Govind Store platform. Anyone who needs technical
-                    or developer assistance can contact Deepak by email or mobile.
-                  </p>
-                  <div className="about-team-links">
-                    <a className="about-team-btn call" href="tel:+919149370081">
-                      📞 Call: +91 9149370081
-                    </a>
-                    <a
-                      className="about-team-btn email"
-                      href="mailto:deepakjadon1907@gmail.com"
-                    >
-                      ✉️ Email
-                    </a>
+              {/* Member 3: Deepak Jadon (Configurable via Admin Panel) */}
+              {showDeveloperProfile && (
+                <div className="about-member">
+                  <img
+                    src="/deepak-jadon.png"
+                    alt="Deepak Jadon"
+                    className="about-avatar"
+                  />
+                  <div>
+                    <h4>Deepak Jadon</h4>
+                    <div className="about-role">Full Stack Developer · Platform Architecture (MERN)</div>
+                    <p>
+                      Architect and developer of the Shri Radha Govind Store platform. Anyone who needs technical
+                      or developer assistance can contact Deepak by email or mobile.
+                    </p>
+                    <div className="about-team-links">
+                      <a className="about-team-btn call" href="tel:+919149370081">
+                        📞 Call: +91 9149370081
+                      </a>
+                      <a
+                        className="about-team-btn email"
+                        href="mailto:deepakjadon1907@gmail.com"
+                      >
+                        ✉️ Email
+                      </a>
+                    </div>
                   </div>
                 </div>
-              </div>
+              )}
             </div>
           </section>
 

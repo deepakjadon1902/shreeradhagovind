@@ -210,6 +210,9 @@ export type Settings = {
   aboutManojImage?: string;
   aboutGovindImage?: string;
   whatsappTemplate?: string;
+  showDeveloperProfile?: boolean;
+  homeHeroVideo?: string;
+  aboutStoryVideo?: string;
 };
 
 const DEFAULT_SETTINGS: Settings = {
@@ -237,6 +240,9 @@ const DEFAULT_SETTINGS: Settings = {
   aboutManojImage: "",
   aboutGovindImage: "",
   whatsappTemplate: "",
+  showDeveloperProfile: true,
+  homeHeroVideo: "/Homepage_banner.mp4",
+  aboutStoryVideo: "/About_US_story_video.mp4",
 };
 
 export type RegisteredUser = {
@@ -411,6 +417,9 @@ const mapSettings = (s: any): Partial<Settings> => ({
   aboutManojImage: s.aboutManojImage,
   aboutGovindImage: s.aboutGovindImage,
   whatsappTemplate: s.whatsappTemplate,
+  showDeveloperProfile: s.showDeveloperProfile !== false,
+  homeHeroVideo: s.homeHeroVideo !== undefined ? s.homeHeroVideo : "/Homepage_banner.mp4",
+  aboutStoryVideo: s.aboutStoryVideo !== undefined ? s.aboutStoryVideo : "/About_US_story_video.mp4",
 });
 
 const mapCategory = (c: any): Category => ({
