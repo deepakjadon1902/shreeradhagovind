@@ -178,6 +178,18 @@ r.post("/track/:trackingId/refresh", async (req, res, next) => {
   }
 });
 
+export const INVOICE_DIRECT_DOWNLOAD_WINDOW_MS = 7 * 24 * 60 * 60 * 1000; // exactly 7 x 24 hours
+
+export function getOrderDeliveryTimestamp(order: any): Date | null {
+  if (order?.deliveredAt) return new Date(order.deliveredAt);
+  if (Array.isArray(order?.statusHistory)) {
+    const deliveredEntry = order.statusHistory.find((h: any) => h.status === "Delivered");
+    if (deliveredEntry?.changedAt) return new Date(deliveredEntry.changedAt);
+  }
+  if (order?.deliveredSentAt) return new Date(order.deliveredSentAt);
+  return null;
+}
+
 function sanitizeCustomerOrder(orderDoc: any) {
   if (!orderDoc) return orderDoc;
   const obj = orderDoc.toObject ? orderDoc.toObject() : { ...orderDoc };
@@ -187,6 +199,9 @@ function sanitizeCustomerOrder(orderDoc: any) {
   delete obj.productCost;
   delete obj.totalExpense;
   delete obj.netProfit;
+  delete obj.invoiceOneTimeToken;
+  delete obj.invoiceOneTimeTokenExpiresAt;
+  delete obj.invoiceOneTimeTokenUsedAt;
   if (Array.isArray(obj.items)) {
     obj.items = obj.items.map((item: any) => {
       const copy = { ...item };
@@ -360,13 +375,83 @@ r.post("/:id/cancel", optionalAuth, async (req, res, next) => {
   }
 });
 
+export function evaluateInvoiceDownloadEligibility(
+  o: any,
+  user?: Express.Request["user"],
+  queryToken?: unknown,
+  currentTimeMs: number = Date.now()
+): {
+  allowed: boolean;
+  httpStatus?: number;
+  reason?: string;
+  isDeliveredExpired?: boolean;
+} {
+  const access = checkOrderAccess(o, user, queryToken);
+  if (!access.allowed) {
+    return {
+      allowed: false,
+      httpStatus: 403,
+      reason: "Access forbidden. Please sign in or use your secure order link.",
+    };
+  }
+
+  // Admin access remains unrestricted
+  if (access.isAdmin) {
+    return { allowed: true };
+  }
+
+  // Customer / guest access checks
+  if (o.status === "Placed") {
+    return {
+      allowed: false,
+      httpStatus: 400,
+      reason: "Invoice is not available for orders in 'Placed' status. It will be available once your order is confirmed.",
+    };
+  }
+
+  const eligibleStatuses = [
+    "Confirmed",
+    "Processing",
+    "Hold",
+    "Packed",
+    "Shipped",
+    "Out for delivery",
+    "Delivered",
+  ];
+  if (!eligibleStatuses.includes(o.status)) {
+    return {
+      allowed: false,
+      httpStatus: 400,
+      reason: `Invoice is not available for orders with status "${o.status}".`,
+    };
+  }
+
+  if (o.status === "Delivered") {
+    const deliveredTime = getOrderDeliveryTimestamp(o);
+    if (deliveredTime) {
+      const elapsed = currentTimeMs - deliveredTime.getTime();
+      if (elapsed > INVOICE_DIRECT_DOWNLOAD_WINDOW_MS) {
+        return {
+          allowed: false,
+          httpStatus: 410,
+          reason: "The 7-day direct invoice download window for this delivered order has expired.",
+          isDeliveredExpired: true,
+        };
+      }
+    }
+  }
+
+  return { allowed: true };
+}
+
 r.get("/:id/invoice", optionalAuth, async (req, res, next) => {
   try {
     const o = await findOrderByIdOrNo(req.params.id);
     if (!o) throw new HttpError(404, "Order not found");
-    const access = checkOrderAccess(o, req.user, req.query.token);
-    if (!access.allowed) {
-      throw new HttpError(403, "Access forbidden. Please sign in or use your secure order link.");
+
+    const eligibility = evaluateInvoiceDownloadEligibility(o, req.user, req.query.token);
+    if (!eligibility.allowed) {
+      throw new HttpError(eligibility.httpStatus || 400, eligibility.reason || "Invoice download denied.");
     }
 
     const orderNum = formatOrderNumber(o);

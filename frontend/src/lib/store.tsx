@@ -108,6 +108,7 @@ export type Order = {
   cancellationReason?: string;
   cancelledBy?: "customer" | "admin" | "system" | null;
   cancelledAt?: string;
+  deliveredAt?: string | null;
   guestAccessToken?: string;
   courierTrackingData?: NormalizedTrackingData | null;
   courierTrackingLastFetchedAt?: string | null;
@@ -598,6 +599,7 @@ const mapOrder = (o: any, productLookup: Map<string, Product>): Order => {
     guestAccessToken: o?.guestAccessToken ? String(o.guestAccessToken) : undefined,
     courierTrackingData: o?.courierTrackingData || null,
     courierTrackingLastFetchedAt: o?.courierTrackingLastFetchedAt ? String(o.courierTrackingLastFetchedAt) : null,
+    deliveredAt: o?.deliveredAt ? String(o.deliveredAt) : null,
     statusHistory: Array.isArray(o?.statusHistory) ? o.statusHistory : [],
     createdAt: o?.createdAt ? new Date(o.createdAt).getTime() : Date.now(),
   };

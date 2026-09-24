@@ -28,7 +28,7 @@ import {
   Sparkles,
   X as XIcon,
 } from "lucide-react";
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useMemo } from "react";
 import { api, isApiEnabled, getToken, API_URL } from "@/lib/api";
 import { slugify } from "@/lib/seo";
 import { toast } from "sonner";
@@ -220,6 +220,14 @@ function OrderDetail() {
       });
 
       if (!res.ok) {
+        if (res.status === 410) {
+          const json = await res.json().catch(() => null);
+          throw new Error(json?.message || json?.error || "The 7-day direct invoice download window for this order has expired.");
+        }
+        if (res.status === 400) {
+          const json = await res.json().catch(() => null);
+          throw new Error(json?.message || json?.error || "Invoice is not available for this order.");
+        }
         if (res.status === 403) {
           throw new Error("Unable to download invoice: Access forbidden. Please ensure you are logged in or using the link from your email.");
         }
@@ -314,6 +322,34 @@ function OrderDetail() {
   const isCancelled = order.status === "Cancelled";
   const isCancellable = Boolean(order && ["Placed", "Confirmed"].includes(order.status));
 
+  const isDelivered = order.status === "Delivered";
+  const deliveredTimeMs = useMemo(() => {
+    if (!order) return null;
+    if (order.deliveredAt) return new Date(order.deliveredAt).getTime();
+    if (Array.isArray(order.statusHistory)) {
+      const deliveredEntry = order.statusHistory.find((h: any) => h.status === "Delivered");
+      if (deliveredEntry?.changedAt) return new Date(deliveredEntry.changedAt).getTime();
+    }
+    return null;
+  }, [order]);
+
+  const isDeliveryExpired = useMemo(() => {
+    if (!isDelivered || !deliveredTimeMs) return false;
+    const SEVEN_DAYS_MS = 7 * 24 * 60 * 60 * 1000;
+    return Date.now() - deliveredTimeMs > SEVEN_DAYS_MS;
+  }, [isDelivered, deliveredTimeMs]);
+
+  const isPreDeliveredEligible = Boolean(
+    order &&
+      ["Confirmed", "Processing", "Hold", "Packed", "Shipped", "Out for delivery"].includes(
+        order.status
+      )
+  );
+
+  const canDownloadInvoiceDirectly = Boolean(
+    isPreDeliveredEligible || (isDelivered && !isDeliveryExpired)
+  );
+
   // Derived courier tracking data — prefer live state over cached order data
   const tracking: NormalizedTrackingData | null =
     liveTracking || (order.courierTrackingData as NormalizedTrackingData | null) || null;
@@ -366,7 +402,7 @@ function OrderDetail() {
                 Cancel Order
               </button>
             )}
-            {isApiEnabled() && (
+            {isApiEnabled() && canDownloadInvoiceDirectly && (
               <button
                 type="button"
                 onClick={handleDownloadInvoice}
@@ -380,6 +416,15 @@ function OrderDetail() {
                 )}
                 {downloadingInvoice ? "Downloading..." : "Download Invoice PDF"}
               </button>
+            )}
+            {isApiEnabled() && isDelivered && isDeliveryExpired && (
+              <div
+                className="h-11 sm:h-10 px-4 rounded-xl sm:rounded-full border border-stone-200 bg-stone-100/80 text-stone-500 text-xs sm:text-sm font-medium inline-flex items-center justify-center gap-1.5 shadow-2xs select-none w-full sm:w-auto"
+                title="Direct invoice download is available for 7 days after delivery."
+              >
+                <FileText className="w-4 h-4 text-stone-400" />
+                <span>Invoice download window expired</span>
+              </div>
             )}
             <Link
               to="/track"

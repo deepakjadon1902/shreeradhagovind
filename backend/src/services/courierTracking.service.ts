@@ -730,6 +730,9 @@ export async function syncOrderTracking<T = any>(
     if (newStatus && newStatus !== order.status && !isDuplicate) {
       statusChanged = true;
       updates.status = newStatus;
+      if (newStatus === "Delivered" && !order.deliveredAt) {
+        updates.deliveredAt = new Date();
+      }
       updates.$push = {
         statusHistory: {
           status: newStatus,

@@ -254,6 +254,10 @@ r.patch("/orders/:id/status", async (req, res, next) => {
       update.restockedAt = new Date();
     }
 
+    if (status === "Delivered" && !existing.deliveredAt) {
+      update.deliveredAt = new Date();
+    }
+
     const o = await Order.findByIdAndUpdate(req.params.id, update, { new: true }).populate("user", "name email");
     if (!o) throw new HttpError(404, "Not found");
 
@@ -356,6 +360,8 @@ r.patch("/orders/:id", async (req, res, next) => {
         update.cancelledAt = new Date();
         update.isRestocked = true;
         update.restockedAt = new Date();
+      } else if (data.status === "Delivered" && !existing.deliveredAt) {
+        update.deliveredAt = new Date();
       }
 
       update.status = data.status;
