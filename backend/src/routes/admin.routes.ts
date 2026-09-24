@@ -12,6 +12,7 @@ import {
   sendOrderStatusUpdateWithInvoice,
   dispatchOrderInvoiceEmailOnce,
   dispatchOrderDeliveredEmailOnce,
+  dispatchOrderCancelledEmailOnce,
   tpl,
   formatOrderNumber,
 } from "../utils/email";
@@ -23,6 +24,7 @@ import {
   syncAllActiveShipments,
   getQuotaInfo,
 } from "../services/courierTracking.service";
+import { restockOrderItems } from "../services/cancellation.service";
 
 const r = Router();
 r.use(requireAuth, requireAdmin);
@@ -183,32 +185,6 @@ r.patch("/orders/:id/courier-charge", async (req, res, next) => {
   }
 });
 
-// Legacy: status-only update
-r.patch("/orders/:id/status", async (req, res, next) => {
-  try {
-    const { status } = z
-      .object({
-        status: z.enum(["Placed", "Confirmed", "Processing", "Packed", "Shipped", "Out for delivery", "Delivered", "Cancelled"]),
-      })
-      .parse(req.body);
-    const o = await Order.findByIdAndUpdate(req.params.id, { status }, { new: true }).populate("user", "name email");
-    if (!o) throw new HttpError(404, "Not found");
-    const u: any = o.user;
-    if (u?.email) {
-      if (!o.invoiceSentAt && (status === "Confirmed" || status === "Processing")) {
-        dispatchOrderInvoiceEmailOnce(o._id, u.email, u.name, buildEmailOrder(o)).catch(() => {});
-      } else if (status === "Delivered") {
-        dispatchOrderDeliveredEmailOnce(o._id, u.email, u.name, buildEmailOrder(o) as any).catch(() => {});
-      } else {
-        sendOrderStatusUpdate(u.email, u.name, buildEmailOrder(o)).catch(() => {});
-      }
-    }
-    res.json({ order: o });
-  } catch (e) {
-    next(e);
-  }
-});
-
 // Combined update: status / courier / tracking id / courier URL
 const ALLOWED_TRANSITIONS: Record<string, string[]> = {
   Placed: ["Confirmed", "Cancelled"],
@@ -221,6 +197,95 @@ const ALLOWED_TRANSITIONS: Record<string, string[]> = {
   Delivered: [],
   Cancelled: [],
 };
+
+// Legacy: status-only update
+r.patch("/orders/:id/status", async (req, res, next) => {
+  try {
+    const { status, note } = z
+      .object({
+        status: z.enum([
+          "Placed",
+          "Confirmed",
+          "Processing",
+          "Packed",
+          "Shipped",
+          "Out for delivery",
+          "Delivered",
+          "Cancelled",
+        ]),
+        note: z.string().optional(),
+      })
+      .parse(req.body);
+
+    const existing = await Order.findById(req.params.id);
+    if (!existing) throw new HttpError(404, "Not found");
+
+    if (status !== existing.status) {
+      const allowed = ALLOWED_TRANSITIONS[existing.status] || [];
+      if (!allowed.includes(status)) {
+        throw new HttpError(
+          400,
+          `Invalid status transition: Cannot change order from "${existing.status}" to "${status}".`
+        );
+      }
+    }
+
+    const update: any = {
+      status,
+      $push: {
+        statusHistory: {
+          status,
+          changedAt: new Date(),
+          changedBy: "admin",
+          note: note?.trim() || "",
+        },
+      },
+    };
+
+    if (status === "Cancelled") {
+      const cleanReason = (note || "").trim();
+      if (!cleanReason) {
+        throw new HttpError(400, "A cancellation reason is required when cancelling an order.");
+      }
+      update.cancellationReason = cleanReason;
+      update.cancelledBy = "admin";
+      update.cancelledAt = new Date();
+      update.isRestocked = true;
+      update.restockedAt = new Date();
+    }
+
+    const o = await Order.findByIdAndUpdate(req.params.id, update, { new: true }).populate("user", "name email");
+    if (!o) throw new HttpError(404, "Not found");
+
+    if (status === "Cancelled" && existing.status !== "Cancelled" && !existing.isRestocked) {
+      await restockOrderItems(o);
+    }
+
+    const u: any = o.user;
+    const recipientEmail = o.customerEmail || u?.email;
+    const recipientName = o.address?.name || u?.name || "Customer";
+
+    if (recipientEmail && status !== existing.status) {
+      if (!o.invoiceSentAt && (status === "Confirmed" || status === "Processing")) {
+        dispatchOrderInvoiceEmailOnce(o._id, recipientEmail, recipientName, buildEmailOrder(o)).catch(() => {});
+      } else if (status === "Delivered") {
+        dispatchOrderDeliveredEmailOnce(o._id, recipientEmail, recipientName, buildEmailOrder(o) as any).catch(() => {});
+      } else if (status === "Cancelled") {
+        dispatchOrderCancelledEmailOnce(
+          o,
+          recipientEmail,
+          recipientName,
+          o.cancellationReason || note?.trim() || "Cancelled by store administrator"
+        ).catch(() => {});
+      } else {
+        sendOrderStatusUpdate(recipientEmail, recipientName, buildEmailOrder(o)).catch(() => {});
+      }
+    }
+    res.json({ order: o });
+  } catch (e) {
+    next(e);
+  }
+});
 
 r.patch("/orders/:id", async (req, res, next) => {
   try {
@@ -281,6 +346,16 @@ r.patch("/orders/:id", async (req, res, next) => {
         update.holdAt = new Date();
       } else if (existing.status === "Hold" && data.status === "Processing") {
         update.holdReason = "";
+      } else if (data.status === "Cancelled") {
+        const cleanReason = (data.note || "").trim();
+        if (!cleanReason) {
+          throw new HttpError(400, "A cancellation reason is required when cancelling an order.");
+        }
+        update.cancellationReason = cleanReason;
+        update.cancelledBy = "admin";
+        update.cancelledAt = new Date();
+        update.isRestocked = true;
+        update.restockedAt = new Date();
       }
 
       update.status = data.status;
@@ -322,6 +397,12 @@ r.patch("/orders/:id", async (req, res, next) => {
     const u: any = o.user;
 
     const statusChanged = data.status !== undefined && data.status !== existing.status;
+    const isNowCancelled = data.status === "Cancelled" && statusChanged;
+
+    if (isNowCancelled && !existing.isRestocked) {
+      await restockOrderItems(o);
+    }
+
     const trackingChanged =
       data.trackingId !== undefined && data.trackingId.toUpperCase() !== (existing.trackingId || "");
     const courierChanged = data.courier !== undefined && requestedCourier !== existing.courier;
@@ -338,6 +419,13 @@ r.patch("/orders/:id", async (req, res, next) => {
         dispatchOrderInvoiceEmailOnce(o._id, recipientEmail, recipientName, buildEmailOrder(o)).catch(() => {});
       } else if (o.status === "Delivered") {
         dispatchOrderDeliveredEmailOnce(o._id, recipientEmail, recipientName, buildEmailOrder(o) as any).catch(() => {});
+      } else if (o.status === "Cancelled") {
+        dispatchOrderCancelledEmailOnce(
+          o,
+          recipientEmail,
+          recipientName,
+          o.cancellationReason || data.note?.trim() || "Cancelled by store administrator"
+        ).catch(() => {});
       } else {
         sendOrderStatusUpdate(recipientEmail, recipientName, buildEmailOrder(o)).catch(() => {});
       }

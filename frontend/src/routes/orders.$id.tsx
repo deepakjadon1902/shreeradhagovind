@@ -70,6 +70,10 @@ function OrderDetail() {
   const [reviewComment, setReviewComment] = useState("");
   const [submittingReview, setSubmittingReview] = useState(false);
   const [downloadingInvoice, setDownloadingInvoice] = useState(false);
+  const [showCancelModal, setShowCancelModal] = useState(false);
+  const [cancelReason, setCancelReason] = useState("Changed my mind");
+  const [customCancelReason, setCustomCancelReason] = useState("");
+  const [cancellingOrder, setCancellingOrder] = useState(false);
 
   const submitProductReview = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -151,6 +155,9 @@ function OrderDetail() {
           status: o.status,
           holdReason: o.holdReason,
           holdAt: o.holdAt,
+          cancellationReason: o.cancellationReason,
+          cancelledBy: o.cancelledBy,
+          cancelledAt: o.cancelledAt,
           statusHistory: o.statusHistory,
           courierTrackingData: o.courierTrackingData || res?.tracking || null,
           createdAt: new Date(o.createdAt).getTime(),
@@ -246,6 +253,40 @@ function OrderDetail() {
     }
   };
 
+  const handleCancelOrder = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!order) return;
+    if (cancelReason === "Other" && !customCancelReason.trim()) {
+      toast.error("Please provide a reason for cancellation");
+      return;
+    }
+
+    try {
+      setCancellingOrder(true);
+      const guestToken = search.token || (order as any).guestAccessToken;
+      const targetId = order.id || id;
+      const res = await api<{ ok: boolean; order: any; message?: string }>(`/orders/${targetId}/cancel`, {
+        method: "POST",
+        body: {
+          reason: cancelReason,
+          customReason: customCancelReason.trim(),
+          token: guestToken || undefined,
+        },
+      });
+
+      toast.success(res?.message || "Order has been cancelled successfully.");
+      setShowCancelModal(false);
+      setCustomCancelReason("");
+      setCancelReason("Changed my mind");
+
+      await fetchLiveOrder();
+    } catch (err: any) {
+      toast.error(err?.message || "Failed to cancel order");
+    } finally {
+      setCancellingOrder(false);
+    }
+  };
+
   if (!order) {
     return (
       <Layout>
@@ -271,6 +312,7 @@ function OrderDetail() {
   const currentIdx = MAIN_STAGES.indexOf(order.status);
   const isHold = order.status === "Hold";
   const isCancelled = order.status === "Cancelled";
+  const isCancellable = Boolean(order && ["Placed", "Confirmed"].includes(order.status));
 
   // Derived courier tracking data — prefer live state over cached order data
   const tracking: NormalizedTrackingData | null =
@@ -314,6 +356,16 @@ function OrderDetail() {
           </div>
 
           <div className="grid grid-cols-1 sm:flex sm:items-center gap-2.5 w-full sm:w-auto pt-1 sm:pt-0">
+            {isCancellable && (
+              <button
+                type="button"
+                onClick={() => setShowCancelModal(true)}
+                className="h-11 sm:h-10 px-4 rounded-xl sm:rounded-full border border-rose-300 hover:border-rose-500 text-rose-700 hover:bg-rose-50/70 text-xs sm:text-sm font-semibold inline-flex items-center justify-center gap-1.5 transition bg-white shadow-xs cursor-pointer active:scale-[0.98] w-full sm:w-auto"
+              >
+                <XCircle className="w-4 h-4 text-rose-600" />
+                Cancel Order
+              </button>
+            )}
             {isApiEnabled() && (
               <button
                 type="button"
@@ -410,9 +462,14 @@ function OrderDetail() {
         {isCancelled && (
           <div className="mt-6 p-4 rounded-xl bg-red-50 border border-red-200 text-red-800 flex items-start gap-3">
             <XCircle className="w-5 h-5 text-red-600 shrink-0 mt-0.5" />
-            <div>
+            <div className="flex-1 min-w-0">
               <p className="font-semibold text-sm text-red-900">This Order Has Been Cancelled</p>
-              <p className="text-xs text-red-700 mt-0.5">
+              {order.cancellationReason && (
+                <p className="text-xs text-red-800 mt-1">
+                  <span className="font-semibold">Reason:</span> {order.cancellationReason}
+                </p>
+              )}
+              <p className="text-xs text-red-700 mt-1">
                 For assistance, please contact{" "}
                 <a href="mailto:support@shriradhagovindstore.com" className="font-semibold underline hover:text-red-950">
                   support@shriradhagovindstore.com
@@ -1111,6 +1168,118 @@ function OrderDetail() {
                     className="h-10 px-5 rounded-xl bg-[#166F77] text-white text-xs font-semibold hover:bg-[#166F77]/90 disabled:opacity-50 transition shadow-sm"
                   >
                     {submittingReview ? "Submitting..." : "Submit Review"}
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        )}
+
+        {/* Cancel Order Confirmation Modal */}
+        {showCancelModal && (
+          <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-xs flex items-center justify-center p-4">
+            <div className="bg-white rounded-2xl max-w-md w-full p-5 sm:p-6 shadow-xl border border-stone-200 animate-in fade-in zoom-in-95 duration-200">
+              <div className="flex items-center justify-between pb-3 border-b border-stone-200/80">
+                <div className="flex items-center gap-2.5">
+                  <div className="w-8 h-8 rounded-full bg-rose-100 text-rose-700 grid place-items-center shrink-0">
+                    <XCircle className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <h3 className="font-serif text-lg font-bold text-stone-900 leading-tight">Cancel Order</h3>
+                    <p className="text-[11px] text-stone-500">Order #{displayOrderNumber(order)}</p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => !cancellingOrder && setShowCancelModal(false)}
+                  disabled={cancellingOrder}
+                  className="p-1.5 rounded-lg text-stone-400 hover:text-stone-700 hover:bg-stone-100 transition cursor-pointer"
+                >
+                  <XIcon className="w-5 h-5" />
+                </button>
+              </div>
+
+              <div className="mt-3.5 p-3 rounded-xl bg-amber-50 border border-amber-200 text-amber-900 text-xs leading-relaxed">
+                <p className="font-semibold text-amber-950">Important Notice:</p>
+                <p className="mt-0.5">
+                  Cancellation cannot be undone. Once cancelled, your items will be returned to store stock.
+                </p>
+              </div>
+
+              <form onSubmit={handleCancelOrder} className="mt-4 space-y-3.5">
+                <div>
+                  <label className="block text-xs font-semibold text-stone-700 mb-2">
+                    Please select a reason for cancellation:
+                  </label>
+                  <div className="space-y-1.5">
+                    {[
+                      "Changed my mind",
+                      "Ordered by mistake",
+                      "Need to change the order",
+                      "Delivery time is not suitable",
+                      "Other",
+                    ].map((reasonOption) => (
+                      <label
+                        key={reasonOption}
+                        className={`flex items-center gap-2.5 p-2.5 rounded-xl border text-xs cursor-pointer transition ${
+                          cancelReason === reasonOption
+                            ? "border-[#166F77] bg-teal-50/50 text-[#166F77] font-semibold"
+                            : "border-stone-200 hover:border-stone-300 text-stone-700"
+                        }`}
+                      >
+                        <input
+                          type="radio"
+                          name="cancelReason"
+                          value={reasonOption}
+                          checked={cancelReason === reasonOption}
+                          onChange={(e) => setCancelReason(e.target.value)}
+                          className="text-[#166F77] focus:ring-[#166F77]"
+                        />
+                        <span>{reasonOption}</span>
+                      </label>
+                    ))}
+                  </div>
+                </div>
+
+                {cancelReason === "Other" && (
+                  <div>
+                    <label className="block text-xs font-semibold text-stone-700 mb-1">
+                      Reason Details (कारण बताएं):
+                    </label>
+                    <textarea
+                      required
+                      rows={2}
+                      maxLength={300}
+                      value={customCancelReason}
+                      onChange={(e) => setCustomCancelReason(e.target.value)}
+                      placeholder="Please share more details on why you are cancelling..."
+                      className="w-full rounded-xl border border-stone-300 p-2.5 text-xs focus:outline-none focus:border-[#166F77] focus:ring-1 focus:ring-[#166F77]"
+                    />
+                  </div>
+                )}
+
+                <div className="flex justify-end gap-2 pt-3 border-t border-stone-100">
+                  <button
+                    type="button"
+                    onClick={() => setShowCancelModal(false)}
+                    disabled={cancellingOrder}
+                    className="h-10 px-4 rounded-xl border border-stone-200 text-xs font-semibold text-stone-700 hover:bg-stone-50 transition disabled:opacity-50 cursor-pointer"
+                  >
+                    Keep Order
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={cancellingOrder}
+                    className="h-10 px-5 rounded-xl bg-rose-600 text-white text-xs font-semibold hover:bg-rose-700 disabled:opacity-50 transition shadow-xs inline-flex items-center gap-1.5 cursor-pointer"
+                  >
+                    {cancellingOrder ? (
+                      <>
+                        <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                        Cancelling...
+                      </>
+                    ) : (
+                      "Confirm Cancellation"
+                    )}
                   </button>
                 </div>
               </form>

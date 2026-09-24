@@ -37,7 +37,15 @@ function OrdersPage() {
                 </div>
                 <div className="text-right">
                   <p className="font-semibold">{formatINR(o.total)}</p>
-                  <span className="text-xs inline-block mt-1 px-2 py-0.5 rounded-full bg-primary/10 text-primary">{o.status}</span>
+                  <span
+                    className={`text-xs inline-block mt-1 px-2.5 py-0.5 rounded-full font-medium ${
+                      o.status === "Cancelled"
+                        ? "bg-rose-50 text-rose-800 border border-rose-200"
+                        : "bg-primary/10 text-primary"
+                    }`}
+                  >
+                    {o.status}
+                  </span>
                 </div>
               </Link>
             ))}

@@ -25,6 +25,10 @@ import {
   syncOrderTracking,
   requestManualTrackingRefresh,
 } from "../services/courierTracking.service";
+import {
+  cancelOrderAtomically,
+  CANCELLABLE_STATUSES_CUSTOMER,
+} from "../services/cancellation.service";
 import { computeOrderFinances } from "./admin.routes";
 import { env } from "../config/env";
 
@@ -205,7 +209,7 @@ r.get("/", requireAuth, async (req, res, next) => {
   }
 });
 
-async function findOrderByIdOrNo(idOrNo: string | string[] | undefined) {
+export async function findOrderByIdOrNo(idOrNo: string | string[] | undefined) {
   const cleanId = Array.isArray(idOrNo) ? idOrNo[0] : idOrNo;
   if (!cleanId) return null;
   let o = null;
@@ -218,7 +222,7 @@ async function findOrderByIdOrNo(idOrNo: string | string[] | undefined) {
   return o;
 }
 
-function checkOrderAccess(
+export function checkOrderAccess(
   o: any,
   user?: Express.Request["user"],
   queryToken?: unknown
@@ -278,6 +282,79 @@ r.post("/:id/refresh", optionalAuth, async (req, res, next) => {
 
     const result = await requestManualTrackingRefresh(o);
     res.json(result);
+  } catch (e) {
+    next(e);
+  }
+});
+
+const cancelOrderSchema = z.object({
+  reason: z.string().trim().min(1, "Please select or provide a cancellation reason").max(100),
+  customReason: z.string().trim().max(300).optional(),
+  token: z.string().optional(),
+});
+
+// Customer order cancellation endpoint
+r.post("/:id/cancel", optionalAuth, async (req, res, next) => {
+  try {
+    const o = await findOrderByIdOrNo(req.params.id);
+    if (!o) throw new HttpError(404, "Order not found");
+
+    const effectiveToken = req.query.token || req.body?.token;
+    const access = checkOrderAccess(o, req.user, effectiveToken);
+    if (!access.allowed) {
+      throw new HttpError(403, "Access forbidden. You do not have permission to cancel this order.");
+    }
+
+    const data = cancelOrderSchema.parse(req.body);
+
+    let finalReason = data.reason;
+    if (data.reason.toLowerCase() === "other") {
+      const cleanCustom = (data.customReason || "").trim();
+      finalReason = cleanCustom ? `Other: ${cleanCustom}` : "Other reason";
+    } else if (data.customReason && data.customReason.trim()) {
+      finalReason = `${data.reason}: ${data.customReason.trim()}`;
+    }
+
+    const result = await cancelOrderAtomically({
+      orderId: o._id,
+      cancellableStatuses: CANCELLABLE_STATUSES_CUSTOMER,
+      cancelledBy: access.isAdmin ? "admin" : "customer",
+      cancellationReason: finalReason,
+      note: finalReason,
+      sendNotificationEmail: true,
+    });
+
+    if (!result.success) {
+      if (result.alreadyCancelled) {
+        throw new HttpError(400, "This order has already been cancelled.");
+      }
+      if (result.statusNotCancellable) {
+        if (result.currentStatus === "Processing") {
+          throw new HttpError(400, "Order cannot be cancelled because it is already being processed. Please contact customer support.");
+        }
+        if (result.currentStatus === "Hold") {
+          throw new HttpError(400, "Order cannot be cancelled while on hold. Please contact customer support.");
+        }
+        if (result.currentStatus === "Packed") {
+          throw new HttpError(400, "Order cannot be cancelled because it has already been packed for dispatch.");
+        }
+        if (result.currentStatus === "Shipped" || result.currentStatus === "Out for delivery") {
+          throw new HttpError(400, "Order cannot be cancelled because it has already been dispatched with courier.");
+        }
+        if (result.currentStatus === "Delivered") {
+          throw new HttpError(400, "Delivered orders cannot be cancelled. Please contact customer support for returns.");
+        }
+        throw new HttpError(400, result.error || `Order cannot be cancelled from status "${result.currentStatus}".`);
+      }
+      throw new HttpError(400, result.error || "Failed to cancel order.");
+    }
+
+    const payload = access.isAdmin ? result.order : sanitizeCustomerOrder(result.order);
+    res.json({
+      ok: true,
+      message: "Order successfully cancelled.",
+      order: payload,
+    });
   } catch (e) {
     next(e);
   }

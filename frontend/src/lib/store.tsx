@@ -105,6 +105,9 @@ export type Order = {
     | "Cancelled";
   holdReason?: string;
   holdAt?: string;
+  cancellationReason?: string;
+  cancelledBy?: "customer" | "admin" | "system" | null;
+  cancelledAt?: string;
   guestAccessToken?: string;
   courierTrackingData?: NormalizedTrackingData | null;
   courierTrackingLastFetchedAt?: string | null;

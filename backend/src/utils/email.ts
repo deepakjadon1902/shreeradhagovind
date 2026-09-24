@@ -351,6 +351,77 @@ export async function dispatchOrderDeliveredEmailOnce(
   }
 }
 
+/**
+ * Safely and idempotently dispatches the order cancellation email using tpl.orderCancelled.
+ * Strict rules enforced:
+ * 1. Check order.cancelledEmailSentAt. If already sent, do NOT send duplicate email.
+ * 2. Atomic lock via cancelledEmailLockUntil prevents duplicate concurrent sends (e.g. concurrent cancellation requests).
+ * 3. Sends email to customer with human-readable Order Number and cancellation reason.
+ * 4. ONLY AFTER sending succeeds: persist cancelledEmailSentAt and clear the lock.
+ * 5. If sending fails: cancelledEmailSentAt remains null/unset, lock is cleared for retry.
+ */
+export async function dispatchOrderCancelledEmailOnce(
+  order: any,
+  to: string,
+  name: string,
+  reason: string
+): Promise<{ success: boolean; reason?: string; skipped?: boolean }> {
+  const orderId = order?._id || order?.id;
+  if (!orderId || !to) return { success: false, reason: "missing_recipient_or_order_id" };
+
+  const now = new Date();
+  const lockExpiry = new Date(now.getTime() + 60 * 1000); // 60-second atomic lock window
+
+  const lockedOrder = await Order.findOneAndUpdate(
+    {
+      _id: orderId,
+      cancelledEmailSentAt: null,
+      $or: [
+        { cancelledEmailLockUntil: null },
+        { cancelledEmailLockUntil: { $lt: now } },
+      ],
+    },
+    {
+      $set: { cancelledEmailLockUntil: lockExpiry },
+    },
+    { new: true }
+  );
+
+  if (!lockedOrder) {
+    return { success: false, reason: "already_sent_or_in_progress", skipped: true };
+  }
+
+  try {
+    const orderNum = formatOrderNumber(order);
+    const built = tpl.orderCancelled(name, orderNum, reason);
+    const sendResult = await exports.sendEmail({
+      to,
+      subject: built.subject,
+      html: built.html,
+    });
+
+    if (sendResult && (sendResult as any).error) {
+      throw new Error(`Email provider error: ${JSON.stringify((sendResult as any).error)}`);
+    }
+
+    const sentDate = new Date();
+    await Order.findByIdAndUpdate(orderId, {
+      $set: {
+        cancelledEmailSentAt: sentDate,
+        cancelledEmailLockUntil: null,
+      },
+    });
+
+    return { success: true };
+  } catch (err: any) {
+    console.error("[dispatchOrderCancelledEmailOnce] Failed to send cancellation email:", err);
+    await Order.findByIdAndUpdate(orderId, {
+      $set: { cancelledEmailLockUntil: null },
+    }).catch(() => {});
+    return { success: false, reason: err?.message || String(err) };
+  }
+}
+
 export async function sendOrderStatusUpdateWithInvoice(
   to: string,
   name: string,
@@ -580,8 +651,29 @@ export const tpl = {
   }),
 
   orderCancelled: (name: string, ref: string, reason: string) => ({
-    subject: `Order #${ref} cancelled`,
-    html: shell(`<h2>Hi ${name},</h2><p>Your order <b>#${ref}</b> has been cancelled.</p><p style="color:#888;font-size:13px">${reason}</p>`),
+    subject: `Order #${ref} cancelled - Shri Radha Govind Store`,
+    html: shell(`
+      <h2 style="margin:0 0 6px">Hare Krishna, ${name} 🙏</h2>
+      <p style="margin:0 0 12px;color:#555">Your order <b>#${ref}</b> has been cancelled.</p>
+
+      <div style="margin:16px 0;padding:14px 16px;background:#fef2f2;border:1px solid #fee2e2;border-radius:10px">
+        <div style="font-size:12px;color:#dc2626;letter-spacing:.1em;text-transform:uppercase;font-weight:600">Cancellation Details</div>
+        <div style="margin-top:6px;font-size:14px;color:#333">Order Number: <b>#${ref}</b></div>
+        <div style="margin-top:4px;font-size:14px;color:#333">Status: <b style="color:#dc2626">Cancelled</b></div>
+        <div style="margin-top:6px;font-size:13px;color:#555">Reason: <i>${reason || "Requested by customer"}</i></div>
+      </div>
+
+      <p style="font-size:13px;color:#666;line-height:1.5">
+        If you have any questions or need further assistance with your devotional purchases, our support team is always here to assist you at <a href="mailto:support@shriradhagovindstore.com" style="color:${ACCENT};text-decoration:none">support@shriradhagovindstore.com</a>.
+      </p>
+
+      <div style="margin-top:16px">
+        <a href="https://www.shriradhagovindstore.com"
+          style="display:inline-block;background:${ACCENT};color:#fff;padding:9px 18px;border-radius:999px;text-decoration:none;font-size:13px;font-weight:500">
+          Visit Storefront
+        </a>
+      </div>
+    `),
   }),
 
   statusUpdate: (
