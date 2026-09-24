@@ -1,7 +1,7 @@
 import { createFileRoute, useNavigate, Link } from "@tanstack/react-router";
 import { Layout } from "@/components/Layout";
 import { useStore, formatINR } from "@/lib/store";
-import { useEffect, useState, useRef } from "react";
+import { useEffect, useState, useRef, useCallback } from "react";
 import {
   CreditCard,
   Truck,
@@ -24,7 +24,14 @@ import {
 import { toast } from "sonner";
 import { api, isApiEnabled, getToken } from "@/lib/api";
 
+type CheckoutSearch = {
+  session?: string;
+};
+
 export const Route = createFileRoute("/checkout")({
+  validateSearch: (s: Record<string, unknown>): CheckoutSearch => ({
+    session: typeof s.session === "string" ? s.session : undefined,
+  }),
   component: Checkout,
   head: () => ({
     meta: [
@@ -127,10 +134,15 @@ function loadRazorpayScript(): Promise<boolean> {
 }
 
 function Checkout() {
-  const { cart, adminProducts, user, placeOrder, settings } = useStore();
+  const { cart, adminProducts, user, placeOrder, settings, setCart } = useStore();
+  const search = Route.useSearch();
+  const recoveryToken = search.session;
+  const [recovering, setRecovering] = useState<boolean>(Boolean(recoveryToken));
   const nav = useNavigate();
   const formRef = useRef<HTMLFormElement>(null);
   const isSubmittingRef = useRef(false);
+  const lastCapturedHashRef = useRef<string>("");
+  const captureTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   const items = cart
     .map((c) => ({ ...c, product: adminProducts.find((p) => p.id === c.productId)! }))
@@ -231,6 +243,189 @@ function Checkout() {
       gstin: current.gstin,
     }));
   }, [user]);
+
+  // Hydrate checkout session from recovery link (?session=<token>)
+  useEffect(() => {
+    if (!recoveryToken) return;
+
+    let isMounted = true;
+    (async () => {
+      try {
+        const res = await api<{
+          ok: boolean;
+          recovered?: boolean;
+          cancelled?: boolean;
+          message?: string;
+          session?: {
+            sessionId: string;
+            name: string;
+            email: string;
+            phone: string;
+            address?: any;
+            items: Array<{
+              productId: string;
+              name: string;
+              image: string;
+              price: number;
+              qty: number;
+              inStock: boolean;
+              availableStock: number;
+            }>;
+            subtotal: number;
+            shipping: number;
+            total: number;
+            hasUnavailableItems: boolean;
+          };
+        }>(`/checkout-sessions/${encodeURIComponent(recoveryToken)}`);
+
+        if (!isMounted) return;
+
+        if (res.recovered) {
+          toast.info("This order has already been completed. Thank you!");
+          nav({ to: "/shop" });
+          return;
+        }
+
+        if (res.cancelled) {
+          toast.error("This recovery link has expired.");
+          return;
+        }
+
+        if (res.ok && res.session) {
+          const sess = res.session;
+          if (typeof window !== "undefined") {
+            try {
+              sessionStorage.setItem("srg_checkout_session_id", sess.sessionId);
+            } catch {
+              /* ignore */
+            }
+          }
+
+          // Restore form contact details
+          setForm((prev) => ({
+            ...prev,
+            name: sess.name || prev.name,
+            email: sess.email || prev.email,
+            phone: sess.phone || prev.phone,
+            alternatePhone: sess.address?.alternatePhone || prev.alternatePhone,
+            line1: sess.address?.line1 || prev.line1,
+            line2: sess.address?.line2 || prev.line2,
+            city: sess.address?.city || prev.city,
+            state: sess.address?.state || prev.state,
+            pincode: sess.address?.pincode || prev.pincode,
+            postOffice: sess.address?.postOffice || prev.postOffice,
+          }));
+
+          // Restore valid cart items with live stock
+          const validItems = sess.items
+            .filter((i) => i.inStock && i.qty > 0)
+            .map((i) => ({ productId: i.productId, qty: i.qty }));
+
+          if (validItems.length > 0) {
+            setCart(validItems);
+          }
+
+          if (sess.hasUnavailableItems) {
+            toast.warning(
+              "Some items in your cart had stock updates since your last visit. Please review your order."
+            );
+          } else {
+            toast.success("Welcome back! Your sacred cart has been restored.");
+          }
+        }
+      } catch (err: any) {
+        if (!isMounted) return;
+        toast.error(err?.message || "Failed to load saved checkout session.");
+      } finally {
+        if (isMounted) {
+          setRecovering(false);
+        }
+      }
+    })();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [recoveryToken, nav, setCart]);
+
+  // Debounced / onBlur checkout session capture
+  const captureSession = useCallback(() => {
+    if (!isApiEnabled()) return;
+    if (cart.length === 0) return;
+
+    const email = form.email.trim().toLowerCase();
+    const phone = form.phone.replace(/\D/g, "");
+
+    const hasValidEmail = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+    const hasValidPhone = phone.length >= 10;
+    if (!hasValidEmail && !hasValidPhone) return;
+
+    const currentSessionId =
+      typeof window !== "undefined"
+        ? sessionStorage.getItem("srg_checkout_session_id") || undefined
+        : undefined;
+
+    const payloadHash = JSON.stringify({
+      email,
+      phone,
+      name: form.name,
+      line1: form.line1,
+      pincode: form.pincode,
+      cart: cart.map((c) => ({ p: c.productId, q: c.qty })),
+    });
+
+    if (payloadHash === lastCapturedHashRef.current) return;
+
+    api<{ ok: boolean; sessionId?: string }>("/checkout-sessions/capture", {
+      method: "POST",
+      body: {
+        sessionId: currentSessionId,
+        name: form.name.trim(),
+        email,
+        phone,
+        alternatePhone: form.alternatePhone.trim() || undefined,
+        address: {
+          name: form.name.trim(),
+          phone,
+          alternatePhone: form.alternatePhone.trim() || undefined,
+          line1: form.line1.trim(),
+          line2: form.line2.trim() || undefined,
+          city: form.city.trim(),
+          state: form.state.trim(),
+          pincode: form.pincode.trim(),
+          postOffice: form.postOffice.trim() || undefined,
+        },
+        items: cart.map((c) => ({ productId: c.productId, qty: c.qty })),
+      },
+    })
+      .then((res) => {
+        if (res?.ok && res.sessionId) {
+          lastCapturedHashRef.current = payloadHash;
+          if (typeof window !== "undefined") {
+            sessionStorage.setItem("srg_checkout_session_id", res.sessionId);
+          }
+        }
+      })
+      .catch(() => {
+        // Silently ignore: capture failure must never disrupt checkout
+      });
+  }, [cart, form]);
+
+  // Debounced auto-save when typing contact info
+  useEffect(() => {
+    if (captureTimeoutRef.current) {
+      clearTimeout(captureTimeoutRef.current);
+    }
+    captureTimeoutRef.current = setTimeout(() => {
+      captureSession();
+    }, 1200);
+
+    return () => {
+      if (captureTimeoutRef.current) {
+        clearTimeout(captureTimeoutRef.current);
+      }
+    };
+  }, [form.email, form.phone, form.name, form.line1, form.pincode, captureSession]);
 
   // Debounced Indian Pincode Lookup for Shipping Address
   useEffect(() => {
@@ -436,6 +631,22 @@ function Checkout() {
     };
   }, [billingForm.pincode, billingSameAsShipping]);
 
+  if (recovering) {
+    return (
+      <Layout>
+        <div className="container-app py-24 text-center">
+          <div className="mx-auto w-16 h-16 rounded-full bg-[#166F77]/10 flex items-center justify-center text-[#166F77] mb-4">
+            <Loader2 className="w-8 h-8 animate-spin" />
+          </div>
+          <h1 className="font-serif text-2xl text-stone-900">Restoring your sacred cart...</h1>
+          <p className="text-stone-600 mt-2 text-sm max-w-sm mx-auto">
+            Please wait while we verify your selected Vrindavan essentials.
+          </p>
+        </div>
+      </Layout>
+    );
+  }
+
   if (items.length === 0) {
     return (
       <Layout>
@@ -483,7 +694,13 @@ function Checkout() {
           pincode: billingForm.pincode.trim(),
         };
 
+    const currentSessionId =
+      typeof window !== "undefined"
+        ? sessionStorage.getItem("srg_checkout_session_id") || undefined
+        : undefined;
+
     const order = await placeOrder({
+      sessionId: currentSessionId,
       customerEmail: form.email.trim(),
       createAccount: !user && accountChoice === "create",
       items: items.map((i) => ({ product: i.product, qty: i.qty })),
@@ -510,6 +727,14 @@ function Checkout() {
         ...paymentExtras,
       },
     });
+
+    if (typeof window !== "undefined") {
+      try {
+        sessionStorage.removeItem("srg_checkout_session_id");
+      } catch {
+        /* ignore */
+      }
+    }
 
     toast.success("Order placed successfully! Radhe Radhe.");
     nav({ to: "/orders/$id", params: { id: order.id } });
@@ -603,6 +828,16 @@ function Checkout() {
         },
         modal: {
           ondismiss: () => {
+            const currentSessionId =
+              typeof window !== "undefined"
+                ? sessionStorage.getItem("srg_checkout_session_id")
+                : null;
+            if (currentSessionId && isApiEnabled()) {
+              api("/checkout-sessions/dismiss", {
+                method: "POST",
+                body: { sessionId: currentSessionId },
+              }).catch(() => {});
+            }
             toast.info("Payment window closed. You can retry payment anytime.");
             reject(new Error("dismissed"));
           },
@@ -863,6 +1098,7 @@ function Checkout() {
                       autoComplete="email"
                       value={form.email}
                       onChange={(e) => setForm({ ...form, email: e.target.value })}
+                      onBlur={() => captureSession()}
                       placeholder="e.g. devotee@example.com"
                       className="w-full h-11 px-3.5 rounded-xl border border-stone-200 bg-white text-sm text-stone-900 placeholder:text-stone-400 focus:border-[#166F77] focus:ring-2 focus:ring-[#166F77]/10 focus:outline-none transition"
                     />
@@ -885,6 +1121,7 @@ function Checkout() {
                         maxLength={10}
                         value={form.phone}
                         onChange={(e) => setForm({ ...form, phone: e.target.value })}
+                        onBlur={() => captureSession()}
                         placeholder="10-digit mobile number"
                         className="w-full h-11 px-3.5 rounded-xl border border-stone-200 bg-white text-sm text-stone-900 placeholder:text-stone-400 focus:border-[#166F77] focus:ring-2 focus:ring-[#166F77]/10 focus:outline-none transition"
                       />
@@ -903,6 +1140,7 @@ function Checkout() {
                         maxLength={10}
                         value={form.alternatePhone}
                         onChange={(e) => setForm({ ...form, alternatePhone: e.target.value })}
+                        onBlur={() => captureSession()}
                         placeholder="Optional backup mobile number"
                         className="w-full h-11 px-3.5 rounded-xl border border-stone-200 bg-white text-sm text-stone-900 placeholder:text-stone-400 focus:border-[#166F77] focus:ring-2 focus:ring-[#166F77]/10 focus:outline-none transition"
                       />
@@ -910,6 +1148,11 @@ function Checkout() {
                         Helpful if your primary phone is unreachable
                       </p>
                     </div>
+                  </div>
+
+                  <div className="flex items-center gap-2 text-xs text-stone-500 pt-3 border-t border-stone-100">
+                    <ShieldCheck className="w-4 h-4 text-[#166F77] shrink-0" />
+                    <span>We use your contact details to provide order updates and save your cart if your session is interrupted.</span>
                   </div>
                 </div>
               </section>

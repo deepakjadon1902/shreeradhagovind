@@ -643,4 +643,66 @@ export const tpl = {
     subject: `Order #${orderId} received`,
     html: shell(`<h2>Thank you, ${name}!</h2><p>Your order <b>#${orderId}</b> for <b>${rupee(total)}</b> has been received.</p>`),
   }),
+
+  abandonedCart: (
+    name: string,
+    items: Array<{ name: string; qty: number; price: number; image?: string }>,
+    recoveryUrl: string,
+    total: number
+  ) => {
+    const greetingName = name?.trim() ? name.trim() : "Devotee";
+    const itemsRows = items
+      .map(
+        (i) => `
+        <tr>
+          <td style="padding:10px 12px;border-bottom:1px solid #f1f1ed">
+            <div style="font-weight:600;color:#1c1917;font-size:14px">${i.name}</div>
+            <div style="font-size:12px;color:#78716c">Qty: ${i.qty}</div>
+          </td>
+          <td style="padding:10px 12px;border-bottom:1px solid #f1f1ed;text-align:right;font-weight:600;color:#1c1917;font-size:14px">
+            ${rupee(i.price * i.qty)}
+          </td>
+        </tr>`
+      )
+      .join("");
+
+    return {
+      subject: `Radhe Radhe 🙏 Your sacred selections are waiting - ${BRAND}`,
+      html: shell(`
+        <h2 style="margin:0 0 10px;font-size:22px;color:#1c1917">Radhe Radhe, ${greetingName} 🌸</h2>
+        <p style="margin:0 0 14px;color:#44403c;font-size:14px;line-height:1.6">
+          We noticed you left some sacred essentials in your cart during your recent visit. Your Vrindavan treasures are preserved and ready for you whenever you wish to complete your order.
+        </p>
+
+        <div style="margin:18px 0;background:#ffffff;border:1px solid #e7e5e4;border-radius:12px;overflow:hidden">
+          <div style="padding:12px 14px;background:#f5f5f4;font-size:12px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:#57534e">
+            Items in your cart
+          </div>
+          <table style="width:100%;border-collapse:collapse">
+            <tbody>
+              ${itemsRows}
+            </tbody>
+            <tfoot>
+              <tr style="background:#fafaf9">
+                <td style="padding:12px 14px;font-weight:700;color:#1c1917;font-size:14px">Estimated Total</td>
+                <td style="padding:12px 14px;text-align:right;font-weight:700;color:${ACCENT};font-size:16px">${rupee(total)}</td>
+              </tr>
+            </tfoot>
+          </table>
+        </div>
+
+        <div style="margin:24px 0 16px;text-align:center">
+          <a href="${recoveryUrl}"
+             style="display:inline-block;background:${ACCENT};color:#ffffff;padding:12px 28px;border-radius:999px;text-decoration:none;font-size:15px;font-weight:600;box-shadow:0 4px 12px rgba(15,118,110,0.25)">
+            Complete Your Order &rarr;
+          </a>
+        </div>
+
+        <p style="margin:20px 0 0;font-size:12px;color:#78716c;line-height:1.5;text-align:center">
+          If you have already completed this purchase or no longer need these items, you can safely disregard this email.<br/>
+          For any questions or seva assistance, feel free to reply to this email or reach us on WhatsApp.
+        </p>
+      `),
+    };
+  },
 };

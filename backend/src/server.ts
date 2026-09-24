@@ -7,6 +7,10 @@ import {
   startCourierTrackingScheduler,
   stopCourierTrackingScheduler,
 } from "./services/courierTracking.service";
+import {
+  startAbandonedCartScheduler,
+  stopAbandonedCartScheduler,
+} from "./services/abandonedCart.service";
 
 async function initDatabase(attempt = 1) {
   try {
@@ -20,6 +24,9 @@ async function initDatabase(attempt = 1) {
       // eslint-disable-next-line no-console
       console.log("[api] In-process tracking scheduler disabled (using external/Render Cron for tracking sync).");
     }
+
+    // Start abandoned cart recovery scheduler
+    startAbandonedCartScheduler(15);
   } catch (err) {
     // eslint-disable-next-line no-console
     console.error(`[db] Database connection attempt ${attempt} failed:`, err);
@@ -46,6 +53,7 @@ async function main() {
     // eslint-disable-next-line no-console
     console.log("[api] Shutting down gracefully...");
     stopCourierTrackingScheduler();
+    stopAbandonedCartScheduler();
     server.close(() => {
       // eslint-disable-next-line no-console
       console.log("[api] Server closed.");

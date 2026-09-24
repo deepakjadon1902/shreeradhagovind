@@ -8,6 +8,7 @@ import { Product } from "../models/Product";
 import { Settings } from "../models/Settings";
 import { User } from "../models/User";
 import { Counter } from "../models/Counter";
+import { CheckoutSession } from "../models/CheckoutSession";
 import { requireAuth, optionalAuth } from "../middleware/auth";
 import { HttpError } from "../middleware/error";
 import { signToken } from "../utils/jwt";
@@ -368,6 +369,8 @@ const createSchema = z.object({
     razorpaySignature: z.string().optional(),
     status: z.enum(["pending", "paid", "failed"]).optional(),
   }),
+  sessionId: z.string().optional(),
+  recoveryToken: z.string().optional(),
 });
 
 r.post("/", optionalAuth, async (req, res, next) => {
@@ -795,6 +798,34 @@ r.post("/", optionalAuth, async (req, res, next) => {
         to: normalizedEmail,
         ...tpl.orderPlaced(customerRecipientName, formatOrderNumber(order), total),
       }).catch(() => {});
+    }
+
+    // Reconcile checkout session (mark recovered)
+    try {
+      const orClauses: any[] = [];
+      if (body.sessionId) orClauses.push({ sessionId: body.sessionId });
+      if (body.recoveryToken) orClauses.push({ recoveryToken: body.recoveryToken });
+      if (orderUserId) orClauses.push({ user: orderUserId });
+      if (normalizedEmail) orClauses.push({ email: normalizedEmail });
+
+      if (orClauses.length > 0) {
+        await CheckoutSession.updateMany(
+          {
+            $or: orClauses,
+            status: { $ne: "recovered" },
+          },
+          {
+            $set: {
+              status: "recovered",
+              recoveredAt: new Date(),
+            },
+          }
+        );
+      }
+    } catch (sessionErr) {
+      // Non-blocking: session reconciliation must never impede order placement
+      // eslint-disable-next-line no-console
+      console.error("[orders] Error reconciling checkout session:", sessionErr);
     }
 
     res.status(201).json({

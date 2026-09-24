@@ -116,6 +116,7 @@ export type Order = {
     holdReason?: string;
   }[];
   createdAt: number;
+  sessionId?: string;
 };
 
 export interface CourierCheckpoint {
@@ -283,6 +284,7 @@ type Store = {
   updateQty: (productId: string, qty: number) => void;
   removeFromCart: (productId: string) => void;
   clearCart: () => void;
+  setCart: (items: CartItem[]) => void;
   wishlist: string[];
   toggleWishlist: (productId: string) => void;
   orders: Order[];
@@ -1186,6 +1188,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         const r = await api<{ order: any; token?: string; user?: any; isNewAccount?: boolean }>("/orders", {
           method: "POST",
           body: {
+            sessionId: o.sessionId,
             email: orderEmail,
             createAccount: o.createAccount,
             needsGstInvoice: o.needsGstInvoice,
@@ -1647,6 +1650,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       toast("Removed from cart");
     },
     clearCart: () => setCart([]),
+    setCart: (items) => setCart(items),
     wishlist,
     toggleWishlist: (productId) =>
       setWishlist((w) => {
