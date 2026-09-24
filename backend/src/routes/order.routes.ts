@@ -379,12 +379,14 @@ export function evaluateInvoiceDownloadEligibility(
   o: any,
   user?: Express.Request["user"],
   queryToken?: unknown,
-  currentTimeMs: number = Date.now()
+  currentTimeMs: number = Date.now(),
+  invoiceToken?: string
 ): {
   allowed: boolean;
   httpStatus?: number;
   reason?: string;
   isDeliveredExpired?: boolean;
+  requiresOneTimeToken?: boolean;
 } {
   const access = checkOrderAccess(o, user, queryToken);
   if (!access.allowed) {
@@ -431,12 +433,37 @@ export function evaluateInvoiceDownloadEligibility(
     if (deliveredTime) {
       const elapsed = currentTimeMs - deliveredTime.getTime();
       if (elapsed > INVOICE_DIRECT_DOWNLOAD_WINDOW_MS) {
-        return {
-          allowed: false,
-          httpStatus: 410,
-          reason: "The 7-day direct invoice download window for this delivered order has expired.",
-          isDeliveredExpired: true,
-        };
+        if (!invoiceToken) {
+          return {
+            allowed: false,
+            httpStatus: 410,
+            reason: "The 7-day direct invoice download window for this delivered order has expired.",
+            isDeliveredExpired: true,
+          };
+        }
+
+        if (!o.invoiceOneTimeToken || o.invoiceOneTimeToken !== invoiceToken) {
+          return {
+            allowed: false,
+            httpStatus: 403,
+            reason: "Invalid invoice download token.",
+          };
+        }
+        if (o.invoiceOneTimeTokenUsedAt) {
+          return {
+            allowed: false,
+            httpStatus: 410,
+            reason: "This one-time invoice download link has already been used. Please request a new invoice if needed.",
+          };
+        }
+        if (o.invoiceOneTimeTokenExpiresAt && currentTimeMs > new Date(o.invoiceOneTimeTokenExpiresAt).getTime()) {
+          return {
+            allowed: false,
+            httpStatus: 410,
+            reason: "This invoice download link has expired (valid for 48 hours). Please request a new invoice.",
+          };
+        }
+        return { allowed: true, requiresOneTimeToken: true };
       }
     }
   }
@@ -449,9 +476,28 @@ r.get("/:id/invoice", optionalAuth, async (req, res, next) => {
     const o = await findOrderByIdOrNo(req.params.id);
     if (!o) throw new HttpError(404, "Order not found");
 
-    const eligibility = evaluateInvoiceDownloadEligibility(o, req.user, req.query.token);
+    const invoiceToken = typeof req.query.invoiceToken === "string" ? req.query.invoiceToken.trim() : undefined;
+    const eligibility = evaluateInvoiceDownloadEligibility(o, req.user, req.query.token, Date.now(), invoiceToken);
     if (!eligibility.allowed) {
       throw new HttpError(eligibility.httpStatus || 400, eligibility.reason || "Invoice download denied.");
+    }
+
+    if (eligibility.requiresOneTimeToken && invoiceToken) {
+      const consumed = await Order.findOneAndUpdate(
+        {
+          _id: o._id,
+          invoiceOneTimeToken: invoiceToken,
+          invoiceOneTimeTokenUsedAt: null,
+          invoiceOneTimeTokenExpiresAt: { $gt: new Date() },
+        },
+        {
+          $set: { invoiceOneTimeTokenUsedAt: new Date() },
+        },
+        { new: true }
+      );
+      if (!consumed) {
+        throw new HttpError(410, "This invoice download link has expired or has already been used.");
+      }
     }
 
     const orderNum = formatOrderNumber(o);
@@ -484,6 +530,73 @@ r.get("/:id/invoice", optionalAuth, async (req, res, next) => {
     res.setHeader("Content-Type", "application/pdf");
     res.setHeader("Content-Disposition", `inline; filename="Invoice-${orderNum}.pdf"`);
     res.send(pdfBuffer);
+  } catch (e) {
+    next(e);
+  }
+});
+
+// Customer / Guest request invoice endpoint (Delivered orders after 7-day cutoff)
+r.post("/:id/request-invoice", optionalAuth, async (req, res, next) => {
+  try {
+    const o = await findOrderByIdOrNo(req.params.id);
+    if (!o) throw new HttpError(404, "Order not found");
+
+    const effectiveToken = req.query.token || req.body?.token;
+    const access = checkOrderAccess(o, req.user, effectiveToken);
+    if (!access.allowed) {
+      throw new HttpError(403, "Access forbidden. Please sign in or use your secure order link.");
+    }
+
+    if (o.status !== "Delivered") {
+      throw new HttpError(400, `Invoice requests are only available for delivered orders. Current order status is "${o.status}".`);
+    }
+
+    const deliveredTime = getOrderDeliveryTimestamp(o);
+    const elapsed = deliveredTime ? Date.now() - deliveredTime.getTime() : 0;
+    if (deliveredTime && elapsed <= INVOICE_DIRECT_DOWNLOAD_WINDOW_MS) {
+      throw new HttpError(400, "Direct invoice download is still available for this order. You can download your invoice directly.");
+    }
+
+    if (o.invoiceRequest?.status === "pending") {
+      throw new HttpError(400, "An invoice request for this order is already pending review.");
+    }
+    if (o.invoiceRequest?.status === "fulfilled") {
+      throw new HttpError(400, "An invoice has already been sent for this order.");
+    }
+
+    const requester = req.user?.sub ? "customer" : "guest";
+    const updatedOrder = await Order.findOneAndUpdate(
+      {
+        _id: o._id,
+        status: "Delivered",
+        $or: [
+          { "invoiceRequest.status": { $exists: false } },
+          { "invoiceRequest.status": null },
+          { "invoiceRequest.status": { $nin: ["pending", "fulfilled"] } },
+        ],
+      },
+      {
+        $set: {
+          invoiceRequest: {
+            requestedAt: new Date(),
+            requestedBy: requester,
+            status: "pending",
+            adminNote: "",
+          },
+        },
+      },
+      { new: true }
+    );
+
+    if (!updatedOrder) {
+      throw new HttpError(400, "An invoice request for this order is already pending or has already been fulfilled.");
+    }
+
+    res.json({
+      ok: true,
+      message: "Invoice request submitted successfully. Our team will review and send your invoice shortly.",
+      order: access.isAdmin ? updatedOrder : sanitizeCustomerOrder(updatedOrder),
+    });
   } catch (e) {
     next(e);
   }

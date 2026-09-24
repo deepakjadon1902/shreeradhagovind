@@ -1,4 +1,5 @@
 import { Router } from "express";
+import crypto from "crypto";
 import mongoose from "mongoose";
 import { z } from "zod";
 import { Order } from "../models/Order";
@@ -13,6 +14,7 @@ import {
   dispatchOrderInvoiceEmailOnce,
   dispatchOrderDeliveredEmailOnce,
   dispatchOrderCancelledEmailOnce,
+  dispatchRequestedInvoiceEmail,
   tpl,
   formatOrderNumber,
 } from "../utils/email";
@@ -605,6 +607,167 @@ r.get("/orders/:id/invoice", async (req, res, next) => {
     res.setHeader("Content-Type", "application/pdf");
     res.setHeader("Content-Disposition", `inline; filename="Invoice-${orderNum}.pdf"`);
     res.send(pdfBuffer);
+  } catch (e) {
+    next(e);
+  }
+});
+
+export function normalizeIndianPhone(raw: unknown): { valid: boolean; digits: string; reason?: string } {
+  if (!raw || typeof raw !== "string") {
+    return { valid: false, digits: "", reason: "Phone number is missing" };
+  }
+  const rawDigits = raw.replace(/\D/g, "");
+  if (rawDigits.length === 10 && /^[6-9]/.test(rawDigits)) {
+    return { valid: true, digits: `91${rawDigits}` };
+  }
+  if (rawDigits.length === 12 && rawDigits.startsWith("91")) {
+    return { valid: true, digits: rawDigits };
+  }
+  return { valid: false, digits: "", reason: "Customer phone is not a valid 10-digit mobile number" };
+}
+
+export function buildInvoiceWhatsAppUrl(
+  order: any,
+  oneTimeDownloadUrl: string
+): { url?: string; disabledReason?: string } {
+  const phone = order.address?.phone || order.phone;
+  const phoneCheck = normalizeIndianPhone(phone);
+  if (!phoneCheck.valid) {
+    return { disabledReason: phoneCheck.reason };
+  }
+
+  const firstName = (order.address?.name || "Customer").trim().split(/\s+/)[0] || "Customer";
+  const orderNum = formatOrderNumber(order);
+  const invoiceNo = `INV-${orderNum}`;
+
+  const msg =
+    `🙏 Hare Krishna ${firstName},\n\n` +
+    `As requested, here is the official tax invoice for your order #${orderNum} (Invoice: ${invoiceNo}).\n\n` +
+    `Secure One-Time Download Link:\n${oneTimeDownloadUrl}\n\n` +
+    `Please note that this download link is single-use and valid for 48 hours.\n\n` +
+    `Thank you for shopping with Shri Radha Govind Store.\n\n` +
+    `Hare Krishna 🙏`;
+
+  return {
+    url: `https://api.whatsapp.com/send?phone=${phoneCheck.digits}&text=${encodeURIComponent(msg)}`,
+  };
+}
+
+const sendInvoiceSchema = z.object({
+  adminNote: z.string().trim().max(500).optional(),
+});
+
+// Admin sends invoice (manual fulfillment with 48h single-use token, email PDF, and WhatsApp link)
+r.post("/orders/:id/send-invoice", async (req, res, next) => {
+  try {
+    let o = null;
+    if (mongoose.isValidObjectId(req.params.id)) {
+      o = await Order.findById(req.params.id).populate("user", "name email");
+    }
+    if (!o && !isNaN(Number(req.params.id))) {
+      o = await Order.findOne({ orderNo: Number(req.params.id) }).populate("user", "name email");
+    }
+    if (!o) throw new HttpError(404, "Order not found");
+
+    if (o.status !== "Delivered") {
+      throw new HttpError(400, `Cannot send invoice for order with status "${o.status}". Only Delivered orders can be fulfilled.`);
+    }
+
+    const u: any = o.user;
+    const customerEmail = (o.customerEmail || u?.email || "").trim();
+    if (!customerEmail) {
+      throw new HttpError(400, "Cannot send invoice: order has no associated customer email address.");
+    }
+    const customerName = o.address?.name || u?.name || "Customer";
+    const orderNum = formatOrderNumber(o);
+    const invoiceNo = `INV-${orderNum}`;
+
+    const body = sendInvoiceSchema.parse(req.body || {});
+
+    // Generate secure 192-bit token and 48-hour expiration
+    const token = crypto.randomBytes(24).toString("hex");
+    const now = new Date();
+    const expiresAt = new Date(now.getTime() + 48 * 60 * 60 * 1000);
+
+    const PRODUCTION_DOMAIN = "https://www.shriradhagovindstore.com";
+    const guestParam = o.guestAccessToken ? `&token=${encodeURIComponent(o.guestAccessToken)}` : "";
+    const oneTimeDownloadUrl = `${PRODUCTION_DOMAIN}/orders/${orderNum}?invoiceToken=${token}${guestParam}`;
+
+    // Generate invoice PDF
+    const invoiceData: InvoiceData = {
+      orderId: String(o._id),
+      orderNo: o.orderNo ?? orderNum,
+      invoiceNo,
+      trackingId: o.trackingId ?? undefined,
+      courier: o.courier ?? null,
+      status: o.status,
+      customerName,
+      customerEmail,
+      businessName: o.businessName,
+      gstin: o.gstin,
+      needsGstInvoice: o.needsGstInvoice,
+      items: o.items as any,
+      subtotal: o.subtotal,
+      shipping: o.shipping,
+      total: o.total,
+      address: (o.billingAddress?.line1 ? o.billingAddress : o.address) as any,
+      payment: {
+        method: o.payment?.method ?? "cod",
+        status: o.payment?.status ?? "pending",
+        razorpayPaymentId: o.payment?.razorpayPaymentId ?? undefined,
+      },
+      createdAt: o.createdAt,
+    };
+
+    const pdfBuffer = await generateInvoicePDF(invoiceData);
+
+    // Dispatch email with invoice PDF attachment & secure one-time link
+    const emailResult = await dispatchRequestedInvoiceEmail({
+      to: customerEmail,
+      name: customerName,
+      orderNum,
+      invoiceNo,
+      oneTimeDownloadUrl,
+      expiresAt,
+      pdfBuffer,
+    });
+    if (!emailResult.success) {
+      throw new HttpError(500, `Failed to dispatch invoice email: ${emailResult.error || "Unknown error"}`);
+    }
+
+    // Atomically persist token and mark request as fulfilled
+    const adminIdentifier = req.user?.email || req.user?.sub || "admin";
+    const updatedOrder = await Order.findOneAndUpdate(
+      {
+        _id: o._id,
+        status: "Delivered",
+      },
+      {
+        $set: {
+          invoiceOneTimeToken: token,
+          invoiceOneTimeTokenExpiresAt: expiresAt,
+          invoiceOneTimeTokenUsedAt: null,
+          invoiceSentToCustomerAt: now,
+          "invoiceRequest.status": "fulfilled",
+          "invoiceRequest.processedAt": now,
+          "invoiceRequest.processedBy": adminIdentifier,
+          "invoiceRequest.adminNote": body.adminNote !== undefined ? body.adminNote : (o.invoiceRequest?.adminNote || ""),
+        },
+      },
+      { new: true }
+    );
+
+    const whatsApp = buildInvoiceWhatsAppUrl(o, oneTimeDownloadUrl);
+
+    res.json({
+      ok: true,
+      message: `Invoice successfully sent to ${customerEmail}.`,
+      order: updatedOrder,
+      oneTimeDownloadUrl,
+      expiresAt,
+      whatsAppUrl: whatsApp.url || null,
+      whatsAppDisabledReason: whatsApp.disabledReason || null,
+    });
   } catch (e) {
     next(e);
   }

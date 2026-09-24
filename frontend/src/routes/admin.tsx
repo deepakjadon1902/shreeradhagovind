@@ -74,6 +74,7 @@ import {
   ChevronRight,
   Info,
   Layers,
+  Send,
 } from "lucide-react";
 
 export const Route = createFileRoute("/admin")({
@@ -378,6 +379,7 @@ function AdminRoot() {
   const [viewUser, setViewUser] = useState<RegisteredUser | null>(null);
   const [orderSearch, setOrderSearch] = useState("");
   const [orderStatusFilter, setOrderStatusFilter] = useState<string>("all");
+  const [fulfillingInvoiceOrder, setFulfillingInvoiceOrder] = useState<Order | null>(null);
 
   useEffect(() => {
     if (adminAuthed) {
@@ -825,6 +827,36 @@ function AdminRoot() {
                     );
                   },
                 )}
+                {(() => {
+                  const pendingInvoiceCount = orders.filter((o) => o.invoiceRequest?.status === "pending").length;
+                  const active = orderStatusFilter === "invoice_requests";
+                  return (
+                    <button
+                      key="invoice_requests"
+                      onClick={() => setOrderStatusFilter("invoice_requests")}
+                      className={`h-9 px-3 rounded-lg text-xs font-semibold whitespace-nowrap transition border flex items-center gap-1.5 ${
+                        active
+                          ? "bg-amber-600 text-white border-amber-600 shadow-sm"
+                          : pendingInvoiceCount > 0
+                          ? "bg-amber-50 text-amber-900 border-amber-300 hover:bg-amber-100"
+                          : "bg-card text-muted-foreground border-border hover:border-primary/50 hover:text-foreground"
+                      }`}
+                    >
+                      <span>Invoice Requests</span>
+                      <span
+                        className={`px-1.5 py-0.5 rounded-full text-[10px] font-bold ${
+                          active
+                            ? "bg-white text-amber-900"
+                            : pendingInvoiceCount > 0
+                            ? "bg-amber-200 text-amber-900"
+                            : "bg-muted text-muted-foreground"
+                        }`}
+                      >
+                        {pendingInvoiceCount}
+                      </span>
+                    </button>
+                  );
+                })()}
               </div>
             </div>
 
@@ -833,7 +865,11 @@ function AdminRoot() {
               {(() => {
                 const q = orderSearch.trim().toLowerCase().replace(/^#/, "");
                 const filtered = (orders || []).filter((o) => {
-                  if (orderStatusFilter !== "all" && o.status !== orderStatusFilter) return false;
+                  if (orderStatusFilter === "invoice_requests") {
+                    if (o.invoiceRequest?.status !== "pending") return false;
+                  } else if (orderStatusFilter !== "all" && o.status !== orderStatusFilter) {
+                    return false;
+                  }
                   if (!q) return true;
                   const numStr = displayOrderNumber(o).toLowerCase();
                   const nameStr = (o.address?.name || "").toLowerCase();
@@ -887,6 +923,18 @@ function AdminRoot() {
                           >
                             {o.status || "Placed"}
                           </span>
+                          {o.invoiceRequest?.status === "pending" && (
+                            <span className="px-2 py-0.5 rounded-full text-xs font-semibold bg-amber-100 text-amber-800 border border-amber-300 inline-flex items-center gap-1 shadow-2xs">
+                              <AlertCircle className="h-3 w-3 text-amber-600" />
+                              <span>Invoice Requested</span>
+                            </span>
+                          )}
+                          {o.invoiceRequest?.status === "fulfilled" && (
+                            <span className="px-2 py-0.5 rounded-full text-xs font-semibold bg-teal-50 text-teal-800 border border-teal-200 inline-flex items-center gap-1 shadow-2xs">
+                              <CheckCircle2 className="h-3 w-3 text-teal-600" />
+                              <span>Invoice Sent</span>
+                            </span>
+                          )}
                           <span className="text-xs text-muted-foreground">
                             • Placed on {dateStr}
                           </span>
@@ -917,6 +965,17 @@ function AdminRoot() {
                         </div>
 
                         <div className="flex items-center gap-2">
+                          {o.invoiceRequest?.status === "pending" && (
+                            <button
+                              type="button"
+                              onClick={() => setFulfillingInvoiceOrder(o)}
+                              className="h-9 px-3.5 rounded-lg bg-amber-600 hover:bg-amber-700 text-white text-xs font-semibold transition inline-flex items-center gap-1.5 shadow-sm"
+                              title="Fulfill invoice request and dispatch to customer"
+                            >
+                              <Send className="h-3.5 w-3.5" />
+                              <span>Send Invoice</span>
+                            </button>
+                          )}
                           <WhatsAppCustomerButton order={o} template={settings.whatsappTemplate} variant="sm" />
                           <button
                             type="button"
@@ -1223,6 +1282,16 @@ function AdminRoot() {
             onSave={(patch) => {
               updateOrderTracking(editingOrder.id, patch);
               setEditingOrder(null);
+            }}
+            onSendInvoice={(o) => setFulfillingInvoiceOrder(o)}
+          />
+        )}
+        {fulfillingInvoiceOrder && (
+          <SendInvoiceDialog
+            order={fulfillingInvoiceOrder}
+            onClose={() => setFulfillingInvoiceOrder(null)}
+            onSuccess={() => {
+              refreshOrders().catch(() => {});
             }}
           />
         )}
@@ -3527,11 +3596,228 @@ function SettingsPanel({
   );
 }
 
+function SendInvoiceDialog({
+  order,
+  onClose,
+  onSuccess,
+}: {
+  order: Order;
+  onClose: () => void;
+  onSuccess: () => void;
+}) {
+  const [adminNote, setAdminNote] = useState(order.invoiceRequest?.adminNote || "");
+  const [sending, setSending] = useState(false);
+  const [result, setResult] = useState<{
+    oneTimeDownloadUrl: string;
+    expiresAt: string;
+    whatsAppUrl?: string | null;
+    whatsAppDisabledReason?: string | null;
+    message: string;
+  } | null>(null);
+
+  const customerName = order.address?.name || "Customer";
+  const customerEmail = order.customerEmail || "";
+  const orderNum = displayOrderNumber(order);
+
+  const handleSend = async () => {
+    setSending(true);
+    try {
+      const res = await api<{
+        ok: boolean;
+        message: string;
+        order: any;
+        oneTimeDownloadUrl: string;
+        expiresAt: string;
+        whatsAppUrl?: string | null;
+        whatsAppDisabledReason?: string | null;
+      }>(`/admin/orders/${order.id}/send-invoice`, {
+        method: "POST",
+        body: { adminNote: adminNote.trim() },
+      });
+      if (res?.ok) {
+        toast.success(res.message || "Invoice sent successfully");
+        setResult({
+          oneTimeDownloadUrl: res.oneTimeDownloadUrl,
+          expiresAt: res.expiresAt,
+          whatsAppUrl: res.whatsAppUrl,
+          whatsAppDisabledReason: res.whatsAppDisabledReason,
+          message: res.message,
+        });
+        onSuccess();
+      }
+    } catch (err: any) {
+      toast.error(err?.message || "Failed to send invoice");
+    } finally {
+      setSending(false);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 bg-black/60 z-[70] grid place-items-center p-4">
+      <div
+        className="bg-white text-foreground rounded-2xl border border-border p-6 w-full max-w-lg shadow-2xl space-y-5 animate-in fade-in zoom-in-95 duration-150"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="flex items-center justify-between border-b pb-3">
+          <div className="flex items-center gap-2 text-primary">
+            <FileText className="h-5 w-5" />
+            <h3 className="font-bold text-lg text-foreground">Fulfill Invoice Request</h3>
+          </div>
+          <button
+            onClick={onClose}
+            className="p-1.5 rounded-lg hover:bg-muted text-muted-foreground hover:text-foreground"
+          >
+            <XIcon className="h-4 w-4" />
+          </button>
+        </div>
+
+        {!result ? (
+          <div className="space-y-4">
+            <div className="rounded-xl border border-border bg-stone-50/70 p-3.5 space-y-1.5 text-xs">
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">Order:</span>
+                <span className="font-bold text-foreground">#{orderNum}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">Customer:</span>
+                <span className="font-semibold text-foreground">{customerName}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">Customer Email:</span>
+                <span className="font-semibold text-primary">{customerEmail || "Not provided"}</span>
+              </div>
+              {order.address?.phone && (
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">Customer Phone:</span>
+                  <span className="font-semibold text-foreground">{order.address.phone}</span>
+                </div>
+              )}
+            </div>
+
+            <p className="text-xs text-muted-foreground leading-relaxed">
+              Clicking <b>Confirm & Send Invoice</b> will automatically generate the official PDF tax invoice, attach it to an email sent to <b>{customerEmail}</b>, generate a secure <b>48-hour single-use website download link</b>, and prepare a <b>pre-filled WhatsApp message</b>.
+            </p>
+
+            <div>
+              <label className="text-xs font-semibold text-foreground block mb-1.5">
+                Admin Note / Audit Record (Optional)
+              </label>
+              <textarea
+                value={adminNote}
+                onChange={(e) => setAdminNote(e.target.value)}
+                rows={2}
+                placeholder="e.g. Sent tax invoice upon customer request..."
+                className="w-full rounded-lg border border-border p-2.5 text-xs bg-background focus:outline-none focus:ring-2 focus:ring-primary/30"
+              />
+            </div>
+
+            <div className="flex justify-end gap-2.5 pt-2 border-t">
+              <button
+                type="button"
+                onClick={onClose}
+                disabled={sending}
+                className="px-4 py-2 rounded-xl border border-border text-xs font-semibold hover:bg-muted transition"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleSend}
+                disabled={sending || !customerEmail}
+                className="px-5 py-2 rounded-xl bg-primary hover:bg-primary/90 text-primary-foreground text-xs font-semibold inline-flex items-center gap-2 transition shadow-sm disabled:opacity-50"
+              >
+                {sending ? (
+                  <RefreshCw className="h-3.5 w-3.5 animate-spin" />
+                ) : (
+                  <Send className="h-3.5 w-3.5" />
+                )}
+                {sending ? "Sending Invoice..." : "Confirm & Send Invoice"}
+              </button>
+            </div>
+          </div>
+        ) : (
+          <div className="space-y-4">
+            <div className="rounded-xl border border-emerald-200 bg-emerald-50/80 p-4 text-emerald-950 flex items-start gap-3">
+              <CheckCircle2 className="h-5 w-5 text-emerald-600 shrink-0 mt-0.5" />
+              <div className="space-y-1 text-xs">
+                <p className="font-bold text-emerald-900 text-sm">Invoice Successfully Dispatched!</p>
+                <p className="text-emerald-800">
+                  The official tax invoice PDF was attached and emailed to <b>{customerEmail}</b>.
+                </p>
+                <p className="text-emerald-700 text-[11px]">
+                  Valid for 48 hours until: {new Date(result.expiresAt).toLocaleString("en-IN", { dateStyle: "medium", timeStyle: "short" })}
+                </p>
+              </div>
+            </div>
+
+            <div className="space-y-1.5">
+              <label className="text-xs font-semibold text-foreground block">
+                Single-Use Website Download Link
+              </label>
+              <div className="flex items-center gap-2">
+                <input
+                  readOnly
+                  value={result.oneTimeDownloadUrl}
+                  className="flex-1 rounded-lg border border-border p-2 text-xs font-mono bg-muted/30 text-foreground truncate"
+                />
+                <button
+                  type="button"
+                  onClick={() => {
+                    navigator.clipboard.writeText(result.oneTimeDownloadUrl);
+                    toast.success("Download link copied to clipboard");
+                  }}
+                  className="px-3 py-2 rounded-lg border border-border bg-card text-xs font-semibold hover:bg-muted text-foreground transition inline-flex items-center gap-1.5 shrink-0 shadow-2xs"
+                >
+                  <Copy className="h-3.5 w-3.5" />
+                  <span>Copy</span>
+                </button>
+              </div>
+              <p className="text-[11px] text-muted-foreground">
+                This link allows one-time invoice download directly on the website without re-authentication.
+              </p>
+            </div>
+
+            <div className="border-t pt-3 flex flex-col sm:flex-row items-center justify-between gap-3">
+              {result.whatsAppUrl ? (
+                <a
+                  href={result.whatsAppUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="w-full sm:w-auto px-4 py-2.5 rounded-xl border border-emerald-600/30 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold inline-flex items-center justify-center gap-2 transition shadow-sm"
+                >
+                  <MessageCircle className="h-4 w-4" />
+                  <span>Send via WhatsApp</span>
+                </a>
+              ) : (
+                <span
+                  title={result.whatsAppDisabledReason || "Phone number not available"}
+                  className="text-xs text-muted-foreground/70 italic"
+                >
+                  WhatsApp link unavailable ({result.whatsAppDisabledReason || "No phone"})
+                </span>
+              )}
+
+              <button
+                type="button"
+                onClick={onClose}
+                className="w-full sm:w-auto px-5 py-2.5 rounded-xl bg-stone-900 hover:bg-stone-800 text-white text-xs font-semibold transition shadow-sm"
+              >
+                Done
+              </button>
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 function OrderManager({
   order: initialOrder,
   fetchEvents,
   onClose,
   onSave,
+  onSendInvoice,
 }: {
   order: Order;
   fetchEvents?: (id: string) => Promise<{ events: CourierEvent[]; order: Order } | null>;
@@ -3544,6 +3830,7 @@ function OrderManager({
     holdReason?: string;
     note?: string;
   }) => void;
+  onSendInvoice?: (order: Order) => void;
 }) {
   const { settings } = useStore();
   const [order, setOrder] = useState<Order>(initialOrder);
@@ -3869,6 +4156,38 @@ function OrderManager({
             </button>
           </div>
         </div>
+
+        {/* ---- Invoice Request Alert Banner ---- */}
+        {order.invoiceRequest?.status === "pending" && (
+          <div className="rounded-xl border border-amber-300 bg-amber-50 p-4 text-amber-950 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-sm">
+            <div className="flex items-start gap-3">
+              <FileText className="h-5 w-5 text-amber-600 shrink-0 mt-0.5" />
+              <div>
+                <p className="font-bold text-sm text-amber-900 flex items-center gap-2">
+                  <span>Customer Requested Tax Invoice</span>
+                  {order.invoiceRequest.requestedAt && (
+                    <span className="text-xs font-normal text-amber-700">
+                      (requested on {fmt(order.invoiceRequest.requestedAt)})
+                    </span>
+                  )}
+                </p>
+                <p className="text-xs text-amber-800 mt-0.5">
+                  Direct 7-day post-delivery download has expired. Customer has requested an official invoice.
+                </p>
+              </div>
+            </div>
+            {onSendInvoice && (
+              <button
+                type="button"
+                onClick={() => onSendInvoice(order)}
+                className="px-4 py-2 rounded-lg bg-amber-600 hover:bg-amber-700 text-white text-xs font-semibold transition shadow-sm shrink-0 inline-flex items-center gap-1.5"
+              >
+                <Send className="w-3.5 h-3.5" />
+                <span>Send Invoice Now</span>
+              </button>
+            )}
+          </div>
+        )}
 
         {/* ---- Hold Alert Banner ---- */}
         {(status === "Hold" || order.status === "Hold") && (
@@ -4551,14 +4870,26 @@ function OrderManager({
           </p>
 
           <div className="flex flex-wrap gap-3 justify-between items-center">
-            <button
-              type="button"
-              onClick={() => downloadOrderInvoicePdf(order)}
-              className="h-11 px-5 rounded-xl border border-border text-xs font-semibold hover:bg-muted text-foreground transition inline-flex items-center gap-2"
-            >
-              <Download className="h-4 w-4 text-primary" />
-              <span>Download Invoice (PDF)</span>
-            </button>
+            <div className="flex flex-wrap items-center gap-2">
+              <button
+                type="button"
+                onClick={() => downloadOrderInvoicePdf(order)}
+                className="h-11 px-5 rounded-xl border border-border text-xs font-semibold hover:bg-muted text-foreground transition inline-flex items-center gap-2"
+              >
+                <Download className="h-4 w-4 text-primary" />
+                <span>Download Invoice (PDF)</span>
+              </button>
+              {order.invoiceRequest?.status === "pending" && onSendInvoice && (
+                <button
+                  type="button"
+                  onClick={() => onSendInvoice(order)}
+                  className="h-11 px-5 rounded-xl bg-amber-600 hover:bg-amber-700 text-white text-xs font-semibold transition inline-flex items-center gap-2 shadow-sm"
+                >
+                  <Send className="h-4 w-4" />
+                  <span>Send Invoice to Customer</span>
+                </button>
+              )}
+            </div>
 
             <div className="flex items-center gap-3">
               <button

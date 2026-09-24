@@ -109,6 +109,15 @@ export type Order = {
   cancelledBy?: "customer" | "admin" | "system" | null;
   cancelledAt?: string;
   deliveredAt?: string | null;
+  invoiceRequest?: {
+    requestedAt?: string | null;
+    requestedBy?: "customer" | "guest" | null;
+    status?: "pending" | "fulfilled" | null;
+    adminNote?: string;
+    processedAt?: string | null;
+    processedBy?: string | null;
+  } | null;
+  invoiceSentToCustomerAt?: string | null;
   guestAccessToken?: string;
   courierTrackingData?: NormalizedTrackingData | null;
   courierTrackingLastFetchedAt?: string | null;

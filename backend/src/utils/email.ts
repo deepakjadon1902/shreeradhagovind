@@ -797,4 +797,86 @@ export const tpl = {
       `),
     };
   },
+
+  requestedInvoice: (
+    name: string,
+    orderNum: string,
+    invoiceNo: string,
+    oneTimeDownloadUrl: string,
+    expiresAtFormatted: string
+  ) => ({
+    subject: `Tax Invoice ${invoiceNo} for Order #${orderNum} - Shri Radha Govind Store`,
+    html: shell(`
+      <h2 style="margin:0 0 6px">Hare Krishna, ${name} 🙏</h2>
+      <p style="margin:0 0 12px;color:#555">
+        Here is the official tax invoice you requested for your order <b>#${orderNum}</b> (Invoice: <b>${invoiceNo}</b>).
+      </p>
+
+      <div style="margin:16px 0;padding:16px;background:#f0fdfa;border:1px solid #ccfbf1;border-radius:10px">
+        <div style="font-size:12px;color:${ACCENT};letter-spacing:.1em;text-transform:uppercase;font-weight:700">Invoice Information</div>
+        <div style="margin-top:6px;font-size:14px;color:#333">Order Number: <b>#${orderNum}</b></div>
+        <div style="margin-top:4px;font-size:14px;color:#333">Invoice Number: <b>${invoiceNo}</b></div>
+        <div style="margin-top:6px;font-size:13px;color:#555">The official PDF invoice has been attached directly to this email.</div>
+      </div>
+
+      <div style="margin:20px 0;padding:16px;background:#fffbeb;border:1px solid #fef3c7;border-radius:10px">
+        <div style="font-size:13px;font-weight:700;color:#b45309">One-Time Secure Website Download</div>
+        <p style="margin:6px 0 12px;font-size:13px;color:#78350f;line-height:1.5">
+          If you prefer downloading your invoice directly through our website, you may use the secure link below.
+          <br/><b>Note:</b> This link is single-use and will expire on <b>${expiresAtFormatted}</b> (48 hours from issuance).
+        </p>
+        <div style="text-align:center;margin:12px 0 6px">
+          <a href="${oneTimeDownloadUrl}"
+            style="display:inline-block;background:${ACCENT};color:#ffffff;padding:10px 22px;border-radius:999px;text-decoration:none;font-size:14px;font-weight:600">
+            Download Invoice (Single-Use) &rarr;
+          </a>
+        </div>
+      </div>
+
+      <p style="font-size:13px;color:#666;line-height:1.5">
+        If you have any questions or need further seva assistance, please contact us at <a href="mailto:support@shriradhagovindstore.com" style="color:${ACCENT};text-decoration:none">support@shriradhagovindstore.com</a>.
+      </p>
+    `),
+  }),
 };
+
+export async function dispatchRequestedInvoiceEmail(opts: {
+  to: string;
+  name: string;
+  orderNum: string;
+  invoiceNo: string;
+  oneTimeDownloadUrl: string;
+  expiresAt: Date;
+  pdfBuffer: Buffer;
+}): Promise<{ success: boolean; error?: string; skipped?: boolean }> {
+  try {
+    const expiresAtFormatted = opts.expiresAt.toLocaleString("en-IN", {
+      timeZone: "Asia/Kolkata",
+      dateStyle: "medium",
+      timeStyle: "short",
+    });
+    const built = tpl.requestedInvoice(
+      opts.name,
+      opts.orderNum,
+      opts.invoiceNo,
+      opts.oneTimeDownloadUrl,
+      expiresAtFormatted
+    );
+    const fname = `Invoice-${opts.orderNum}.pdf`;
+    const attachments: EmailAttachment[] = [{ filename: fname, content: opts.pdfBuffer }];
+
+    const res = await sendEmail({
+      to: opts.to,
+      bcc: SUPPORT_EMAIL_BCC,
+      subject: built.subject,
+      html: built.html,
+      attachments,
+    });
+    if (res && (res as any).error) {
+      return { success: false, error: String((res as any).error) };
+    }
+    return { success: true, skipped: Boolean((res as any)?.skipped) };
+  } catch (err: any) {
+    return { success: false, error: err?.message || String(err) };
+  }
+}

@@ -33,11 +33,12 @@ import { api, isApiEnabled, getToken, API_URL } from "@/lib/api";
 import { slugify } from "@/lib/seo";
 import { toast } from "sonner";
 
-type Search = { token?: string };
+type Search = { token?: string; invoiceToken?: string };
 
 export const Route = createFileRoute("/orders/$id")({
   validateSearch: (s: Record<string, unknown>): Search => ({
     token: typeof s.token === "string" ? s.token : undefined,
+    invoiceToken: typeof s.invoiceToken === "string" ? s.invoiceToken : undefined,
   }),
   component: OrderDetail,
   head: () => ({
@@ -74,6 +75,7 @@ function OrderDetail() {
   const [cancelReason, setCancelReason] = useState("Changed my mind");
   const [customCancelReason, setCustomCancelReason] = useState("");
   const [cancellingOrder, setCancellingOrder] = useState(false);
+  const [requestingInvoice, setRequestingInvoice] = useState(false);
 
   const submitProductReview = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -158,6 +160,9 @@ function OrderDetail() {
           cancellationReason: o.cancellationReason,
           cancelledBy: o.cancelledBy,
           cancelledAt: o.cancelledAt,
+          deliveredAt: o.deliveredAt,
+          invoiceRequest: o.invoiceRequest,
+          invoiceSentToCustomerAt: o.invoiceSentToCustomerAt,
           statusHistory: o.statusHistory,
           courierTrackingData: o.courierTrackingData || res?.tracking || null,
           createdAt: new Date(o.createdAt).getTime(),
@@ -210,19 +215,22 @@ function OrderDetail() {
       setDownloadingInvoice(true);
       const token = getToken();
       const guestToken = search.token || (order as any).guestAccessToken;
-      const queryParam = guestToken ? `?token=${encodeURIComponent(guestToken)}` : "";
+      const queryParams = new URLSearchParams();
+      if (guestToken) queryParams.set("token", guestToken);
+      if (search.invoiceToken) queryParams.set("invoiceToken", search.invoiceToken);
+      const queryStr = queryParams.toString() ? `?${queryParams.toString()}` : "";
       const headers: Record<string, string> = {};
       if (token) headers.Authorization = `Bearer ${token}`;
 
       const targetId = order.id || id;
-      const res = await fetch(`${API_URL}/orders/${targetId}/invoice${queryParam}`, {
+      const res = await fetch(`${API_URL}/orders/${targetId}/invoice${queryStr}`, {
         headers,
       });
 
       if (!res.ok) {
         if (res.status === 410) {
           const json = await res.json().catch(() => null);
-          throw new Error(json?.message || json?.error || "The 7-day direct invoice download window for this order has expired.");
+          throw new Error(json?.message || json?.error || "This invoice download link has expired or has already been used.");
         }
         if (res.status === 400) {
           const json = await res.json().catch(() => null);
@@ -258,6 +266,27 @@ function OrderDetail() {
       toast.error(err?.message || "Failed to download invoice");
     } finally {
       setDownloadingInvoice(false);
+    }
+  };
+
+  const handleRequestInvoice = async () => {
+    if (!order) return;
+    try {
+      setRequestingInvoice(true);
+      const guestToken = search.token || (order as any).guestAccessToken;
+      const targetId = order.id || id;
+      const res = await api<{ ok: boolean; message?: string; order?: any }>(`/orders/${targetId}/request-invoice`, {
+        method: "POST",
+        body: {
+          token: guestToken || undefined,
+        },
+      });
+      toast.success(res?.message || "Invoice request submitted successfully. Our team will review and send your invoice shortly.");
+      await fetchLiveOrder();
+    } catch (err: any) {
+      toast.error(err?.message || "Failed to request invoice");
+    } finally {
+      setRequestingInvoice(false);
     }
   };
 
@@ -346,9 +375,17 @@ function OrderDetail() {
       )
   );
 
+  const hasOneTimeInvoiceToken = Boolean(search.invoiceToken);
+
   const canDownloadInvoiceDirectly = Boolean(
     isPreDeliveredEligible || (isDelivered && !isDeliveryExpired)
   );
+
+  const canDownloadWithOneTimeToken = Boolean(
+    isDelivered && isDeliveryExpired && hasOneTimeInvoiceToken
+  );
+
+  const invoiceRequestStatus = order.invoiceRequest?.status;
 
   // Derived courier tracking data — prefer live state over cached order data
   const tracking: NormalizedTrackingData | null =
@@ -402,7 +439,7 @@ function OrderDetail() {
                 Cancel Order
               </button>
             )}
-            {isApiEnabled() && canDownloadInvoiceDirectly && (
+            {isApiEnabled() && (canDownloadInvoiceDirectly || canDownloadWithOneTimeToken) && (
               <button
                 type="button"
                 onClick={handleDownloadInvoice}
@@ -414,17 +451,46 @@ function OrderDetail() {
                 ) : (
                   <FileText className="w-4 h-4 text-[#166F77]" />
                 )}
-                {downloadingInvoice ? "Downloading..." : "Download Invoice PDF"}
+                {downloadingInvoice
+                  ? "Downloading..."
+                  : canDownloadWithOneTimeToken
+                  ? "Download Requested Invoice"
+                  : "Download Invoice PDF"}
               </button>
             )}
-            {isApiEnabled() && isDelivered && isDeliveryExpired && (
-              <div
-                className="h-11 sm:h-10 px-4 rounded-xl sm:rounded-full border border-stone-200 bg-stone-100/80 text-stone-500 text-xs sm:text-sm font-medium inline-flex items-center justify-center gap-1.5 shadow-2xs select-none w-full sm:w-auto"
-                title="Direct invoice download is available for 7 days after delivery."
-              >
-                <FileText className="w-4 h-4 text-stone-400" />
-                <span>Invoice download window expired</span>
-              </div>
+            {isApiEnabled() && isDelivered && isDeliveryExpired && !hasOneTimeInvoiceToken && (
+              invoiceRequestStatus === "pending" ? (
+                <div
+                  className="h-11 sm:h-10 px-4 rounded-xl sm:rounded-full border border-amber-300 bg-amber-50 text-amber-800 text-xs sm:text-sm font-semibold inline-flex items-center justify-center gap-1.5 shadow-2xs select-none w-full sm:w-auto"
+                  title="Your invoice request is currently under review by our support team."
+                >
+                  <Clock className="w-4 h-4 text-amber-600" />
+                  <span>Invoice Request Pending</span>
+                </div>
+              ) : invoiceRequestStatus === "fulfilled" ? (
+                <div
+                  className="h-11 sm:h-10 px-4 rounded-xl sm:rounded-full border border-emerald-300 bg-emerald-50 text-emerald-800 text-xs sm:text-sm font-semibold inline-flex items-center justify-center gap-1.5 shadow-2xs select-none w-full sm:w-auto"
+                  title="The invoice has been sent to your email with a single-use download link."
+                >
+                  <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+                  <span>Invoice Sent to Email</span>
+                </div>
+              ) : (
+                <button
+                  type="button"
+                  onClick={handleRequestInvoice}
+                  disabled={requestingInvoice}
+                  className="h-11 sm:h-10 px-4 rounded-xl sm:rounded-full border border-stone-300 hover:border-[#166F77] bg-white hover:bg-stone-50 text-stone-800 hover:text-[#166F77] text-xs sm:text-sm font-semibold inline-flex items-center justify-center gap-2 transition shadow-xs disabled:opacity-60 cursor-pointer active:scale-[0.98] w-full sm:w-auto"
+                  title="Direct 7-day download has expired. Request an invoice to receive it by email and WhatsApp."
+                >
+                  {requestingInvoice ? (
+                    <RefreshCw className="w-4 h-4 animate-spin text-[#166F77]" />
+                  ) : (
+                    <FileText className="w-4 h-4 text-[#166F77]" />
+                  )}
+                  {requestingInvoice ? "Requesting..." : "Request Invoice"}
+                </button>
+              )
             )}
             <Link
               to="/track"
