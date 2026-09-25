@@ -4,11 +4,14 @@ import {
   Link,
   createRootRouteWithContext,
   useRouter,
+  useRouterState,
   HeadContent,
   Scripts,
 } from "@tanstack/react-router";
+import { useEffect, useRef } from "react";
 import { Toaster } from "sonner";
 import { StoreProvider } from "@/lib/store";
+import { trackPageView } from "@/lib/analytics";
 import { DEFAULT_DESCRIPTION, DEFAULT_IMAGE, DEFAULT_TITLE, SITE_URL, STORE_NAME } from "@/lib/seo";
 import { AiShoppingAssistantLauncher } from "@/components/AiAssistant/AiShoppingAssistantLauncher";
 
@@ -104,11 +107,28 @@ function RootShell({ children }: { children: React.ReactNode }) {
   );
 }
 
+function AnalyticsPageViewTracker() {
+  const pathname = useRouterState({
+    select: (state) => state.location.pathname,
+  });
+  const lastPathRef = useRef<string>("");
+
+  useEffect(() => {
+    if (pathname && pathname !== lastPathRef.current) {
+      lastPathRef.current = pathname;
+      trackPageView(pathname);
+    }
+  }, [pathname]);
+
+  return null;
+}
+
 function RootComponent() {
   const { queryClient } = Route.useRouteContext();
   return (
     <QueryClientProvider client={queryClient}>
       <StoreProvider>
+        <AnalyticsPageViewTracker />
         <Outlet />
         <AiShoppingAssistantLauncher />
         <Toaster position="top-center" richColors />

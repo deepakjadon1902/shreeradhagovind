@@ -32,6 +32,7 @@ import {
 import { computeOrderFinances } from "./admin.routes";
 import { env } from "../config/env";
 import { decrementOrderStockSafely } from "../services/inventory.service";
+import { recordDailyOrder } from "../models/DailyAnalytics";
 
 const r = Router();
 const FIRST_ORDER_NO = 5000;
@@ -647,6 +648,23 @@ const createSchema = z.object({
   }),
   sessionId: z.string().optional(),
   recoveryToken: z.string().optional(),
+  analytics: z
+    .object({
+      visitorId: z.string().max(100).optional(),
+      sessionId: z.string().max(100).optional(),
+      device: z.enum(["mobile", "desktop", "tablet", "unknown"]).optional(),
+      referrer: z.string().max(1000).optional(),
+      utm: z
+        .object({
+          source: z.string().max(100).optional(),
+          medium: z.string().max(100).optional(),
+          campaign: z.string().max(100).optional(),
+          term: z.string().max(100).optional(),
+          content: z.string().max(100).optional(),
+        })
+        .optional(),
+    })
+    .optional(),
 });
 
 r.post("/", optionalAuth, async (req, res, next) => {
@@ -1026,6 +1044,21 @@ r.post("/", optionalAuth, async (req, res, next) => {
                 : "Order placed (Cash on Delivery)",
           },
         ],
+        analytics: body.analytics
+          ? {
+              visitorId: body.analytics.visitorId || "",
+              sessionId: body.analytics.sessionId || "",
+              device: body.analytics.device || "unknown",
+              referrer: body.analytics.referrer || "",
+              utm: {
+                source: body.analytics.utm?.source || "",
+                medium: body.analytics.utm?.medium || "",
+                campaign: body.analytics.utm?.campaign || "",
+                term: body.analytics.utm?.term || "",
+                content: body.analytics.utm?.content || "",
+              },
+            }
+          : undefined,
       });
     } catch (orderCreateErr) {
       // Compensating rollback: if Order.create fails, restore all decremented items immediately
@@ -1107,6 +1140,14 @@ r.post("/", optionalAuth, async (req, res, next) => {
       // Non-blocking: session reconciliation must never impede order placement
       // eslint-disable-next-line no-console
       console.error("[orders] Error reconciling checkout session:", sessionErr);
+    }
+
+    // Non-blocking: update daily analytics with order placement metrics
+    try {
+      await recordDailyOrder(order);
+    } catch (analyticsErr) {
+      // eslint-disable-next-line no-console
+      console.error("[orders] Error recording daily order analytics:", analyticsErr);
     }
 
     res.status(201).json({

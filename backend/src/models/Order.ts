@@ -141,11 +141,30 @@ const orderSchema = new Schema(
         holdReason: { type: String, default: "" },
       },
     ],
+    analytics: {
+      visitorId: { type: String, default: "", maxlength: 100 },
+      sessionId: { type: String, default: "", maxlength: 100 },
+      device: {
+        type: String,
+        enum: ["mobile", "desktop", "tablet", "unknown"],
+        default: "unknown",
+      },
+      referrer: { type: String, default: "", maxlength: 1000 },
+      utm: {
+        source: { type: String, default: "", maxlength: 100 },
+        medium: { type: String, default: "", maxlength: 100 },
+        campaign: { type: String, default: "", maxlength: 100 },
+        term: { type: String, default: "", maxlength: 100 },
+        content: { type: String, default: "", maxlength: 100 },
+      },
+    },
   },
   { timestamps: true }
 );
 
 orderSchema.index({ "payment.razorpayOrderId": 1 }, { sparse: true });
 orderSchema.index({ "payment.razorpayPaymentId": 1 }, { sparse: true });
+orderSchema.index({ "analytics.utm.source": 1 }, { sparse: true });
+orderSchema.index({ "analytics.device": 1 }, { sparse: true });
 
 export const Order = model("Order", orderSchema);

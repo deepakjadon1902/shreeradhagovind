@@ -23,6 +23,7 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { api, isApiEnabled, getToken } from "@/lib/api";
+import { trackCheckoutStart } from "@/lib/analytics";
 
 type CheckoutSearch = {
   session?: string;
@@ -143,6 +144,12 @@ function Checkout() {
   const isSubmittingRef = useRef(false);
   const lastCapturedHashRef = useRef<string>("");
   const captureTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
+  useEffect(() => {
+    if (cart.length > 0) {
+      trackCheckoutStart();
+    }
+  }, []);
 
   const items = cart
     .map((c) => ({ ...c, product: adminProducts.find((p) => p.id === c.productId)! }))

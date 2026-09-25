@@ -19,6 +19,7 @@ import { getCourierTrackingUrl } from "@/lib/courier";
 import { SimpleRichEditor, FormattedText } from "@/components/SimpleRichEditor";
 import { DeliveryOperationsView } from "@/components/DeliveryOperationsView";
 import { InventoryManager } from "@/components/InventoryManager";
+import { ConversionAnalyticsPanel } from "@/components/admin/ConversionAnalyticsPanel";
 import { slugify } from "@/lib/seo";
 import { toast } from "sonner";
 import {
@@ -100,6 +101,7 @@ type Tab =
   | "users"
   | "finance"
   | "payments"
+  | "analytics"
   | "reviews"
   | "settings";
 
@@ -560,6 +562,9 @@ function AdminRoot() {
               </NavBtn>
               <NavBtn active={tab === "payments"} onClick={() => setTab("payments")} icon={CreditCard}>
                 Payments
+              </NavBtn>
+              <NavBtn active={tab === "analytics"} onClick={() => setTab("analytics")} icon={TrendingUp}>
+                Conversion Analytics
               </NavBtn>
             </div>
           </div>
@@ -1280,6 +1285,7 @@ function AdminRoot() {
             onNavigateToOrders={() => setTab("orders")}
           />
         )}
+        {tab === "analytics" && <ConversionAnalyticsPanel />}
         {tab === "reviews" && <ReviewsManager />}
 
         {editingOrder && (

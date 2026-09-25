@@ -11,6 +11,13 @@ import { DEFAULT_CATEGORIES, DEFAULT_CATEGORY_TREE, type Product } from "./produ
 import { toast } from "sonner";
 import { api, isApiEnabled, setToken, getToken } from "./api";
 import { slugify } from "./seo";
+import {
+  trackAddToCart,
+  getVisitorId,
+  getSessionId,
+  getDeviceCategory,
+  getCampaignContext,
+} from "./analytics";
 
 export type CartItem = { productId: string; qty: number };
 export type Courier = "Ekart" | "DTDC" | "Shree Maruti" | "India Post" | "Delhivery" | "Bluedart";
@@ -1205,10 +1212,15 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     if (apiEnabled) {
       try {
         const orderEmail = o.customerEmail || (o.address as any)?.email;
+        const visitorId = getVisitorId();
+        const sessionId = o.sessionId || getSessionId();
+        const device = getDeviceCategory();
+        const campaign = getCampaignContext();
+
         const r = await api<{ order: any; token?: string; user?: any; isNewAccount?: boolean }>("/orders", {
           method: "POST",
           body: {
-            sessionId: o.sessionId,
+            sessionId,
             email: orderEmail,
             createAccount: o.createAccount,
             needsGstInvoice: o.needsGstInvoice,
@@ -1223,6 +1235,19 @@ export function StoreProvider({ children }: { children: ReactNode }) {
               razorpayOrderId: o.payment.razorpayOrderId,
               razorpayPaymentId: o.payment.razorpayPaymentId,
               razorpaySignature: o.payment.razorpaySignature,
+            },
+            analytics: {
+              visitorId,
+              sessionId,
+              device,
+              referrer: campaign.referrer || "",
+              utm: {
+                source: campaign.source || "",
+                medium: campaign.medium || "",
+                campaign: campaign.campaign || "",
+                term: campaign.term || "",
+                content: campaign.content || "",
+              },
             },
           },
         });
@@ -1648,6 +1673,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         if (e) return c.map((i) => (i.productId === productId ? { ...i, qty: nextQty } : i));
         return [...c, { productId, qty: nextQty }];
       });
+      trackAddToCart(productId, requestedQty);
       toast.success("Added to cart");
     },
     buyNow: (productId, qty = 1) => {
@@ -1656,7 +1682,9 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         toast.error("Product is out of stock");
         return;
       }
-      setCart([{ productId, qty: Math.max(1, Math.min(product.stock, 20, qty)) }]);
+      const actualQty = Math.max(1, Math.min(product.stock, 20, qty));
+      setCart([{ productId, qty: actualQty }]);
+      trackAddToCart(productId, actualQty);
     },
     updateQty: (productId, qty) =>
       setCart((c) => {

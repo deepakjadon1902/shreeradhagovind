@@ -32,6 +32,7 @@ import { cleanMetaText, pageSeo, slugify, SITE_URL, DEFAULT_IMAGE, absoluteUrl }
 import { FormattedText } from "@/components/SimpleRichEditor";
 import { toast } from "sonner";
 import { buildProductWhatsAppUrl } from "@/lib/whatsapp";
+import { trackProductView } from "@/lib/analytics";
 
 function normalizeProduct(value: Record<string, unknown>): Product {
   return {
@@ -318,6 +319,12 @@ function ProductDetail() {
       setWaitlistPhone(user.phone);
     }
   }, [user]);
+
+  useEffect(() => {
+    if (product?.id) {
+      trackProductView(product.id);
+    }
+  }, [product?.id]);
 
   const handleJoinWaitlist = async (e: React.FormEvent) => {
     e.preventDefault();
