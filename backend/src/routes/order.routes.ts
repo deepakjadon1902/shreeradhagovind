@@ -31,6 +31,7 @@ import {
 } from "../services/cancellation.service";
 import { computeOrderFinances } from "./admin.routes";
 import { env } from "../config/env";
+import { decrementOrderStockSafely } from "../services/inventory.service";
 
 const r = Router();
 const FIRST_ORDER_NO = 5000;
@@ -945,90 +946,95 @@ r.post("/", optionalAuth, async (req, res, next) => {
     const totalExpense = initialFinances.isCostAvailable ? initialFinances.totalExpense : undefined;
     const netProfit = initialFinances.isCostAvailable ? initialFinances.netProfit : undefined;
 
-    const stockUpdate = await Product.bulkWrite(
+    // Safely decrement stock with all-or-nothing rollback protection across all items
+    const decrementResult = await decrementOrderStockSafely(
       items.map((item) => ({
-        updateOne: {
-          filter: {
-            _id: item.productId,
-            isActive: true,
-            stock: { $gte: item.qty },
-          },
-          update: { $inc: { stock: -item.qty } },
-        },
+        productId: item.productId,
+        qty: item.qty,
+        name: item.name,
       })),
+      {
+        actorType: orderUserId ? "customer" : "guest",
+        actorId: orderUserId || null,
+        source: "checkout",
+      }
     );
-    if (stockUpdate.modifiedCount !== items.length) {
-      throw new HttpError(
-        409,
-        "Some items just went out of stock. Please review your cart.",
-      );
-    }
 
     const guestAccessToken = crypto.randomBytes(24).toString("hex");
     const initialStatus = body.payment.method === "razorpay" ? "Confirmed" : "Placed";
 
-    const order = await Order.create({
-      user: orderUserId,
-      customerEmail: normalizedEmail,
-      orderNo: await nextOrderNo(),
-      needsGstInvoice: Boolean(body.needsGstInvoice),
-      businessName: cleanBusinessName,
-      gstin: cleanGstin,
-      items,
-      subtotal,
-      shipping,
-      total,
-      courierCharge,
-      packagingCost,
-      razorpayFee,
-      productCost,
-      totalExpense,
-      netProfit,
-      courier: body.payment.method === "cod" ? "DTDC" : null,
-      alternatePhone: body.address.alternatePhone || "",
-      address: {
-        name: body.address.name,
-        phone: body.address.phone,
+    let order: any;
+    try {
+      order = await Order.create({
+        user: orderUserId,
+        customerEmail: normalizedEmail,
+        orderNo: await nextOrderNo(),
+        needsGstInvoice: Boolean(body.needsGstInvoice),
+        businessName: cleanBusinessName,
+        gstin: cleanGstin,
+        items,
+        subtotal,
+        shipping,
+        total,
+        courierCharge,
+        packagingCost,
+        razorpayFee,
+        productCost,
+        totalExpense,
+        netProfit,
+        courier: body.payment.method === "cod" ? "DTDC" : null,
         alternatePhone: body.address.alternatePhone || "",
-        line1: body.address.line1,
-        line2: body.address.line2 || "",
-        postOffice: body.address.postOffice?.trim() || "",
-        city: body.address.city,
-        state: body.address.state,
-        pincode: body.address.pincode,
-      },
-      billingAddress: body.billingAddress
-        ? {
-            name: body.billingAddress.name || "",
-            line1: body.billingAddress.line1 || "",
-            line2: body.billingAddress.line2 || "",
-            postOffice: body.billingAddress.postOffice?.trim() || "",
-            city: body.billingAddress.city || "",
-            state: body.billingAddress.state || "",
-            pincode: body.billingAddress.pincode || "",
-          }
-        : undefined,
-      payment: {
-        method: body.payment.method,
-        status: body.payment.method === "razorpay" ? "paid" : "pending",
-        razorpayOrderId: body.payment.razorpayOrderId,
-        razorpayPaymentId: body.payment.razorpayPaymentId,
-        razorpaySignature: body.payment.razorpaySignature,
-      },
-      status: initialStatus,
-      guestAccessToken,
-      statusHistory: [
-        {
-          status: initialStatus,
-          changedAt: new Date(),
-          changedBy: orderUserId ? "customer" : "guest",
-          note:
-            body.payment.method === "razorpay"
-              ? "Payment verified & order confirmed"
-              : "Order placed (Cash on Delivery)",
+        address: {
+          name: body.address.name,
+          phone: body.address.phone,
+          alternatePhone: body.address.alternatePhone || "",
+          line1: body.address.line1,
+          line2: body.address.line2 || "",
+          postOffice: body.address.postOffice?.trim() || "",
+          city: body.address.city,
+          state: body.address.state,
+          pincode: body.address.pincode,
         },
-      ],
-    });
+        billingAddress: body.billingAddress
+          ? {
+              name: body.billingAddress.name || "",
+              line1: body.billingAddress.line1 || "",
+              line2: body.billingAddress.line2 || "",
+              postOffice: body.billingAddress.postOffice?.trim() || "",
+              city: body.billingAddress.city || "",
+              state: body.billingAddress.state || "",
+              pincode: body.billingAddress.pincode || "",
+            }
+          : undefined,
+        payment: {
+          method: body.payment.method,
+          status: body.payment.method === "razorpay" ? "paid" : "pending",
+          razorpayOrderId: body.payment.razorpayOrderId,
+          razorpayPaymentId: body.payment.razorpayPaymentId,
+          razorpaySignature: body.payment.razorpaySignature,
+        },
+        status: initialStatus,
+        guestAccessToken,
+        statusHistory: [
+          {
+            status: initialStatus,
+            changedAt: new Date(),
+            changedBy: orderUserId ? "customer" : "guest",
+            note:
+              body.payment.method === "razorpay"
+                ? "Payment verified & order confirmed"
+                : "Order placed (Cash on Delivery)",
+          },
+        ],
+      });
+    } catch (orderCreateErr) {
+      // Compensating rollback: if Order.create fails, restore all decremented items immediately
+      await decrementResult.rollback();
+      throw orderCreateErr;
+    }
+
+    // Order successfully created: record stock movement history
+    await decrementResult.recordHistory(order._id, order.orderNo);
 
     const payment = order.payment;
     const customerRecipientName = body.address.name || user?.name || "Customer";

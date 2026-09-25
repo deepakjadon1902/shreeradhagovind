@@ -699,6 +699,12 @@ function Checkout() {
         ? sessionStorage.getItem("srg_checkout_session_id") || undefined
         : undefined;
 
+    const invalidItem = items.find((i) => i.product.stock <= 0 || i.qty > i.product.stock);
+    if (invalidItem) {
+      toast.error(`"${invalidItem.product.name}" is out of stock or insufficient. Please update your cart.`);
+      throw new Error("Insufficient stock");
+    }
+
     const order = await placeOrder({
       sessionId: currentSessionId,
       customerEmail: form.email.trim(),
@@ -781,6 +787,12 @@ function Checkout() {
     let rzpOrder: RazorpayOrder;
     let keyId: string;
     try {
+      const invalidItem = items.find((i) => i.product.stock <= 0 || i.qty > i.product.stock);
+      if (invalidItem) {
+        toast.error(`"${invalidItem.product.name}" is ${invalidItem.product.stock <= 0 ? "out of stock" : "has only " + invalidItem.product.stock + " available"}. Please review your cart.`);
+        throw new Error("Insufficient stock");
+      }
+
       const r = await api<{ order: RazorpayOrder; keyId?: string }>("/payments/razorpay/order", {
         method: "POST",
         body: { items: items.map((item) => ({ productId: item.product.id, qty: item.qty })) },
@@ -910,6 +922,17 @@ function Checkout() {
         toast.error("Please enter a valid 15-character GSTIN (e.g. 09AABCU9603R1ZM)");
         return;
       }
+    }
+
+    // Proactively validate stock before initiating payment or placing order
+    const invalidItem = items.find((i) => i.product.stock <= 0 || i.qty > i.product.stock);
+    if (invalidItem) {
+      if (invalidItem.product.stock <= 0) {
+        toast.error(`"${invalidItem.product.name}" is currently out of stock. Please remove it from your cart.`);
+      } else {
+        toast.error(`"${invalidItem.product.name}" only has ${invalidItem.product.stock} available (you requested ${invalidItem.qty}). Please adjust quantity.`);
+      }
+      return;
     }
 
     isSubmittingRef.current = true;

@@ -20,6 +20,8 @@ export type Product = {
   metaTitle?: string;
   metaDescription?: string;
   stock: number;
+  outOfStockSince?: string | null;
+  waitlistCount?: number;
   additionalImage?: string;
   additionalHeading?: string;
   additionalContent?: string;
@@ -52,4 +54,6 @@ export const PRODUCTS: Product[] = [];
 export const CATEGORIES = ["All", ...DEFAULT_CATEGORIES] as const;
 
 export const getProduct = (id: string) => PRODUCTS.find((p) => p.id === id);
+
+export const LOW_STOCK_THRESHOLD = 5;
 

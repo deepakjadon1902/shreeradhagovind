@@ -26,7 +26,7 @@ export function ProductCard({ product }: { product: Product }) {
     product.mrp > product.price
       ? Math.round(((product.mrp - product.price) / product.mrp) * 100)
       : 0;
-  const outOfStock = product.stock === 0;
+  const outOfStock = product.stock <= 0;
   const productSlug = product.slug ?? slugify(product.name);
   const hasRating = product.rating > 0 && product.reviews > 0;
   const allImages = Array.from(new Set([product.image, ...(product.images || [])])).filter(Boolean);
@@ -308,8 +308,20 @@ export function ProductCard({ product }: { product: Product }) {
                     <Plus className="h-3.5 w-3.5" />
                   </button>
                 </div>
-                <span className={`text-xs font-semibold ${outOfStock ? "text-destructive" : "text-[#2f8d3c]"}`}>
-                  {outOfStock ? "Out of Stock" : "In Stock"}
+                <span
+                  className={`text-xs font-semibold ${
+                    outOfStock
+                      ? "text-destructive"
+                      : product.stock <= 5
+                      ? "text-amber-600"
+                      : "text-[#2f8d3c]"
+                  }`}
+                >
+                  {outOfStock
+                    ? "Out of Stock"
+                    : product.stock <= 5
+                    ? `Low Stock (${product.stock} left)`
+                    : "In Stock"}
                 </span>
               </div>
 

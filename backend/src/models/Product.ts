@@ -21,6 +21,7 @@ const productSchema = new Schema(
     featuredDeal: { type: Boolean, default: false, index: true },
     category: { type: String, required: true, index: true },
     stock: { type: Number, default: 100, min: 0 },
+    outOfStockSince: { type: Date, default: null, index: true },
     rating: { type: Number, default: 0, min: 0, max: 5 },
     reviews: { type: Number, default: 0, min: 0 },
     details: { type: [String], default: [] },

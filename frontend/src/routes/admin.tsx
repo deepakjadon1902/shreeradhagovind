@@ -18,12 +18,14 @@ import { api, isApiEnabled, API_URL, getToken } from "@/lib/api";
 import { getCourierTrackingUrl } from "@/lib/courier";
 import { SimpleRichEditor, FormattedText } from "@/components/SimpleRichEditor";
 import { DeliveryOperationsView } from "@/components/DeliveryOperationsView";
+import { InventoryManager } from "@/components/InventoryManager";
 import { slugify } from "@/lib/seo";
 import { toast } from "sonner";
 import {
   Lock,
   LayoutDashboard,
   Package,
+  Boxes,
   ShoppingCart,
   LogOut,
   Plus,
@@ -90,6 +92,7 @@ export const Route = createFileRoute("/admin")({
 type Tab =
   | "dash"
   | "products"
+  | "inventory"
   | "orders"
   | "delivery"
   | "categories"
@@ -515,6 +518,9 @@ function AdminRoot() {
               <NavBtn active={tab === "products"} onClick={() => setTab("products")} icon={Package}>
                 Products
               </NavBtn>
+              <NavBtn active={tab === "inventory"} onClick={() => setTab("inventory")} icon={Boxes}>
+                Inventory
+              </NavBtn>
               <NavBtn active={tab === "categories"} onClick={() => setTab("categories")} icon={Tag}>
                 Categories
               </NavBtn>
@@ -771,6 +777,8 @@ function AdminRoot() {
             )}
           </div>
         )}
+
+        {tab === "inventory" && <InventoryManager onStockUpdated={fetchProductsSafely} />}
 
         {tab === "orders" && (
           <div>
@@ -2493,12 +2501,28 @@ function ProductEditor({
                 value={String((p as any).costPrice ?? 0)}
                 onChange={(v) => setP({ ...p, costPrice: +v } as any)}
               />
-              <In
-                label="Stock Quantity"
-                type="number"
-                value={String(p.stock ?? 0)}
-                onChange={(v) => setP({ ...p, stock: +v })}
-              />
+              {product?.id ? (
+                <div>
+                  <label className="text-xs font-semibold uppercase text-stone-500 tracking-wider">
+                    Current Stock
+                  </label>
+                  <div className="mt-1 flex items-center justify-between rounded-lg border border-stone-200 bg-stone-100/70 px-3.5 py-2">
+                    <span className="font-mono text-sm font-bold text-stone-900">
+                      {p.stock} units
+                    </span>
+                    <span className="text-[10px] uppercase font-semibold text-stone-500 bg-white border border-stone-200 px-2 py-0.5 rounded shadow-2xs">
+                      Managed in Inventory
+                    </span>
+                  </div>
+                </div>
+              ) : (
+                <In
+                  label="Initial Stock Quantity"
+                  type="number"
+                  value={String(p.stock ?? 0)}
+                  onChange={(v) => setP({ ...p, stock: +v })}
+                />
+              )}
               <In
                 label="Rating (0-5)"
                 type="number"
@@ -2511,6 +2535,11 @@ function ProductEditor({
                 value={String(p.reviews ?? 0)}
                 onChange={(v) => setP({ ...p, reviews: +v })}
               />
+              <div className="col-span-full">
+                <p className="text-[11px] text-stone-500 bg-stone-50 border border-stone-200/60 rounded-md px-2.5 py-1.5 flex items-center gap-1.5">
+                  <span className="font-semibold text-stone-700">Tip:</span> Stock receipts, physical recounts, and damaged write-offs can also be adjusted with full audit history under the <span className="font-medium text-stone-900">Inventory</span> tab.
+                </p>
+              </div>
             </div>
           </div>
 

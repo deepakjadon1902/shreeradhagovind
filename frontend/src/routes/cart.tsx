@@ -1,7 +1,7 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { Layout } from "@/components/Layout";
 import { useStore, formatINR } from "@/lib/store";
-import { Minus, Plus, Trash2, ShoppingBag, Heart, Tag, ShieldCheck, Truck } from "lucide-react";
+import { Minus, Plus, Trash2, ShoppingBag, Heart, Tag, ShieldCheck, Truck, AlertCircle } from "lucide-react";
 import { slugify } from "@/lib/seo";
 
 export const Route = createFileRoute("/cart")({
@@ -31,6 +31,7 @@ function CartPage() {
     subtotal >= settings.freeShipThreshold || subtotal === 0 ? 0 : settings.shippingFee;
   const total = subtotal + shipping;
   const totalQty = items.reduce((s, i) => s + i.qty, 0);
+  const hasInvalidItems = items.some((i) => i.product.stock <= 0 || i.qty > i.product.stock);
 
   if (items.length === 0) {
     return (
@@ -122,9 +123,23 @@ function CartPage() {
                         </>
                       )}
                     </div>
-                    <p className="mt-0.5 text-xs text-emerald-700">
-                      In stock - Delivery in 3-5 days
-                    </p>
+                    {i.product.stock <= 0 ? (
+                      <p className="mt-0.5 text-xs font-semibold text-rose-600 flex items-center gap-1">
+                        <AlertCircle className="h-3.5 w-3.5 shrink-0" /> Out of stock — please remove to proceed
+                      </p>
+                    ) : i.qty > i.product.stock ? (
+                      <p className="mt-0.5 text-xs font-semibold text-amber-700 flex items-center gap-1">
+                        <AlertCircle className="h-3.5 w-3.5 shrink-0" /> Only {i.product.stock} available — please reduce quantity
+                      </p>
+                    ) : i.product.stock <= 5 ? (
+                      <p className="mt-0.5 text-xs font-medium text-amber-700">
+                        Low stock (Only {i.product.stock} left) — Delivery in 3-5 days
+                      </p>
+                    ) : (
+                      <p className="mt-0.5 text-xs text-emerald-700">
+                        In stock - Delivery in 3-5 days
+                      </p>
+                    )}
 
                     <div className="mt-auto pt-3 flex items-center gap-2 flex-wrap">
                       <div className="inline-flex items-center overflow-hidden rounded-md border bg-background">
@@ -196,12 +211,27 @@ function CartPage() {
                   <Tag className="h-4 w-4" /> You'll save {formatINR(savings)} on this order
                 </p>
               )}
-              <Link
-                to="/checkout"
-                className="mt-5 grid h-12 w-full place-items-center rounded-md bg-primary font-semibold text-primary-foreground transition hover:bg-primary/90"
-              >
-                Place Order
-              </Link>
+              {hasInvalidItems ? (
+                <div className="mt-5 space-y-2">
+                  <button
+                    type="button"
+                    disabled
+                    className="grid h-12 w-full place-items-center rounded-md bg-stone-200 font-semibold text-stone-500 cursor-not-allowed text-sm"
+                  >
+                    Place Order
+                  </button>
+                  <p className="text-[11px] text-center text-rose-600 font-medium">
+                    Please remove out-of-stock items or adjust quantities to proceed.
+                  </p>
+                </div>
+              ) : (
+                <Link
+                  to="/checkout"
+                  className="mt-5 grid h-12 w-full place-items-center rounded-md bg-primary font-semibold text-primary-foreground transition hover:bg-primary/90"
+                >
+                  Place Order
+                </Link>
+              )}
               <Link
                 to="/shop"
                 className="mt-2 grid h-11 w-full place-items-center rounded-md border text-sm hover:bg-muted"

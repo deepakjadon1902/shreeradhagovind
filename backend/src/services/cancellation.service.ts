@@ -36,11 +36,13 @@ export async function restockOrderItems(order: {
   // Aggregate quantities by productId
   const qtyMap = new Map<string, { qty: number; name?: string }>();
   for (const item of order.items) {
-    if (!item.productId || typeof item.qty !== "number" || item.qty <= 0) continue;
-    const pid = String(item.productId);
+    const rawPid = item.productId || item.product;
+    const rawQty = typeof item.qty === "number" ? item.qty : item.quantity;
+    if (!rawPid || typeof rawQty !== "number" || rawQty <= 0) continue;
+    const pid = String(rawPid);
     const existing = qtyMap.get(pid);
     qtyMap.set(pid, {
-      qty: (existing?.qty || 0) + item.qty,
+      qty: (existing?.qty || 0) + rawQty,
       name: item.name || existing?.name,
     });
   }
@@ -52,11 +54,41 @@ export async function restockOrderItems(order: {
   const bulkOps = Array.from(qtyMap.entries()).map(([productId, entry]) => ({
     updateOne: {
       filter: { _id: productId },
-      update: { $inc: { stock: entry.qty } },
+      update: { $inc: { stock: entry.qty }, $set: { outOfStockSince: null } },
     },
   }));
 
   try {
+    // Record stock history audit trail
+    try {
+      const historyDocs: any[] = [];
+      for (const [productId, entry] of qtyMap.entries()) {
+        const prod = await Product.findById(productId).select("stock").lean();
+        if (!prod) continue;
+        const prevStock = Number(prod.stock ?? 0);
+        historyDocs.push({
+          productId,
+          previousStock: prevStock,
+          newStock: prevStock + entry.qty,
+          delta: entry.qty,
+          movementType: "cancellation_restock",
+          reason: (order as any).cancellationReason || "Order cancellation restock",
+          note: `Order #${order.orderNo ?? order._id}`,
+          actorType: (order as any).cancelledBy || "system",
+          orderId: order._id,
+          orderNo: order.orderNo,
+          source: "cancellation",
+        });
+      }
+      if (historyDocs.length > 0) {
+        const { StockHistory } = await import("../models/StockHistory");
+        await StockHistory.insertMany(historyDocs);
+      }
+    } catch (auditErr) {
+      // Non-blocking: stock restoration must complete even if audit log has an issue
+      console.error("[restockOrderItems] Error recording StockHistory:", auditErr);
+    }
+
     const res = await Product.bulkWrite(bulkOps, { ordered: false });
     const orderIdentifier = order.orderNo ? `#${order.orderNo}` : String(order._id);
     console.log(

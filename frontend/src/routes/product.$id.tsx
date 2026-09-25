@@ -23,6 +23,8 @@ import {
   Info,
   BookOpen,
   PackageCheck,
+  BellRing,
+  Loader2,
 } from "lucide-react";
 import { useEffect, useState, useRef } from "react";
 import { ProductCard } from "@/components/ProductCard";
@@ -291,7 +293,7 @@ function ProductDetail() {
   const loaderData = Route.useLoaderData();
   const loadedProduct = loaderData?.product;
   const loadedReviews = loaderData?.reviews || [];
-  const { adminProducts, addToCart, buyNow, wishlist, toggleWishlist } = useStore();
+  const { adminProducts, addToCart, buyNow, wishlist, toggleWishlist, user } = useStore();
   const nav = useNavigate();
   const product = adminProducts.find((p) => matchesProduct(p, id)) ?? loadedProduct;
 
@@ -301,6 +303,46 @@ function ProductDetail() {
   const [reviewsList, setReviewsList] = useState<any[]>(loadedReviews);
   const [loadingReviews, setLoadingReviews] = useState(false);
   const [activeTab, setActiveTab] = useState<"description" | "details" | "care" | "shipping">("description");
+
+  // Back-in-stock waitlist state
+  const [waitlistEmail, setWaitlistEmail] = useState(user?.email || "");
+  const [waitlistPhone, setWaitlistPhone] = useState(user?.phone || "");
+  const [waitlistSubmitting, setWaitlistSubmitting] = useState(false);
+  const [waitlistSuccess, setWaitlistSuccess] = useState(false);
+
+  useEffect(() => {
+    if (user?.email && !waitlistEmail) {
+      setWaitlistEmail(user.email);
+    }
+    if (user?.phone && !waitlistPhone) {
+      setWaitlistPhone(user.phone);
+    }
+  }, [user]);
+
+  const handleJoinWaitlist = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!product?.id) return;
+    if (!waitlistEmail.trim()) {
+      toast.error("Please enter a valid email address");
+      return;
+    }
+    setWaitlistSubmitting(true);
+    try {
+      const res = await api<{ ok: boolean; message: string; alreadyWaiting?: boolean }>(
+        `/products/${product.id}/waitlist`,
+        {
+          method: "POST",
+          body: { email: waitlistEmail.trim(), phone: waitlistPhone.trim() },
+        }
+      );
+      setWaitlistSuccess(true);
+      toast.success(res.message);
+    } catch (err: any) {
+      toast.error(err?.message || "Failed to join waiting list");
+    } finally {
+      setWaitlistSubmitting(false);
+    }
+  };
 
   // Lightbox modal state
   const [lightboxOpen, setLightboxOpen] = useState(false);
@@ -623,10 +665,15 @@ function ProductDetail() {
 
               {/* Stock Status Badge */}
               <div className="mt-2.5 flex items-center gap-2 text-xs">
-                {product.stock > 0 ? (
+                {product.stock > 5 ? (
                   <span className="inline-flex items-center gap-1.5 font-medium text-emerald-700 bg-emerald-50 border border-emerald-200/80 px-2.5 py-0.5 rounded-full text-[11px]">
                     <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />
-                    {product.stock <= 10 ? `In stock (Only ${product.stock} left)` : "In stock"}
+                    In stock
+                  </span>
+                ) : product.stock >= 1 && product.stock <= 5 ? (
+                  <span className="inline-flex items-center gap-1.5 font-medium text-amber-800 bg-amber-50 border border-amber-300 px-2.5 py-0.5 rounded-full text-[11px]">
+                    <span className="h-1.5 w-1.5 rounded-full bg-amber-500 animate-pulse" />
+                    Low stock (Only {product.stock} left)
                   </span>
                 ) : (
                   <span className="inline-flex items-center gap-1.5 font-semibold text-rose-700 bg-rose-50 border border-rose-200 px-2.5 py-0.5 rounded-full text-[11px]">
@@ -653,60 +700,111 @@ function ProductDetail() {
                 </div>
               )}
 
-              {/* Quantity + Purchase CTA block (Referenced for mobile sticky observer) */}
+              {/* Quantity + Purchase CTA or Back-in-Stock Waitlist block */}
               <div ref={purchaseBoxRef} className="mt-4 sm:mt-5 space-y-2.5 pt-1">
-                <div className="flex items-center gap-3">
-                  <span className="text-[11px] sm:text-xs font-semibold uppercase tracking-wider text-stone-600">
-                    Quantity:
-                  </span>
-                  <div className="inline-flex items-center rounded-lg border border-[#E7E1D6] bg-white shadow-xs">
-                    <button
-                      type="button"
-                      onClick={() => setQty(Math.max(1, qty - 1))}
-                      disabled={qty <= 1 || product.stock === 0}
-                      className="h-8 w-8 sm:h-9 sm:w-9 flex items-center justify-center text-stone-600 hover:bg-[#FAF7F2] transition disabled:opacity-30 disabled:cursor-not-allowed"
-                      aria-label="Decrease quantity"
-                    >
-                      <Minus className="h-3 w-3 sm:h-3.5 sm:w-3.5" />
-                    </button>
-                    <span className="w-9 text-center text-xs sm:text-sm font-semibold text-stone-800">{qty}</span>
-                    <button
-                      type="button"
-                      onClick={() => setQty(Math.min(product.stock, qty + 1))}
-                      disabled={qty >= product.stock || product.stock === 0}
-                      className="h-8 w-8 sm:h-9 sm:w-9 flex items-center justify-center text-stone-600 hover:bg-[#FAF7F2] transition disabled:opacity-30 disabled:cursor-not-allowed"
-                      aria-label="Increase quantity"
-                    >
-                      <Plus className="h-3 w-3 sm:h-3.5 sm:w-3.5" />
-                    </button>
+                {product.stock <= 0 ? (
+                  <div className="rounded-xl border border-amber-200/90 bg-amber-50/70 p-4">
+                    <div className="flex items-start gap-3">
+                      <BellRing className="h-5 w-5 text-amber-800 mt-0.5 shrink-0" />
+                      <div className="flex-1 min-w-0">
+                        <p className="text-xs sm:text-sm font-semibold text-amber-950">
+                          Currently Out of Stock
+                        </p>
+                        <p className="mt-1 text-xs text-amber-800 leading-relaxed">
+                          This sacred item is currently being prepared in Vrindavan Dham. Enter your email below to be notified as soon as it returns to stock!
+                        </p>
+                        {waitlistSuccess ? (
+                          <div className="mt-3 flex items-center gap-2 text-xs font-semibold text-emerald-800 bg-emerald-50 border border-emerald-300 px-3 py-2 rounded-lg">
+                            <Check className="h-4 w-4 text-emerald-600 shrink-0" /> You're on the waiting list! We'll notify you when available.
+                          </div>
+                        ) : (
+                          <form onSubmit={handleJoinWaitlist} className="mt-3 space-y-2">
+                            <div className="flex flex-col sm:flex-row gap-2">
+                              <input
+                                type="email"
+                                required
+                                placeholder="Enter your email address"
+                                value={waitlistEmail}
+                                onChange={(e) => setWaitlistEmail(e.target.value)}
+                                className="h-10 flex-1 px-3 rounded-lg border border-amber-300 bg-white text-xs text-stone-900 placeholder:text-stone-400 focus:outline-none focus:ring-2 focus:ring-[#166F77]"
+                              />
+                              <button
+                                type="submit"
+                                disabled={waitlistSubmitting}
+                                className="h-10 px-4 rounded-lg bg-[#166F77] hover:bg-[#125A61] font-semibold text-xs text-white transition flex items-center justify-center gap-1.5 shrink-0 disabled:opacity-60 cursor-pointer shadow-xs"
+                              >
+                                {waitlistSubmitting ? (
+                                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                                ) : (
+                                  <BellRing className="h-3.5 w-3.5" />
+                                )}
+                                Notify Me When Available
+                              </button>
+                            </div>
+                            <p className="text-[10px] text-stone-500">
+                              Zero spam. We will only notify you once when this specific sacred product is restocked.
+                            </p>
+                          </form>
+                        )}
+                      </div>
+                    </div>
                   </div>
-                </div>
+                ) : (
+                  <>
+                    <div className="flex items-center gap-3">
+                      <span className="text-[11px] sm:text-xs font-semibold uppercase tracking-wider text-stone-600">
+                        Quantity:
+                      </span>
+                      <div className="inline-flex items-center rounded-lg border border-[#E7E1D6] bg-white shadow-xs">
+                        <button
+                          type="button"
+                          onClick={() => setQty(Math.max(1, qty - 1))}
+                          disabled={qty <= 1 || product.stock <= 0}
+                          className="h-8 w-8 sm:h-9 sm:w-9 flex items-center justify-center text-stone-600 hover:bg-[#FAF7F2] transition disabled:opacity-30 disabled:cursor-not-allowed"
+                          aria-label="Decrease quantity"
+                        >
+                          <Minus className="h-3 w-3 sm:h-3.5 sm:w-3.5" />
+                        </button>
+                        <span className="w-9 text-center text-xs sm:text-sm font-semibold text-stone-800">{qty}</span>
+                        <button
+                          type="button"
+                          onClick={() => setQty(Math.min(product.stock, qty + 1))}
+                          disabled={qty >= product.stock || product.stock <= 0}
+                          className="h-8 w-8 sm:h-9 sm:w-9 flex items-center justify-center text-stone-600 hover:bg-[#FAF7F2] transition disabled:opacity-30 disabled:cursor-not-allowed"
+                          aria-label="Increase quantity"
+                        >
+                          <Plus className="h-3 w-3 sm:h-3.5 sm:w-3.5" />
+                        </button>
+                      </div>
+                    </div>
 
-                {/* Main Purchase CTAs */}
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 pt-1">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      addToCart(product.id, qty);
-                      toast.success(`Added ${qty} ${product.name} to cart`);
-                    }}
-                    disabled={product.stock === 0}
-                    className="h-11 sm:h-12 rounded-xl border border-[#166F77] bg-white font-semibold text-[#166F77] hover:bg-[#F0F7F9] transition flex items-center justify-center gap-2 shadow-xs active:scale-[0.99] disabled:cursor-not-allowed disabled:opacity-40 cursor-pointer text-xs sm:text-sm"
-                  >
-                    <ShoppingBag className="h-4 w-4" /> Add to Cart
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      buyNow(product.id, qty);
-                      nav({ to: "/checkout" });
-                    }}
-                    disabled={product.stock === 0}
-                    className="h-11 sm:h-12 rounded-xl bg-[#166F77] hover:bg-[#125A61] font-semibold text-white transition flex items-center justify-center gap-2 shadow-sm shadow-[#166F77]/15 active:scale-[0.99] disabled:cursor-not-allowed disabled:opacity-40 cursor-pointer text-xs sm:text-sm"
-                  >
-                    Buy Now
-                  </button>
-                </div>
+                    {/* Main Purchase CTAs */}
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 pt-1">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          addToCart(product.id, qty);
+                          toast.success(`Added ${qty} ${product.name} to cart`);
+                        }}
+                        disabled={product.stock <= 0}
+                        className="h-11 sm:h-12 rounded-xl border border-[#166F77] bg-white font-semibold text-[#166F77] hover:bg-[#F0F7F9] transition flex items-center justify-center gap-2 shadow-xs active:scale-[0.99] disabled:cursor-not-allowed disabled:opacity-40 cursor-pointer text-xs sm:text-sm"
+                      >
+                        <ShoppingBag className="h-4 w-4" /> Add to Cart
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          buyNow(product.id, qty);
+                          nav({ to: "/checkout" });
+                        }}
+                        disabled={product.stock <= 0}
+                        className="h-11 sm:h-12 rounded-xl bg-[#166F77] hover:bg-[#125A61] font-semibold text-white transition flex items-center justify-center gap-2 shadow-sm shadow-[#166F77]/15 active:scale-[0.99] disabled:cursor-not-allowed disabled:opacity-40 cursor-pointer text-xs sm:text-sm"
+                      >
+                        Buy Now
+                      </button>
+                    </div>
+                  </>
+                )}
 
                 {/* Wishlist & Share Row */}
                 <div className="flex items-center justify-between pt-1 text-xs text-stone-600">

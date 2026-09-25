@@ -383,6 +383,8 @@ const mapProduct = (p: any): Product => ({
   featuredDeal: !!p.featuredDeal,
   category: p.category,
   stock: p.stock ?? 100,
+  outOfStockSince: p.outOfStockSince ?? null,
+  waitlistCount: typeof p.waitlistCount === "number" ? p.waitlistCount : 0,
   rating: p.rating ?? 0,
   reviews: p.reviews ?? 0,
   details: p.details ?? [],
@@ -1107,6 +1109,10 @@ export function StoreProvider({ children }: { children: ReactNode }) {
             : [],
         };
         const isExisting = !!previousProduct;
+        if (isExisting) {
+          // Do not send stock in normal product edit updates to prevent overwriting concurrent sales.
+          delete payload.stock;
+        }
         const r = isExisting
           ? await api<{ product: any }>(`/products/${p.id}`, { method: "PATCH", body: payload })
           : await api<{ product: any }>(`/products`, { method: "POST", body: payload });
