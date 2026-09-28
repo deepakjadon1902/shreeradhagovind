@@ -10,6 +10,8 @@ import { requireAuth } from "../middleware/auth";
 import { HttpError } from "../middleware/error";
 import { env } from "../config/env";
 
+import { linkGuestOrdersForUser } from "../services/guestAccountLinking.service";
+
 const r = Router();
 const google = env.GOOGLE_CLIENT_ID ? new OAuth2Client(env.GOOGLE_CLIENT_ID) : null;
 
@@ -21,18 +23,16 @@ const safe = (u: any) => ({
   avatar: u.avatar,
   phone: u.phone,
   address: u.address ?? {},
+  loyaltyPointsBalance: Math.max(0, u.loyaltyPointsBalance ?? 0),
+  walletBalance: Math.max(0, u.walletBalance ?? 0),
+  marketingEmailOptIn: u.marketingEmailOptIn !== false,
+  emailVerified: Boolean(u.emailVerified),
 });
 
 async function claimUserGuestOrders(user: any) {
-  if (!user?.email) return;
+  if (!user?.email || !user?.emailVerified) return;
   try {
-    await Order.updateMany(
-      {
-        customerEmail: user.email.toLowerCase().trim(),
-        $or: [{ user: { $exists: false } }, { user: null }],
-      },
-      { $set: { user: user._id } }
-    );
+    await linkGuestOrdersForUser(user);
   } catch (e) {
     // eslint-disable-next-line no-console
     console.error("[claimUserGuestOrders:error]", e);
@@ -68,7 +68,6 @@ r.post("/signup", async (req, res, next) => {
       phone: phone ?? "",
       address: address ?? {},
     });
-    await claimUserGuestOrders(user);
     sendEmail({ to: lower, ...tpl.welcome(name) }).catch(() => {});
     res.json({ token: signToken({ sub: String(user._id), role: user.role, email: user.email }), user: safe(user) });
   } catch (e) {
@@ -151,12 +150,14 @@ r.post("/verify-login-otp", async (req, res, next) => {
       await user.save();
       throw new HttpError(400, "Invalid OTP. Please check the code sent to your email.");
     }
-    // Invalidate OTP immediately
+    // Invalidate OTP immediately and mark email as verified
     user.loginOtpHash = "";
     user.loginOtpExpiresAt = null;
     user.loginOtpAttempts = 0;
+    user.emailVerified = true;
+    user.emailVerifiedAt = new Date();
     await user.save();
-    await claimUserGuestOrders(user);
+    await linkGuestOrdersForUser(user);
 
     const needsPassword = user.passwordSet === false || !user.passwordHash;
     if (needsPassword) {
@@ -319,10 +320,11 @@ r.post("/google", async (req, res, next) => {
       });
       sendEmail({ to: lower, ...tpl.welcome(user.name) }).catch(() => {});
     }
-    if (user.isBlocked) throw new HttpError(403, "Your account has been blocked. Please contact support.");
+    user.emailVerified = true;
+    if (!user.emailVerifiedAt) user.emailVerifiedAt = new Date();
     user.lastLoginAt = new Date();
     await user.save();
-    await claimUserGuestOrders(user);
+    await linkGuestOrdersForUser(user);
     res.json({ token: signToken({ sub: String(user._id), role: user.role, email: user.email }), user: safe(user) });
   } catch (e) {
     next(e);

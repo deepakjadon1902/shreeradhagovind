@@ -27,6 +27,12 @@ import {
   getQuotaInfo,
 } from "../services/courierTracking.service";
 import { restockOrderItems } from "../services/cancellation.service";
+import {
+  earnPointsForOrder,
+  reversePointsForOrder,
+  getLoyaltySettings,
+  calculateCustomerTier,
+} from "../services/loyalty.service";
 
 const r = Router();
 r.use(requireAuth, requireAdmin);
@@ -265,6 +271,11 @@ r.patch("/orders/:id/status", async (req, res, next) => {
 
     if (status === "Cancelled" && existing.status !== "Cancelled" && !existing.isRestocked) {
       await restockOrderItems(o);
+      reversePointsForOrder(o).catch((err) => console.error("[reversePointsForOrder:error]", err));
+    }
+
+    if (status === "Delivered" && existing.status !== "Delivered") {
+      earnPointsForOrder(o).catch((err) => console.error("[earnPointsForOrder:error]", err));
     }
 
     const u: any = o.user;
@@ -481,17 +492,67 @@ r.patch("/orders/:id/payment", async (_req, _res, next) => {
 r.get("/users", async (_req, res, next) => {
   try {
     const users = await User.find().select("-passwordHash").sort({ createdAt: -1 }).lean();
-    // attach order stats per user
     const ids = users.map((u) => u._id);
-    const stats = await Order.aggregate([
-      { $match: { user: { $in: ids } } },
-      { $group: { _id: "$user", orders: { $sum: 1 }, spent: { $sum: "$total" } } },
-    ]);
-    const map = new Map(stats.map((s: any) => [String(s._id), s]));
+    const emails = users.map((u) => u.email.toLowerCase().trim());
+
+    // Fetch orders matching either user ID or customerEmail
+    const orders = await Order.find({
+      $or: [{ user: { $in: ids } }, { customerEmail: { $in: emails } }],
+    }).select("user customerEmail total status payment createdAt").lean();
+
+    const { tiers } = await getLoyaltySettings();
+
+    // Group orders by userId and customerEmail
+    const ordersByUserId = new Map<string, any[]>();
+    const ordersByEmail = new Map<string, any[]>();
+    for (const o of orders) {
+      if (o.user) {
+        const uid = String(o.user);
+        const list = ordersByUserId.get(uid) || [];
+        list.push(o);
+        ordersByUserId.set(uid, list);
+      }
+      if (o.customerEmail) {
+        const em = o.customerEmail.toLowerCase().trim();
+        const list = ordersByEmail.get(em) || [];
+        list.push(o);
+        ordersByEmail.set(em, list);
+      }
+    }
+
     res.json({
       users: users.map((u) => {
-        const s = map.get(String(u._id));
-        return { ...u, ordersCount: s?.orders ?? 0, totalSpent: s?.spent ?? 0 };
+        const uid = String(u._id);
+        const uEmail = u.email.toLowerCase().trim();
+
+        // Merge deduplicated orders
+        const userOrders = ordersByUserId.get(uid) || [];
+        const emailOrders = ordersByEmail.get(uEmail) || [];
+        const seenIds = new Set<string>();
+        const combinedOrders: any[] = [];
+        for (const o of [...userOrders, ...emailOrders]) {
+          const oid = String(o._id);
+          if (!seenIds.has(oid)) {
+            seenIds.add(oid);
+            combinedOrders.push(o);
+          }
+        }
+
+        const qualified = combinedOrders.filter(isOrderPaidForFinance);
+        const qualifiedSpend = Math.round(qualified.reduce((sum, o) => sum + (Number(o.total) || 0), 0) * 100) / 100;
+        const qualifiedCount = qualified.length;
+        const tier = calculateCustomerTier(qualifiedSpend, qualifiedCount, tiers);
+
+        return {
+          ...u,
+          ordersCount: qualifiedCount,
+          totalOrdersCount: combinedOrders.length,
+          totalSpent: qualifiedSpend,
+          tier: tier.name,
+          tierBadgeColor: tier.badgeColor,
+          loyaltyPointsBalance: Math.max(0, (u as any).loyaltyPointsBalance ?? 0),
+          walletBalance: Math.max(0, (u as any).walletBalance ?? 0),
+        };
       }),
     });
   } catch (e) {

@@ -38,6 +38,11 @@ import {
   reserveCouponUsage,
   rollbackCouponUsage,
 } from "../services/coupon.service";
+import {
+  earnPointsForOrder,
+  redeemPointsForOrder,
+  validateAndCalculatePointsRedemption,
+} from "../services/loyalty.service";
 
 const r = Router();
 const FIRST_ORDER_NO = 5000;
@@ -222,7 +227,14 @@ function sanitizeCustomerOrder(orderDoc: any) {
 r.get("/", requireAuth, async (req, res, next) => {
   try {
     const userId = req.user!.sub;
-    const orders = await Order.find({ user: userId }).sort({
+    const userEmail = (req.user!.email || "").toLowerCase().trim();
+    const query: any = {
+      $or: [
+        { user: userId },
+        ...(userEmail ? [{ customerEmail: userEmail }] : []),
+      ],
+    };
+    const orders = await Order.find(query).sort({
       createdAt: -1,
     });
     res.json({ orders: orders.map(sanitizeCustomerOrder) });
@@ -654,6 +666,7 @@ const createSchema = z.object({
   sessionId: z.string().optional(),
   recoveryToken: z.string().optional(),
   couponCode: z.string().optional(),
+  redeemPoints: z.number().int().min(0).optional().default(0),
   analytics: z
     .object({
       visitorId: z.string().max(100).optional(),
@@ -846,17 +859,68 @@ r.post("/", optionalAuth, async (req, res, next) => {
       throw new HttpError(400, calculation.error || "Coupon could not be applied");
     }
 
+    let pointsDiscount = 0;
+    let pointsToRedeem = 0;
+    if (body.redeemPoints && body.redeemPoints > 0 && orderUserId) {
+      const pointsCheck = await validateAndCalculatePointsRedemption({
+        userId: orderUserId,
+        pointsRequested: body.redeemPoints,
+        subtotal: calculation.grossSubtotal,
+        hasCoupon: Boolean(calculation.coupon && calculation.discount > 0),
+      });
+      if (!pointsCheck.valid) {
+        throw new HttpError(400, pointsCheck.error || "Loyalty points redemption failed");
+      }
+      pointsToRedeem = pointsCheck.pointsRedeemed;
+      pointsDiscount = pointsCheck.pointsDiscount;
+    }
+
     const subtotal = calculation.grossSubtotal;
     const discount = calculation.discount;
     const shipping = calculation.shipping;
-    const total = calculation.total;
+    const total = Math.max(0, Math.round((calculation.total - pointsDiscount) * 100) / 100);
 
-    const items = calculation.itemBreakdown.map((b) => {
+    // Apportion pointsDiscount across items if present
+    let accumulatedPointsDiscount = 0;
+    const totalEligibleForPoints = calculation.itemBreakdown.reduce(
+      (sum, b) => sum + (b.discountedLineTotal || b.lineGross),
+      0
+    );
+
+    const items = calculation.itemBreakdown.map((b, idx) => {
       const p = products.find((candidate) => String(candidate._id) === b.productId)!;
       const itemCostPrice =
         typeof (p as any).costPrice === "number" && (p as any).costPrice > 0
           ? Number((p as any).costPrice)
           : undefined;
+
+      let itemPointsDiscount = 0;
+      if (pointsDiscount > 0 && totalEligibleForPoints > 0) {
+        if (idx === calculation.itemBreakdown.length - 1) {
+          itemPointsDiscount = Math.round((pointsDiscount - accumulatedPointsDiscount) * 100) / 100;
+        } else {
+          const ratio = (b.discountedLineTotal || b.lineGross) / totalEligibleForPoints;
+          itemPointsDiscount = Math.round(pointsDiscount * ratio * 100) / 100;
+          accumulatedPointsDiscount += itemPointsDiscount;
+        }
+      }
+
+      const totalItemDiscount = (b.allocatedDiscount || 0) + itemPointsDiscount;
+      const discountedLineTotal = Math.max(0, Math.round((b.lineGross - totalItemDiscount) * 100) / 100);
+      const gstRate = Number(p.gstRate ?? 0);
+      const gstInclusive = p.gstInclusive !== false;
+
+      let taxableAmount = discountedLineTotal;
+      let gstAmount = 0;
+      if (gstRate > 0) {
+        if (gstInclusive) {
+          taxableAmount = Math.round((discountedLineTotal / (1 + gstRate / 100)) * 100) / 100;
+          gstAmount = Math.round((discountedLineTotal - taxableAmount) * 100) / 100;
+        } else {
+          taxableAmount = discountedLineTotal;
+          gstAmount = Math.round((discountedLineTotal * (gstRate / 100)) * 100) / 100;
+        }
+      }
 
       return {
         productId: p._id,
@@ -868,9 +932,9 @@ r.post("/", optionalAuth, async (req, res, next) => {
         hsnCode: b.hsnCode,
         gstRate: b.gstRate,
         gstInclusive: b.gstInclusive,
-        taxableAmount: b.taxableAmount,
-        gstAmount: b.gstAmount,
-        discountAmount: b.allocatedDiscount,
+        taxableAmount,
+        gstAmount,
+        discountAmount: totalItemDiscount,
         comboComponents: b.comboComponents,
       };
     });
@@ -926,6 +990,8 @@ r.post("/", optionalAuth, async (req, res, next) => {
         couponId: calculation.coupon ? calculation.coupon._id : null,
         couponDiscountType: calculation.coupon ? calculation.coupon.discountType : null,
         couponDiscountValue: calculation.coupon ? calculation.coupon.discountValue : 0,
+        loyaltyPointsRedeemed: pointsToRedeem,
+        loyaltyPointsDiscount: pointsDiscount,
         shipping,
         total,
         courierCharge,
@@ -1013,6 +1079,25 @@ r.post("/", optionalAuth, async (req, res, next) => {
           throw couponErr;
         }
       }
+
+      if (pointsToRedeem > 0 && orderUserId) {
+        try {
+          const redeemRes = await redeemPointsForOrder({
+            userId: orderUserId,
+            orderId: order._id,
+            orderNo: order.orderNo,
+            pointsToRedeem,
+            pointsDiscount,
+          });
+          if (!redeemRes.success) {
+            await Order.findByIdAndDelete(order._id);
+            throw new HttpError(400, redeemRes.error || "Loyalty points redemption failed");
+          }
+        } catch (pointsErr) {
+          await Order.findByIdAndDelete(order._id);
+          throw pointsErr;
+        }
+      }
     } catch (orderCreateErr) {
       // Compensating rollback: if Order.create fails, restore all decremented items immediately
       await decrementResult.rollback();
@@ -1021,6 +1106,11 @@ r.post("/", optionalAuth, async (req, res, next) => {
 
     // Order successfully created: record stock movement history
     await decrementResult.recordHistory(order._id, order.orderNo);
+
+    // If order is confirmed and paid (e.g. Razorpay), earn loyalty points
+    if (body.payment.method === "razorpay" && order.payment?.status === "paid") {
+      earnPointsForOrder(order).catch((err) => console.error("[earnPointsForOrder:error]", err));
+    }
 
     const payment = order.payment;
     const customerRecipientName = body.address.name || user?.name || "Customer";
@@ -1039,6 +1129,8 @@ r.post("/", optionalAuth, async (req, res, next) => {
         subtotal,
         discount,
         couponCode: calculation.coupon?.code,
+        loyaltyPointsRedeemed: pointsToRedeem,
+        loyaltyDiscount: pointsDiscount,
         shipping,
         total,
         businessName: order.businessName || undefined,

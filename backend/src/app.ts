@@ -24,6 +24,11 @@ import llmsRoutes from "./routes/llms.routes";
 import checkoutSessionRoutes from "./routes/checkoutSession.routes";
 import analyticsRoutes, { adminAnalyticsRoutes } from "./routes/analytics.routes";
 import couponRoutes, { adminCouponRouter } from "./routes/coupon.routes";
+import loyaltyRoutes from "./routes/loyalty.routes";
+import walletRoutes from "./routes/wallet.routes";
+import wishlistRoutes from "./routes/wishlist.routes";
+import marketingRoutes from "./routes/marketing.routes";
+import adminRetentionRoutes from "./routes/admin.retention.routes";
 
 export const app = express();
 
@@ -79,6 +84,11 @@ app.use("/api/analytics", analyticsRoutes);
 app.use("/api/admin/analytics", adminAnalyticsRoutes);
 app.use("/api/coupons", couponRoutes);
 app.use("/api/admin/coupons", adminCouponRouter);
+app.use("/api/loyalty", loyaltyRoutes);
+app.use("/api/wallet", walletRoutes);
+app.use("/api/wishlist", wishlistRoutes);
+app.use("/api/marketing", marketingRoutes);
+app.use("/api/admin/retention", adminRetentionRoutes);
 app.use(llmsRoutes);
 
 app.use(notFound);

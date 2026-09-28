@@ -11,6 +11,10 @@ import { Order } from "../models/Order";
 import { WebhookEvent } from "../models/WebhookEvent";
 import { validateAndCalculateCoupon } from "../services/coupon.service";
 import {
+  earnPointsForOrder,
+  validateAndCalculatePointsRedemption,
+} from "../services/loyalty.service";
+import {
   sendEmail,
   sendOrderConfirmationWithInvoice,
   dispatchOrderInvoiceEmailOnce,
@@ -143,6 +147,10 @@ export async function processRazorpayWebhookEvent(event: any): Promise<void> {
     await order.save();
 
     if (!wasAlreadyPaid) {
+      earnPointsForOrder(order).catch((err) =>
+        console.error("[Razorpay Webhook] Failed to earn points for order:", err)
+      );
+
       console.log(
         `[Razorpay Webhook] Order #${order.orderNo ?? order._id} successfully marked as PAID & CONFIRMED via ${eventType} (Payment ID: ${rzpPaymentId}).`
       );
@@ -238,7 +246,7 @@ r.post("/razorpay/order", optionalAuth, async (req, res, next) => {
     const keyId = getRazorpayKeyId();
     if (!rzp || !keyId) throw new HttpError(400, "Razorpay not configured on server");
 
-    const { items, couponCode } = z
+    const { items, couponCode, redeemPoints } = z
       .object({
         items: z
           .array(
@@ -249,6 +257,7 @@ r.post("/razorpay/order", optionalAuth, async (req, res, next) => {
           )
           .min(1),
         couponCode: z.string().optional(),
+        redeemPoints: z.number().int().min(0).optional().default(0),
       })
       .parse(req.body);
 
@@ -282,11 +291,27 @@ r.post("/razorpay/order", optionalAuth, async (req, res, next) => {
       }
     }
 
-    const amount = calculation.total;
+    let pointsDiscount = 0;
+    let pointsToRedeem = 0;
+    if (redeemPoints > 0 && req.user?.sub) {
+      const pointsCheck = await validateAndCalculatePointsRedemption({
+        userId: req.user.sub,
+        pointsRequested: redeemPoints,
+        subtotal: calculation.grossSubtotal,
+        hasCoupon: Boolean(calculation.coupon && calculation.discount > 0),
+      });
+      if (!pointsCheck.valid) {
+        throw new HttpError(400, pointsCheck.error || "Loyalty points redemption failed");
+      }
+      pointsToRedeem = pointsCheck.pointsRedeemed;
+      pointsDiscount = pointsCheck.pointsDiscount;
+    }
+
+    const amount = Math.max(0, Math.round((calculation.total - pointsDiscount) * 100) / 100);
     if (amount <= 0) {
       throw new HttpError(
         400,
-        "Total payable amount is ₹0. Online payment gateway is not required for zero-value orders."
+        "Total payable amount is ₹0 after loyalty discount. Online payment gateway is not required for zero-value orders."
       );
     }
 
@@ -298,6 +323,8 @@ r.post("/razorpay/order", optionalAuth, async (req, res, next) => {
         userId: req.user?.sub || "guest",
         couponCode: calculation.coupon ? calculation.coupon.code : "",
         discount: calculation.discount ? String(calculation.discount) : "0",
+        loyaltyPointsRedeemed: String(pointsToRedeem),
+        loyaltyPointsDiscount: String(pointsDiscount),
         source: "shri-radha-govind-store",
       },
     });
@@ -309,7 +336,9 @@ r.post("/razorpay/order", optionalAuth, async (req, res, next) => {
       couponCode: calculation.coupon?.code,
       grossSubtotal: calculation.grossSubtotal,
       shipping: calculation.shipping,
-      total: calculation.total,
+      total: amount,
+      pointsToRedeem,
+      pointsDiscount,
     });
   } catch (e) {
     next(e);

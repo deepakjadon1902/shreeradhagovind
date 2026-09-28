@@ -53,6 +53,10 @@ export type Order = {
   shipping?: number;
   packagingFee?: number;
   discount?: number;
+  loyaltyPointsRedeemed?: number;
+  loyaltyPointsDiscount?: number;
+  walletAmountUsed?: number;
+  loyaltyPointsEarned?: number;
   couponCode?: string;
   couponId?: string;
   couponDiscountType?: "percentage" | "flat" | "free_shipping";
@@ -312,6 +316,46 @@ export type AdminCoupon = {
   updatedAt: string;
 };
 
+export type LoyaltyTransaction = {
+  _id: string;
+  type: "EARN" | "REDEEM" | "EXPIRE" | "ADJUST" | "REVERSAL";
+  pointsDelta: number;
+  balanceAfter: number;
+  reason?: string;
+  referenceOrderId?: string;
+  createdAt: string;
+};
+
+export type LoyaltyInfo = {
+  pointsBalance: number;
+  rupeeValue: number;
+  monetaryValuePerPoint: number;
+  minPointsToRedeem: number;
+  maxRedemptionPercent: number;
+  tier: {
+    name: string;
+    minSpend: number;
+    pointsMultiplier: number;
+    perks: string[];
+  };
+  history: LoyaltyTransaction[];
+};
+
+export type WalletTransaction = {
+  _id: string;
+  type: "CREDIT" | "DEBIT" | "REFUND" | "ADJUST";
+  amount: number;
+  balanceAfter: number;
+  reason?: string;
+  referenceOrderId?: string;
+  createdAt: string;
+};
+
+export type WalletInfo = {
+  balance: number;
+  history: WalletTransaction[];
+};
+
 type Store = {
   apiEnabled: boolean;
   validateCoupon: (params: {
@@ -349,6 +393,10 @@ type Store = {
   toggleCoupon: (id: string) => Promise<{ coupon: AdminCoupon; message: string }>;
   deleteCoupon: (id: string) => Promise<{ ok: boolean; archived?: boolean; deleted?: boolean; message: string }>;
   user: User;
+  loyalty: LoyaltyInfo | null;
+  wallet: WalletInfo | null;
+  fetchLoyalty: () => Promise<LoyaltyInfo | null>;
+  fetchWallet: () => Promise<WalletInfo | null>;
   login: (email: string, passwordOrName?: string) => Promise<void> | void;
   sendLoginOtp: (email: string) => Promise<{ ok: boolean; message: string }>;
   verifyLoginOtp: (
@@ -370,7 +418,7 @@ type Store = {
   wishlist: string[];
   toggleWishlist: (productId: string) => void;
   orders: Order[];
-  placeOrder: (o: Omit<Order, "id" | "createdAt" | "status">) => Promise<Order> | Order;
+  placeOrder: (o: Omit<Order, "id" | "createdAt" | "status"> & { redeemPoints?: number }) => Promise<Order> | Order;
   // admin
   adminAuthed: boolean;
   adminLogin: (u: string, p: string) => Promise<boolean> | boolean;
@@ -642,6 +690,10 @@ const mapOrder = (o: any, productLookup: Map<string, Product>): Order => {
     shipping: typeof o?.shipping === "number" ? o.shipping : undefined,
     packagingFee: typeof o?.packagingFee === "number" ? o.packagingFee : undefined,
     discount: typeof o?.discount === "number" ? o.discount : 0,
+    loyaltyPointsRedeemed: typeof o?.loyaltyPointsRedeemed === "number" ? o.loyaltyPointsRedeemed : 0,
+    loyaltyPointsDiscount: typeof o?.loyaltyPointsDiscount === "number" ? o.loyaltyPointsDiscount : 0,
+    walletAmountUsed: typeof o?.walletAmountUsed === "number" ? o.walletAmountUsed : 0,
+    loyaltyPointsEarned: typeof o?.loyaltyPointsEarned === "number" ? o.loyaltyPointsEarned : 0,
     couponCode: typeof o?.couponCode === "string" ? o.couponCode : undefined,
     couponId: o?.couponId ? String(o.couponId) : undefined,
     couponDiscountType: o?.couponDiscountType ?? undefined,
@@ -700,12 +752,58 @@ export const displayOrderNumber = (order?: Pick<Order, "id" | "orderNo"> | null)
 export function StoreProvider({ children }: { children: ReactNode }) {
   const apiEnabled = isApiEnabled();
   const [user, setUser] = useState<User>(null);
+  const [loyalty, setLoyalty] = useState<LoyaltyInfo | null>(null);
+  const [wallet, setWallet] = useState<WalletInfo | null>(null);
   const [cart, setCart] = useState<CartItem[]>([]);
   const [wishlist, setWishlist] = useState<string[]>([]);
   const [orders, setOrders] = useState<Order[]>([]);
   const [isSettingsLoaded, setIsSettingsLoaded] = useState(false);
   const [isProductsLoaded, setIsProductsLoaded] = useState(false);
   const [isCategoriesLoaded, setIsCategoriesLoaded] = useState(false);
+
+  const fetchLoyalty = useCallback(async () => {
+    if (!apiEnabled || !getToken()) {
+      setLoyalty(null);
+      return null;
+    }
+    try {
+      const data = await api<LoyaltyInfo>("/loyalty/me");
+      setLoyalty(data);
+      return data;
+    } catch {
+      return null;
+    }
+  }, [apiEnabled]);
+
+  const fetchWallet = useCallback(async () => {
+    if (!apiEnabled || !getToken()) {
+      setWallet(null);
+      return null;
+    }
+    try {
+      const data = await api<WalletInfo>("/wallet/me");
+      setWallet(data);
+      return data;
+    } catch {
+      return null;
+    }
+  }, [apiEnabled]);
+
+  const syncWishlist = useCallback(async (currentLocal: string[]) => {
+    if (!apiEnabled || !getToken()) return;
+    try {
+      const r = await api<{ ok: boolean; wishlist: string[] }>("/wishlist/sync", {
+        method: "POST",
+        body: { items: currentLocal },
+      });
+      if (Array.isArray(r.wishlist)) {
+        setWishlist(r.wishlist);
+        save("wishlist", r.wishlist);
+      }
+    } catch (e) {
+      console.warn("[wishlist] sync failed:", e);
+    }
+  }, [apiEnabled]);
 
   const [adminProducts, setAdminProducts] = useState<Product[]>(() => {
     if (typeof window !== "undefined") {
@@ -858,6 +956,16 @@ export function StoreProvider({ children }: { children: ReactNode }) {
             phone: me.user.phone ?? "",
             address: me.user.address ?? {},
           });
+          fetchLoyalty();
+          fetchWallet();
+          api<{ ok: boolean; wishlist: string[] }>("/wishlist")
+            .then((res) => {
+              if (Array.isArray(res?.wishlist)) {
+                setWishlist(res.wishlist);
+                save("wishlist", res.wishlist);
+              }
+            })
+            .catch(() => {});
           const ord = await api<{ orders: any[] }>(
             me.user.role === "admin" ? "/admin/orders" : "/orders",
           );
@@ -867,6 +975,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         } catch {
           setToken(null);
           setUser(null);
+          setLoyalty(null);
+          setWallet(null);
         }
       } else {
         setUser(null);
@@ -972,6 +1082,9 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       phone: u.phone ?? "",
       address: u.address ?? {},
     });
+    syncWishlist(wishlist);
+    fetchLoyalty();
+    fetchWallet();
     toast.success(`Welcome, ${u.name}!`);
   };
 
@@ -1103,6 +1216,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     setToken(null);
     setUser(null);
     setOrders([]);
+    setLoyalty(null);
+    setWallet(null);
     toast("Logged out");
   };
 
@@ -1141,6 +1256,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   const adminLogout = () => {
     setToken(null);
     setUser(null);
+    setLoyalty(null);
+    setWallet(null);
   };
 
   // ---- products (admin) ----
@@ -1293,6 +1410,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
             businessName: o.businessName,
             gstin: o.gstin,
             couponCode: o.couponCode,
+            redeemPoints: (o as any).redeemPoints,
             items: o.items.map((i) => ({ productId: i.product.id, qty: i.qty })),
             address: o.address,
             billingAddress: o.billingAddress,
@@ -1326,6 +1444,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         const placed = mapOrder(r.order, lookup);
         setOrders((arr) => [placed, ...arr]);
         setCart([]);
+        fetchLoyalty();
+        fetchWallet();
         return placed;
       } catch (e: any) {
         toast.error(e?.message ?? "Order failed");
@@ -1709,6 +1829,10 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   const value: Store = {
     apiEnabled,
     user,
+    loyalty,
+    wallet,
+    fetchLoyalty,
+    fetchWallet,
     login,
     sendLoginOtp,
     verifyLoginOtp,
@@ -1833,8 +1957,22 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     toggleWishlist: (productId) =>
       setWishlist((w) => {
         const has = w.includes(productId);
+        const next = has ? w.filter((i) => i !== productId) : [...w, productId];
         toast(has ? "Removed from wishlist" : "Added to wishlist");
-        return has ? w.filter((i) => i !== productId) : [...w, productId];
+        if (apiEnabled && getToken()) {
+          api<{ ok: boolean; wishlist: string[] }>("/wishlist/toggle", {
+            method: "POST",
+            body: { productId },
+          })
+            .then((r) => {
+              if (Array.isArray(r.wishlist)) {
+                setWishlist(r.wishlist);
+                save("wishlist", r.wishlist);
+              }
+            })
+            .catch(() => {});
+        }
+        return next;
       }),
     orders,
     placeOrder,

@@ -63,6 +63,9 @@ export type InvoiceData = {
   subtotal: number;
   discount?: number;
   couponCode?: string;
+  loyaltyPointsRedeemed?: number;
+  loyaltyDiscount?: number;
+  walletUsed?: number;
   shipping: number;
   shippingMethod?: string;
   packagingCost?: number;
@@ -722,6 +725,15 @@ export async function generateInvoicePDF(data: InvoiceData): Promise<Buffer> {
       if (data.discount && data.discount > 0) {
         const discountLabel = data.couponCode ? `Coupon (${data.couponCode})` : "Discount";
         renderTotalRow(discountLabel, `-${rupee(data.discount)}`);
+      }
+
+      if (data.loyaltyDiscount && data.loyaltyDiscount > 0) {
+        const pointsLabel = data.loyaltyPointsRedeemed ? `Loyalty Points (${data.loyaltyPointsRedeemed} pts)` : "Loyalty Discount";
+        renderTotalRow(pointsLabel, `-${rupee(data.loyaltyDiscount)}`);
+      }
+
+      if (data.walletUsed && data.walletUsed > 0) {
+        renderTotalRow("Wallet / Store Credit", `-${rupee(data.walletUsed)}`);
       }
 
       const shippingText =

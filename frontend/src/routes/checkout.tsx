@@ -22,6 +22,8 @@ import {
   HeartHandshake,
   Tag,
   X,
+  Award,
+  Coins,
 } from "lucide-react";
 import { toast } from "sonner";
 import { api, isApiEnabled, getToken } from "@/lib/api";
@@ -137,7 +139,7 @@ function loadRazorpayScript(): Promise<boolean> {
 }
 
 function Checkout() {
-  const { cart, adminProducts, user, placeOrder, settings, setCart, validateCoupon } = useStore();
+  const { cart, adminProducts, user, placeOrder, settings, setCart, validateCoupon, loyalty, fetchLoyalty } = useStore();
   const search = Route.useSearch();
   const recoveryToken = search.session;
   const [recovering, setRecovering] = useState<boolean>(Boolean(recoveryToken));
@@ -159,6 +161,16 @@ function Checkout() {
   const [couponLoading, setCouponLoading] = useState(false);
   const [couponError, setCouponError] = useState<string | null>(null);
 
+  // Loyalty state
+  const [usePoints, setUsePoints] = useState(false);
+  const [pointsInput, setPointsInput] = useState<number | "">("");
+
+  useEffect(() => {
+    if (user) {
+      fetchLoyalty();
+    }
+  }, [user, fetchLoyalty]);
+
   useEffect(() => {
     if (cart.length > 0) {
       trackCheckoutStart();
@@ -178,7 +190,21 @@ function Checkout() {
   const standardShipping = subtotal >= settings.freeShipThreshold ? 0 : settings.shippingFee;
   const shipping = appliedCoupon?.freeShipping ? 0 : standardShipping;
   const couponDiscount = appliedCoupon ? appliedCoupon.discountAmount : 0;
-  const total = Math.max(0, subtotal - couponDiscount + shipping);
+
+  // Loyalty Points calculation
+  const pointValue = loyalty?.monetaryValuePerPoint || 0.25;
+  const eligibleForLoyalty = Math.max(0, subtotal - couponDiscount);
+  const maxPercent = loyalty?.maxRedemptionPercent ?? 50;
+  const maxPointsAllowedByPercent = Math.floor((eligibleForLoyalty * (maxPercent / 100)) / pointValue);
+  const maxUsablePoints = Math.max(0, Math.min(loyalty?.pointsBalance ?? 0, maxPointsAllowedByPercent));
+  const minPointsRequired = loyalty?.minPointsToRedeem ?? 100;
+  const canRedeemPoints = !!user && (loyalty?.pointsBalance ?? 0) >= minPointsRequired && maxUsablePoints > 0;
+
+  const actualRedeemedPoints = usePoints && canRedeemPoints
+    ? (typeof pointsInput === "number" && pointsInput > 0 ? Math.min(pointsInput, maxUsablePoints) : maxUsablePoints)
+    : 0;
+  const loyaltyDiscount = Math.round(actualRedeemedPoints * pointValue * 100) / 100;
+  const total = Math.max(0, subtotal - couponDiscount - loyaltyDiscount + shipping);
 
   // Account vs Guest selection (default guest for non-logged in)
   const [accountChoice, setAccountChoice] = useState<"guest" | "create">("guest");
@@ -817,6 +843,7 @@ function Checkout() {
       items: items.map((i) => ({ product: i.product, qty: i.qty })),
       total,
       couponCode: appliedCoupon?.code || undefined,
+      redeemPoints: actualRedeemedPoints > 0 ? actualRedeemedPoints : undefined,
       alternatePhone: form.alternatePhone.trim() || undefined,
       needsGstInvoice: form.needsGstInvoice,
       businessName: form.needsGstInvoice ? form.businessName.trim() : undefined,
@@ -904,6 +931,7 @@ function Checkout() {
         body: {
           items: items.map((item) => ({ productId: item.product.id, qty: item.qty })),
           couponCode: appliedCoupon?.code || undefined,
+          redeemPoints: actualRedeemedPoints > 0 ? actualRedeemedPoints : undefined,
         },
       });
       rzpOrder = r.order;
@@ -2006,6 +2034,75 @@ function Checkout() {
                   )}
                 </div>
 
+                {/* Devotee Loyalty Rewards Redemption */}
+                {user && (loyalty?.pointsBalance ?? 0) > 0 && (
+                  <div className="pt-4 border-t border-stone-100">
+                    <div className="rounded-xl border border-amber-200/80 bg-gradient-to-br from-amber-50/70 to-orange-50/40 p-3 sm:p-3.5 space-y-2.5">
+                      <div className="flex items-center justify-between">
+                        <label className="flex items-center gap-2 cursor-pointer select-none">
+                          <input
+                            type="checkbox"
+                            checked={usePoints}
+                            disabled={!canRedeemPoints}
+                            onChange={(e) => {
+                              setUsePoints(e.target.checked);
+                              if (e.target.checked && !pointsInput) {
+                                setPointsInput(maxUsablePoints);
+                              }
+                            }}
+                            className="w-4 h-4 rounded text-amber-600 focus:ring-amber-500 border-amber-300 disabled:opacity-50"
+                          />
+                          <span className="text-xs font-semibold text-amber-950 flex items-center gap-1.5">
+                            <Award className="h-4 w-4 text-amber-600 shrink-0" />
+                            Redeem Devotee Points
+                          </span>
+                        </label>
+                        <span className="text-[11px] font-bold text-amber-800 bg-amber-100/80 px-2 py-0.5 rounded-full">
+                          {loyalty?.pointsBalance} pts
+                        </span>
+                      </div>
+
+                      {canRedeemPoints ? (
+                        <>
+                          <p className="text-[11px] text-amber-900/80 leading-snug">
+                            You have <span className="font-semibold">{loyalty?.pointsBalance} points</span> (worth {formatINR(loyalty?.rupeeValue)}). Max usable for this order: <span className="font-semibold">{maxUsablePoints} points</span> ({formatINR(maxUsablePoints * pointValue)}).
+                          </p>
+
+                          {usePoints && (
+                            <div className="pt-2 border-t border-amber-200/60 flex items-center gap-2">
+                              <div className="relative flex-1">
+                                <input
+                                  type="number"
+                                  min={minPointsRequired}
+                                  max={maxUsablePoints}
+                                  value={pointsInput === "" ? "" : pointsInput}
+                                  onChange={(e) => {
+                                    const val = e.target.value === "" ? "" : Math.max(0, Math.min(maxUsablePoints, Number(e.target.value)));
+                                    setPointsInput(val);
+                                  }}
+                                  placeholder={`Points (max ${maxUsablePoints})`}
+                                  className="w-full text-xs font-mono px-2.5 py-1.5 rounded-lg border border-amber-300 bg-white focus:outline-none focus:ring-1 focus:ring-amber-500"
+                                />
+                              </div>
+                              <button
+                                type="button"
+                                onClick={() => setPointsInput(maxUsablePoints)}
+                                className="text-[11px] font-semibold text-amber-900 bg-amber-200/70 hover:bg-amber-200 px-2.5 py-1.5 rounded-lg transition"
+                              >
+                                Max
+                              </button>
+                            </div>
+                          )}
+                        </>
+                      ) : (
+                        <p className="text-[11px] text-stone-500 leading-snug">
+                          Minimum {minPointsRequired} points required to redeem. You currently have {loyalty?.pointsBalance ?? 0} points.
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                )}
+
                 {/* Price Breakdown */}
                 <div className="pt-4 border-t border-stone-100 space-y-2.5 text-xs sm:text-sm">
                   <div className="flex justify-between text-stone-600">
@@ -2027,6 +2124,16 @@ function Checkout() {
                         <span>Promo Discount ({appliedCoupon.code})</span>
                       </span>
                       <span>- {formatINR(appliedCoupon.discountAmount)}</span>
+                    </div>
+                  )}
+
+                  {actualRedeemedPoints > 0 && loyaltyDiscount > 0 && (
+                    <div className="flex justify-between text-amber-900 font-semibold bg-amber-50/80 -mx-1 px-1 py-1 rounded">
+                      <span className="flex items-center gap-1.5">
+                        <Award className="h-3.5 w-3.5 text-amber-600" />
+                        <span>Devotee Points ({actualRedeemedPoints} pts)</span>
+                      </span>
+                      <span>- {formatINR(loyaltyDiscount)}</span>
                     </div>
                   )}
 

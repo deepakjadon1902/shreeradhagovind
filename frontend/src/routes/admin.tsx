@@ -21,6 +21,7 @@ import { DeliveryOperationsView } from "@/components/DeliveryOperationsView";
 import { InventoryManager } from "@/components/InventoryManager";
 import { ConversionAnalyticsPanel } from "@/components/admin/ConversionAnalyticsPanel";
 import { CouponsManager } from "@/components/admin/CouponsManager";
+import { RetentionLoyaltyManager } from "@/components/admin/RetentionLoyaltyManager";
 import { slugify } from "@/lib/seo";
 import { toast } from "sonner";
 import {
@@ -80,6 +81,7 @@ import {
   Info,
   Layers,
   Send,
+  Award,
 } from "lucide-react";
 
 export const Route = createFileRoute("/admin")({
@@ -100,6 +102,7 @@ type Tab =
   | "delivery"
   | "categories"
   | "coupons"
+  | "retention"
   | "blogs"
   | "users"
   | "finance"
@@ -540,6 +543,9 @@ function AdminRoot() {
               </NavBtn>
               <NavBtn active={tab === "users"} onClick={() => setTab("users")} icon={Users}>
                 Customers
+              </NavBtn>
+              <NavBtn active={tab === "retention"} onClick={() => setTab("retention")} icon={Award}>
+                Retention & Loyalty
               </NavBtn>
             </div>
           </div>
@@ -1285,6 +1291,7 @@ function AdminRoot() {
 
         {tab === "settings" && <SettingsPanel settings={settings} onSave={updateSettings} />}
         {tab === "coupons" && <CouponsManager />}
+        {tab === "retention" && <RetentionLoyaltyManager />}
         {tab === "finance" && (
           <FinanceAnalyticsPanel
             orders={orders}

@@ -36,6 +36,13 @@ export interface IDailyAnalytics extends Document {
   recoveredRevenue: number;
   couponRedemptions: number;
   couponDiscountTotal: number;
+  firstTimeOrders?: number;
+  repeatOrders?: number;
+  loyaltyPointsEarned?: number;
+  loyaltyPointsRedeemed?: number;
+  loyaltyDiscountTotal?: number;
+  walletCredits?: number;
+  walletDebits?: number;
   devices: IDailyDevices;
   sources: Map<string, number>;
   mediums: Map<string, number>;
@@ -81,6 +88,13 @@ const dailyAnalyticsSchema = new Schema<IDailyAnalytics>(
     recoveredRevenue: { type: Number, default: 0 },
     couponRedemptions: { type: Number, default: 0 },
     couponDiscountTotal: { type: Number, default: 0 },
+    firstTimeOrders: { type: Number, default: 0 },
+    repeatOrders: { type: Number, default: 0 },
+    loyaltyPointsEarned: { type: Number, default: 0 },
+    loyaltyPointsRedeemed: { type: Number, default: 0 },
+    loyaltyDiscountTotal: { type: Number, default: 0 },
+    walletCredits: { type: Number, default: 0 },
+    walletDebits: { type: Number, default: 0 },
     devices: {
       mobile: { type: Number, default: 0 },
       desktop: { type: Number, default: 0 },

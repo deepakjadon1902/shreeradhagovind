@@ -22,6 +22,34 @@ const settingsSchema = new Schema(
     showDeveloperProfile: { type: Boolean, default: true },
     homeHeroVideo: { type: String, default: "/Homepage_banner.mp4" },
     aboutStoryVideo: { type: String, default: "/About_US_story_video.mp4" },
+    loyalty: {
+      enabled: { type: Boolean, default: true },
+      pointsEarningRate: { type: Number, default: 1 }, // 1 point per spend unit
+      pointsEarningSpendUnit: { type: Number, default: 100 }, // per ₹100 spent
+      pointMonetaryValue: { type: Number, default: 1 }, // 1 point = ₹1.00
+      minPointsRedemption: { type: Number, default: 50 }, // min points to redeem
+      maxPointsRedemptionPercent: { type: Number, default: 50 }, // max 50% of subtotal
+      pointsCombineWithCoupons: { type: Boolean, default: true },
+      pointsExpirationDays: { type: Number, default: 180 }, // confirmed business rule: exactly 180 days
+      earnPointsOnShipping: { type: Boolean, default: false },
+      earnPointsOnDiscountedSubtotal: { type: Boolean, default: true },
+    },
+    tiers: [
+      {
+        id: { type: String, required: true },
+        name: { type: String, required: true },
+        minSpend: { type: Number, default: 0 },
+        minOrders: { type: Number, default: 0 },
+        rule: {
+          type: String,
+          enum: ["spend_or_orders", "spend_and_orders", "spend_only", "orders_only"],
+          default: "spend_or_orders",
+        },
+        badgeColor: { type: String, default: "#b45309" },
+        perks: [{ type: String }],
+        extraPointsMultiplier: { type: Number, default: 1 },
+      },
+    ],
   },
   { timestamps: true }
 );

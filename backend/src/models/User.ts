@@ -27,6 +27,13 @@ const userSchema = new Schema(
     loginOtpExpiresAt: { type: Date, default: null },
     loginOtpAttempts: { type: Number, default: 0 },
     loginOtpLastSentAt: { type: Date, default: null },
+    loyaltyPointsBalance: { type: Number, default: 0, min: 0 },
+    walletBalance: { type: Number, default: 0, min: 0 },
+    wishlist: [{ type: Schema.Types.ObjectId, ref: "Product" }],
+    marketingEmailOptIn: { type: Boolean, default: true, index: true },
+    unsubscribeToken: { type: String, sparse: true, index: true },
+    emailVerified: { type: Boolean, default: false, index: true },
+    emailVerifiedAt: { type: Date, default: null },
   },
   { timestamps: true }
 );

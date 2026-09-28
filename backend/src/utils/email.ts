@@ -22,6 +22,9 @@ export type EmailOrderPayload = {
   subtotal: number;
   discount?: number;
   couponCode?: string;
+  loyaltyPointsRedeemed?: number;
+  loyaltyDiscount?: number;
+  walletUsed?: number;
   shipping: number;
   total: number;
   address: Addr;
@@ -61,6 +64,9 @@ export function buildEmailOrderPayload(o: any): EmailOrderPayload {
     subtotal: o.subtotal ?? 0,
     discount: o.discount ?? 0,
     couponCode: o.couponCode ?? undefined,
+    loyaltyPointsRedeemed: o.loyaltyPointsRedeemed ?? undefined,
+    loyaltyDiscount: o.loyaltyPointsDiscount ?? undefined,
+    walletUsed: o.walletAmountUsed ?? undefined,
     shipping: o.shipping ?? 0,
     total: o.total ?? 0,
     address: o.address as any,
@@ -80,6 +86,7 @@ export async function sendEmail(opts: {
   html: string;
   bcc?: string[];
   attachments?: EmailAttachment[];
+  headers?: Record<string, string>;
 }) {
   if (!resend) {
     // eslint-disable-next-line no-console
@@ -94,6 +101,7 @@ export async function sendEmail(opts: {
       subject: opts.subject,
       html: opts.html,
       attachments: opts.attachments?.map((a) => ({ filename: a.filename, content: a.content })),
+      headers: opts.headers,
     });
   } catch (e) {
     // eslint-disable-next-line no-console
@@ -854,6 +862,65 @@ export const tpl = {
       </p>
     `),
   }),
+
+  winBack: (name: string, discountCode: string, discountText = "10% OFF") => ({
+    subject: `We miss you at Shri Radha Govind Store! Special sacred gift inside 🎁`,
+    html: shell(`
+      <h2 style="margin:0 0 8px">Radhe Radhe, ${name || "Devotee"} 🙏</h2>
+      <p style="margin:0 0 14px;color:#444;line-height:1.6">
+        It has been a while since your last visit to Vrindavan's sacred collection. We hope your seva and devotions are flourishing.
+      </p>
+      <div style="margin:20px 0;padding:20px;background:#fffbeb;border:1px dashed #d97706;border-radius:12px;text-align:center">
+        <p style="margin:0 0 8px;font-size:14px;font-weight:600;color:#92400e">Exclusive Devotee Reconnect Blessing</p>
+        <div style="font-size:26px;font-weight:800;letter-spacing:4px;color:#b45309;padding:8px 16px">${discountCode}</div>
+        <p style="margin:8px 0 0;font-size:13px;color:#b45309">Use this code at checkout to enjoy <b>${discountText}</b> on your next order.</p>
+      </div>
+      <div style="text-align:center;margin:24px 0 10px">
+        <a href="https://shriradhagovindstore.com/shop" style="display:inline-block;background:${ACCENT};color:#ffffff;padding:12px 28px;border-radius:999px;text-decoration:none;font-weight:600;font-size:14px">
+          Visit Sacred Shop &rarr;
+        </a>
+      </div>
+    `),
+  }),
+
+  loyaltyMilestone: (name: string, pointsBalance: number, rupeeValue: number) => ({
+    subject: `You have ${pointsBalance} Divine Reward Points waiting for you! 🌟`,
+    html: shell(`
+      <h2 style="margin:0 0 8px">Radhe Radhe, ${name || "Devotee"} 🙏</h2>
+      <p style="margin:0 0 14px;color:#444;line-height:1.6">
+        Thank you for your blessed association with Shri Radha Govind Store. Your devotion and seva have earned you valuable rewards.
+      </p>
+      <div style="margin:20px 0;padding:20px;background:#f0fdfa;border:1px solid #ccfbf1;border-radius:12px;text-align:center">
+        <div style="font-size:32px;font-weight:800;color:${ACCENT}">${pointsBalance} Points</div>
+        <p style="margin:6px 0 0;font-size:15px;font-weight:600;color:#134e4a">Worth ${rupee(rupeeValue)} toward your next sacred order</p>
+      </div>
+      <p style="font-size:13px;color:#666;line-height:1.5">You can apply these points directly at checkout to save on sacred essentials, dress sets, or tulsi items.</p>
+      <div style="text-align:center;margin:22px 0 10px">
+        <a href="https://shriradhagovindstore.com/profile" style="display:inline-block;background:${ACCENT};color:#ffffff;padding:12px 28px;border-radius:999px;text-decoration:none;font-weight:600;font-size:14px">
+          View Your Rewards &rarr;
+        </a>
+      </div>
+    `),
+  }),
+
+  tierUpgrade: (name: string, newTierName: string, perks: string[]) => ({
+    subject: `Congratulations! You've reached ${newTierName} Status at Shri Radha Govind Store 🏆`,
+    html: shell(`
+      <h2 style="margin:0 0 8px">Radhe Radhe, ${name || "Devotee"} 🙏</h2>
+      <p style="margin:0 0 14px;color:#444;line-height:1.6">
+        We are thrilled to welcome you into our highest echelon of devotees. Your continuous association has elevated you to:
+      </p>
+      <div style="margin:20px 0;padding:20px;background:#fffbeb;border:2px solid #f59e0b;border-radius:12px;text-align:center">
+        <div style="font-size:22px;font-weight:800;color:#b45309">${newTierName}</div>
+        <div style="margin-top:12px;text-align:left;display:inline-block">
+          <p style="margin:0 0 6px;font-size:13px;font-weight:700;color:#78350f">Your Exclusive Tier Privileges:</p>
+          <ul style="margin:0;padding-left:20px;font-size:13px;color:#92400e;line-height:1.6">
+            ${perks.map((p) => `<li>${p}</li>`).join("")}
+          </ul>
+        </div>
+      </div>
+    `),
+  }),
 };
 
 export async function dispatchRequestedInvoiceEmail(opts: {
@@ -891,6 +958,63 @@ export async function dispatchRequestedInvoiceEmail(opts: {
     if (res && (res as any).error) {
       return { success: false, error: String((res as any).error) };
     }
+    return { success: true, skipped: Boolean((res as any)?.skipped) };
+  } catch (err: any) {
+    return { success: false, error: err?.message || String(err) };
+  }
+}
+
+/**
+ * Dispatches a re-engagement/marketing email with strict opt-out enforcement.
+ * Checks both User.marketingEmailOptIn and MarketingUnsubscribe before sending.
+ * Injects required List-Unsubscribe headers and one-click footer.
+ */
+export async function sendMarketingEmail(opts: {
+  to: string;
+  subject: string;
+  html: string;
+  campaignName?: string;
+}): Promise<{ success: boolean; skipped?: boolean; error?: string; reason?: string }> {
+  try {
+    const cleanEmail = opts.to.trim().toLowerCase();
+
+    // 1. Enforce opt-out: check User and MarketingUnsubscribe
+    const { User } = await import("../models/User");
+    const { MarketingUnsubscribe } = await import("../models/MarketingUnsubscribe");
+
+    const [userOptOut, unsubRecord] = await Promise.all([
+      User.findOne({ email: cleanEmail, marketingEmailOptIn: false }).select("_id").lean(),
+      MarketingUnsubscribe.findOne({ email: cleanEmail }).select("_id").lean(),
+    ]);
+
+    if (userOptOut || unsubRecord) {
+      console.log(`[email:marketing_skipped_unsubscribed] ${cleanEmail} is unsubscribed from marketing`);
+      return { success: true, skipped: true, reason: "unsubscribed" };
+    }
+
+    const unsubUrl = `https://shriradhagovindstore.com/api/marketing/unsubscribe?email=${encodeURIComponent(cleanEmail)}`;
+
+    const footerHtml = `
+      <div style="margin-top:32px;padding-top:16px;border-top:1px solid #e5e7eb;font-size:12px;color:#9ca3af;text-align:center;">
+        <p style="margin:0 0 4px">You received this sacred update because you are a valued devotee of Shri Radha Govind Store, Vrindavan.</p>
+        <p style="margin:0"><a href="${unsubUrl}" style="color:#b45309;text-decoration:underline;">Unsubscribe from marketing emails</a></p>
+      </div>
+    `;
+
+    const res = await sendEmail({
+      to: opts.to,
+      subject: opts.subject,
+      html: opts.html + footerHtml,
+      headers: {
+        "List-Unsubscribe": `<${unsubUrl}>`,
+        "List-Unsubscribe-Post": "List-Unsubscribe=One-Click",
+      },
+    });
+
+    if (res && (res as any).error) {
+      return { success: false, error: String((res as any).error) };
+    }
+
     return { success: true, skipped: Boolean((res as any)?.skipped) };
   } catch (err: any) {
     return { success: false, error: err?.message || String(err) };
