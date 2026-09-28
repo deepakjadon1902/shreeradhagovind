@@ -1,6 +1,7 @@
 import { Order } from "../models/Order";
 import { Product } from "../models/Product";
 import { dispatchOrderCancelledEmailOnce } from "../utils/email";
+import { restoreCouponRedemption } from "./coupon.service";
 
 export const CANCELLABLE_STATUSES_CUSTOMER = ["Placed", "Confirmed"] as const;
 export const CANCELLABLE_STATUSES_ADMIN = ["Placed", "Confirmed", "Processing", "Hold", "Packed"] as const;
@@ -110,7 +111,7 @@ export async function restockOrderItems(order: {
 
 export interface CancelOrderParams {
   orderId: any;
-  cancellableStatuses: readonly string[];
+  cancellableStatuses?: readonly string[];
   cancelledBy: "customer" | "admin" | "system";
   cancellationReason: string;
   note?: string;
@@ -137,7 +138,7 @@ export interface CancelOrderResult {
 export async function cancelOrderAtomically(params: CancelOrderParams): Promise<CancelOrderResult> {
   const {
     orderId,
-    cancellableStatuses,
+    cancellableStatuses = ["Placed", "Confirmed", "Processing", "Hold"],
     cancelledBy,
     cancellationReason,
     note,
@@ -200,8 +201,9 @@ export async function cancelOrderAtomically(params: CancelOrderParams): Promise<
     };
   }
 
-  // Sole winner of atomic transition performs stock restoration
+  // Sole winner of atomic transition performs stock restoration and coupon usage restoration
   await restockOrderItems(updatedOrder);
+  await restoreCouponRedemption(updatedOrder._id);
 
   // Send cancellation email safely and idempotently
   if (sendNotificationEmail) {

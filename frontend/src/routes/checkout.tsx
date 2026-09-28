@@ -20,6 +20,8 @@ import {
   ExternalLink,
   Receipt,
   HeartHandshake,
+  Tag,
+  X,
 } from "lucide-react";
 import { toast } from "sonner";
 import { api, isApiEnabled, getToken } from "@/lib/api";
@@ -135,7 +137,7 @@ function loadRazorpayScript(): Promise<boolean> {
 }
 
 function Checkout() {
-  const { cart, adminProducts, user, placeOrder, settings, setCart } = useStore();
+  const { cart, adminProducts, user, placeOrder, settings, setCart, validateCoupon } = useStore();
   const search = Route.useSearch();
   const recoveryToken = search.session;
   const [recovering, setRecovering] = useState<boolean>(Boolean(recoveryToken));
@@ -144,6 +146,18 @@ function Checkout() {
   const isSubmittingRef = useRef(false);
   const lastCapturedHashRef = useRef<string>("");
   const captureTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
+  // Coupon state
+  const [couponInput, setCouponInput] = useState("");
+  const [appliedCoupon, setAppliedCoupon] = useState<{
+    code: string;
+    discountAmount: number;
+    freeShipping: boolean;
+    allowedPaymentMethods?: "both" | "online" | "cod";
+    message?: string;
+  } | null>(null);
+  const [couponLoading, setCouponLoading] = useState(false);
+  const [couponError, setCouponError] = useState<string | null>(null);
 
   useEffect(() => {
     if (cart.length > 0) {
@@ -161,8 +175,10 @@ function Checkout() {
     return s + effectiveMrp * i.qty;
   }, 0);
   const totalSavings = Math.max(0, totalMrp - subtotal);
-  const shipping = subtotal >= settings.freeShipThreshold ? 0 : settings.shippingFee;
-  const total = subtotal + shipping;
+  const standardShipping = subtotal >= settings.freeShipThreshold ? 0 : settings.shippingFee;
+  const shipping = appliedCoupon?.freeShipping ? 0 : standardShipping;
+  const couponDiscount = appliedCoupon ? appliedCoupon.discountAmount : 0;
+  const total = Math.max(0, subtotal - couponDiscount + shipping);
 
   // Account vs Guest selection (default guest for non-logged in)
   const [accountChoice, setAccountChoice] = useState<"guest" | "create">("guest");
@@ -378,6 +394,7 @@ function Checkout() {
       name: form.name,
       line1: form.line1,
       pincode: form.pincode,
+      couponCode: appliedCoupon?.code || "",
       cart: cart.map((c) => ({ p: c.productId, q: c.qty })),
     });
 
@@ -391,6 +408,7 @@ function Checkout() {
         email,
         phone,
         alternatePhone: form.alternatePhone.trim() || undefined,
+        couponCode: appliedCoupon?.code || undefined,
         address: {
           name: form.name.trim(),
           phone,
@@ -416,7 +434,7 @@ function Checkout() {
       .catch(() => {
         // Silently ignore: capture failure must never disrupt checkout
       });
-  }, [cart, form]);
+  }, [cart, form, appliedCoupon]);
 
   // Debounced auto-save when typing contact info
   useEffect(() => {
@@ -433,6 +451,86 @@ function Checkout() {
       }
     };
   }, [form.email, form.phone, form.name, form.line1, form.pincode, captureSession]);
+
+  const handleApplyCoupon = async () => {
+    const code = couponInput.trim().toUpperCase();
+    if (!code) {
+      setCouponError("Please enter a coupon code");
+      return;
+    }
+    if (items.length === 0) {
+      setCouponError("Your cart is empty");
+      return;
+    }
+    setCouponLoading(true);
+    setCouponError(null);
+    try {
+      const res = await validateCoupon({
+        couponCode: code,
+        items: items.map((i) => ({ productId: i.product.id, qty: i.qty })),
+        paymentMethod: method,
+        email: form.email.trim() || undefined,
+        phone: form.phone.trim() || undefined,
+      });
+      if (res.valid) {
+        setAppliedCoupon({
+          code: res.coupon?.code || code,
+          discountAmount: res.discount,
+          freeShipping: res.isFreeShipping ?? res.freeShipping ?? false,
+          allowedPaymentMethods: res.coupon?.allowedPaymentMethods,
+          message: res.message,
+        });
+        setCouponInput("");
+        setCouponError(null);
+        toast.success(res.message || `Coupon "${res.coupon?.code || code}" applied!`);
+      } else {
+        setCouponError(res.error || "Invalid coupon code");
+        toast.error(res.error || "Invalid coupon code");
+      }
+    } catch (err: any) {
+      const msg = err?.message || "Failed to validate coupon";
+      setCouponError(msg);
+      toast.error(msg);
+    } finally {
+      setCouponLoading(false);
+    }
+  };
+
+  const handleRemoveCoupon = () => {
+    setAppliedCoupon(null);
+    setCouponError(null);
+    toast.info("Coupon removed");
+  };
+
+  // Re-verify applied coupon if cart items or payment method change
+  const cartItemSignature = items.map((i) => `${i.productId}:${i.qty}`).join(",");
+  useEffect(() => {
+    if (!appliedCoupon) return;
+    if (items.length === 0) {
+      setAppliedCoupon(null);
+      return;
+    }
+    validateCoupon({
+      couponCode: appliedCoupon.code,
+      items: items.map((i) => ({ productId: i.product.id, qty: i.qty })),
+      paymentMethod: method,
+      email: form.email.trim() || undefined,
+      phone: form.phone.trim() || undefined,
+    }).then((res) => {
+      if (res.valid) {
+        setAppliedCoupon({
+          code: res.coupon?.code || appliedCoupon.code,
+          discountAmount: res.discount,
+          freeShipping: res.isFreeShipping ?? res.freeShipping ?? false,
+          allowedPaymentMethods: res.coupon?.allowedPaymentMethods,
+          message: res.message,
+        });
+      } else {
+        setAppliedCoupon(null);
+        toast.warning(`Coupon "${appliedCoupon.code}" was removed: ${res.error}`);
+      }
+    }).catch(() => {});
+  }, [cartItemSignature, method]);
 
   // Debounced Indian Pincode Lookup for Shipping Address
   useEffect(() => {
@@ -718,6 +816,7 @@ function Checkout() {
       createAccount: !user && accountChoice === "create",
       items: items.map((i) => ({ product: i.product, qty: i.qty })),
       total,
+      couponCode: appliedCoupon?.code || undefined,
       alternatePhone: form.alternatePhone.trim() || undefined,
       needsGstInvoice: form.needsGstInvoice,
       businessName: form.needsGstInvoice ? form.businessName.trim() : undefined,
@@ -802,7 +901,10 @@ function Checkout() {
 
       const r = await api<{ order: RazorpayOrder; keyId?: string }>("/payments/razorpay/order", {
         method: "POST",
-        body: { items: items.map((item) => ({ productId: item.product.id, qty: item.qty })) },
+        body: {
+          items: items.map((item) => ({ productId: item.product.id, qty: item.qty })),
+          couponCode: appliedCoupon?.code || undefined,
+        },
       });
       rzpOrder = r.order;
       keyId = r.keyId || settings.razorpayKeyId;
@@ -1816,6 +1918,94 @@ function Checkout() {
                   })}
                 </div>
 
+                {/* Promo Code Section */}
+                <div className="pt-4 border-t border-stone-100">
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-xs font-semibold text-stone-700 flex items-center gap-1.5">
+                      <Tag className="h-3.5 w-3.5 text-[#166F77]" />
+                      <span>Have a Promo Code?</span>
+                    </span>
+                  </div>
+
+                  {appliedCoupon ? (
+                    <div className="flex items-center justify-between p-2.5 rounded-xl bg-emerald-50/90 border border-emerald-200">
+                      <div className="flex items-center gap-2 min-w-0">
+                        <CheckCircle2 className="h-4 w-4 text-emerald-600 shrink-0" />
+                        <div className="min-w-0">
+                          <div className="flex items-center gap-1.5 flex-wrap">
+                            <span className="font-mono text-xs font-bold text-emerald-800 tracking-wider">
+                              {appliedCoupon.code}
+                            </span>
+                            <span className="text-[10px] font-semibold bg-emerald-200/70 text-emerald-800 px-1.5 py-0.2 rounded">
+                              APPLIED
+                            </span>
+                            {appliedCoupon.allowedPaymentMethods === "online" && (
+                              <span className="text-[10px] font-semibold bg-blue-100 text-blue-800 px-1.5 py-0.2 rounded">
+                                Online Only
+                              </span>
+                            )}
+                            {appliedCoupon.allowedPaymentMethods === "cod" && (
+                              <span className="text-[10px] font-semibold bg-amber-100 text-amber-800 px-1.5 py-0.2 rounded">
+                                COD Only
+                              </span>
+                            )}
+                          </div>
+                          <p className="text-[11px] text-emerald-700 truncate">
+                            {appliedCoupon.message || (appliedCoupon.freeShipping ? "Free shipping applied" : `Saved ${formatINR(appliedCoupon.discountAmount)}`)}
+                          </p>
+                        </div>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={handleRemoveCoupon}
+                        className="text-stone-400 hover:text-stone-600 p-1 rounded-lg hover:bg-emerald-100/50 transition shrink-0"
+                        title="Remove promo code"
+                      >
+                        <X className="h-4 w-4" />
+                      </button>
+                    </div>
+                  ) : (
+                    <div>
+                      <div className="flex gap-2">
+                        <input
+                          type="text"
+                          value={couponInput}
+                          onChange={(e) => {
+                            setCouponInput(e.target.value.toUpperCase());
+                            if (couponError) setCouponError(null);
+                          }}
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter") {
+                              e.preventDefault();
+                              handleApplyCoupon();
+                            }
+                          }}
+                          placeholder="ENTER CODE"
+                          className="flex-1 min-w-0 uppercase font-mono text-xs px-3 py-2 rounded-xl border border-stone-200 bg-stone-50/50 placeholder:text-stone-400 placeholder:normal-case focus:bg-white focus:outline-none focus:ring-1 focus:ring-[#166F77] focus:border-[#166F77] transition"
+                        />
+                        <button
+                          type="button"
+                          onClick={handleApplyCoupon}
+                          disabled={couponLoading || !couponInput.trim()}
+                          className="px-4 py-2 rounded-xl bg-stone-900 text-white font-medium text-xs hover:bg-stone-800 transition disabled:opacity-50 disabled:cursor-not-allowed shrink-0 flex items-center gap-1.5"
+                        >
+                          {couponLoading ? (
+                            <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                          ) : (
+                            "Apply"
+                          )}
+                        </button>
+                      </div>
+                      {couponError && (
+                        <p className="mt-1.5 text-xs text-rose-600 flex items-center gap-1">
+                          <AlertCircle className="h-3.5 w-3.5 shrink-0" />
+                          <span>{couponError}</span>
+                        </p>
+                      )}
+                    </div>
+                  )}
+                </div>
+
                 {/* Price Breakdown */}
                 <div className="pt-4 border-t border-stone-100 space-y-2.5 text-xs sm:text-sm">
                   <div className="flex justify-between text-stone-600">
@@ -1830,11 +2020,21 @@ function Checkout() {
                     </div>
                   )}
 
+                  {appliedCoupon && appliedCoupon.discountAmount > 0 && (
+                    <div className="flex justify-between text-emerald-700 font-semibold bg-emerald-50/50 -mx-1 px-1 py-1 rounded">
+                      <span className="flex items-center gap-1.5">
+                        <Tag className="h-3.5 w-3.5" />
+                        <span>Promo Discount ({appliedCoupon.code})</span>
+                      </span>
+                      <span>- {formatINR(appliedCoupon.discountAmount)}</span>
+                    </div>
+                  )}
+
                   <div className="flex justify-between text-stone-600 items-center">
                     <span>Delivery / Shipping</span>
                     {shipping === 0 ? (
                       <span className="font-semibold text-emerald-700 bg-emerald-50 border border-emerald-200/60 px-2 py-0.5 rounded text-xs">
-                        FREE SHIPPING
+                        {appliedCoupon?.freeShipping ? "FREE (PROMO)" : "FREE SHIPPING"}
                       </span>
                     ) : (
                       <span className="font-medium text-stone-800">{formatINR(shipping)}</span>

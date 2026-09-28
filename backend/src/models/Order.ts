@@ -13,6 +13,7 @@ const orderItemSchema = new Schema(
     costPrice: { type: Number, min: 0 },
     taxableAmount: Number,
     gstAmount: Number,
+    discountAmount: { type: Number, default: 0 },
     comboComponents: [
       {
         name: String,
@@ -49,6 +50,11 @@ const orderSchema = new Schema(
     subtotal: { type: Number, required: true },
     shipping: { type: Number, default: 0 },
     total: { type: Number, required: true },
+    discount: { type: Number, default: 0, min: 0 },
+    couponCode: { type: String, default: "", uppercase: true, trim: true },
+    couponId: { type: Schema.Types.ObjectId, ref: "Coupon", default: null },
+    couponDiscountType: { type: String, enum: ["percentage", "flat", "free_shipping", null], default: null },
+    couponDiscountValue: { type: Number, min: 0, default: 0 },
     alternatePhone: { type: String, default: "" },
     needsGstInvoice: { type: Boolean, default: false },
     businessName: { type: String, default: "", trim: true },

@@ -34,6 +34,8 @@ export interface IDailyAnalytics extends Document {
   abandonedCheckouts: number;
   recoveredCheckouts: number;
   recoveredRevenue: number;
+  couponRedemptions: number;
+  couponDiscountTotal: number;
   devices: IDailyDevices;
   sources: Map<string, number>;
   mediums: Map<string, number>;
@@ -77,6 +79,8 @@ const dailyAnalyticsSchema = new Schema<IDailyAnalytics>(
     abandonedCheckouts: { type: Number, default: 0 },
     recoveredCheckouts: { type: Number, default: 0 },
     recoveredRevenue: { type: Number, default: 0 },
+    couponRedemptions: { type: Number, default: 0 },
+    couponDiscountTotal: { type: Number, default: 0 },
     devices: {
       mobile: { type: Number, default: 0 },
       desktop: { type: Number, default: 0 },
@@ -345,6 +349,10 @@ export async function recordDailyOrder(order: any): Promise<void> {
   if (isPaid) {
     inc.paidOrders = 1;
     inc.grossRevenue = Math.round((Number(order.total) || 0) * 100) / 100;
+    if (order.discount && order.discount > 0) {
+      inc.couponRedemptions = 1;
+      inc.couponDiscountTotal = Math.round(Number(order.discount) * 100) / 100;
+    }
   }
 
   // Track product units and revenue

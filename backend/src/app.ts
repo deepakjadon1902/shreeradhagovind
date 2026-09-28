@@ -23,6 +23,7 @@ import aiRoutes from "./routes/ai.routes";
 import llmsRoutes from "./routes/llms.routes";
 import checkoutSessionRoutes from "./routes/checkoutSession.routes";
 import analyticsRoutes, { adminAnalyticsRoutes } from "./routes/analytics.routes";
+import couponRoutes, { adminCouponRouter } from "./routes/coupon.routes";
 
 export const app = express();
 
@@ -76,6 +77,8 @@ app.use("/api/ai", aiRoutes);
 app.use("/api/checkout-sessions", checkoutSessionRoutes);
 app.use("/api/analytics", analyticsRoutes);
 app.use("/api/admin/analytics", adminAnalyticsRoutes);
+app.use("/api/coupons", couponRoutes);
+app.use("/api/admin/coupons", adminCouponRouter);
 app.use(llmsRoutes);
 
 app.use(notFound);

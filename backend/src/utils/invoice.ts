@@ -61,6 +61,8 @@ export type InvoiceData = {
   needsGstInvoice?: boolean;
   items: InvoiceItem[];
   subtotal: number;
+  discount?: number;
+  couponCode?: string;
   shipping: number;
   shippingMethod?: string;
   packagingCost?: number;
@@ -716,6 +718,11 @@ export async function generateInvoicePDF(data: InvoiceData): Promise<Buffer> {
       };
 
       renderTotalRow("Subtotal", rupee(data.subtotal));
+
+      if (data.discount && data.discount > 0) {
+        const discountLabel = data.couponCode ? `Coupon (${data.couponCode})` : "Discount";
+        renderTotalRow(discountLabel, `-${rupee(data.discount)}`);
+      }
 
       const shippingText =
         data.shipping === 0

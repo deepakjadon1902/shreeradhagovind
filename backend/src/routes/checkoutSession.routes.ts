@@ -7,6 +7,7 @@ import { Product } from "../models/Product";
 import { Settings } from "../models/Settings";
 import { optionalAuth } from "../middleware/auth";
 import { HttpError } from "../middleware/error";
+import { validateAndCalculateCoupon } from "../services/coupon.service";
 
 const r = Router();
 
@@ -37,6 +38,7 @@ const captureSchema = z.object({
       })
     )
     .min(1),
+  couponCode: z.string().optional(),
 });
 
 const dismissSchema = z.object({
@@ -109,10 +111,27 @@ r.post("/capture", optionalAuth, async (req, res, next) => {
       (await Settings.findOne({ key: "global" })) ?? (await Settings.create({ key: "global" }));
     const freeShipThreshold = settings?.freeShipThreshold ?? 999;
     const shippingFee = settings?.shippingFee ?? 49;
-    const shipping = subtotal >= freeShipThreshold ? 0 : shippingFee;
-    const total = subtotal + shipping;
+    let shipping = subtotal >= freeShipThreshold ? 0 : shippingFee;
+    let total = subtotal + shipping;
 
     const userId = req.user?.sub ? new mongoose.Types.ObjectId(req.user.sub) : null;
+
+    let discount = 0;
+    let savedCouponCode = "";
+    if (body.couponCode) {
+      const couponCalc = await validateAndCalculateCoupon({
+        couponCode: body.couponCode,
+        items: body.items,
+        customerInfo: { userId: userId ? String(userId) : undefined, email, phone },
+        customSettings: { freeShipThreshold, shippingFee },
+      });
+      if (couponCalc.valid && couponCalc.coupon) {
+        discount = couponCalc.discount;
+        savedCouponCode = couponCalc.coupon.code;
+        shipping = couponCalc.shipping;
+        total = couponCalc.total;
+      }
+    }
 
     let sessionId = (body.sessionId || "").trim();
     let session = sessionId ? await CheckoutSession.findOne({ sessionId }) : null;
@@ -150,6 +169,8 @@ r.post("/capture", optionalAuth, async (req, res, next) => {
 
       session.items = sessionItems as any;
       session.subtotal = subtotal;
+      session.discount = discount;
+      session.couponCode = savedCouponCode;
       session.shipping = shipping;
       session.total = total;
       session.status = "active"; // Re-activated by recent user activity
@@ -184,6 +205,8 @@ r.post("/capture", optionalAuth, async (req, res, next) => {
         address: addressData,
         items: sessionItems,
         subtotal,
+        discount,
+        couponCode: savedCouponCode,
         shipping,
         total,
         status: "active",
@@ -298,8 +321,45 @@ r.get("/:token", async (req, res, next) => {
     const settings = await Settings.findOne({ key: "global" });
     const freeShipThreshold = settings?.freeShipThreshold ?? 999;
     const shippingFee = settings?.shippingFee ?? 49;
-    const shipping = liveSubtotal >= freeShipThreshold || liveSubtotal === 0 ? 0 : shippingFee;
-    const total = liveSubtotal + shipping;
+    let shipping = liveSubtotal >= freeShipThreshold || liveSubtotal === 0 ? 0 : shippingFee;
+    let total = liveSubtotal + shipping;
+
+    let discount = 0;
+    let validCoupon: any = null;
+    let couponInvalidReason: string | undefined = undefined;
+
+    if (session.couponCode) {
+      const inStockItems = verifiedItems
+        .filter((i) => i.inStock && i.qty > 0)
+        .map((i) => ({ productId: i.productId, qty: i.qty }));
+
+      if (inStockItems.length > 0) {
+        const reval = await validateAndCalculateCoupon({
+          couponCode: session.couponCode,
+          items: inStockItems,
+          customerInfo: { email: session.email, phone: session.phone },
+          customSettings: { freeShipThreshold, shippingFee },
+        });
+
+        if (reval.valid && reval.coupon) {
+          discount = reval.discount;
+          shipping = reval.shipping;
+          total = reval.total;
+          validCoupon = {
+            code: reval.coupon.code,
+            title: reval.coupon.title,
+            discountType: reval.coupon.discountType,
+            discountValue: reval.coupon.discountValue,
+            discount: reval.discount,
+          };
+        } else {
+          couponInvalidReason =
+            reval.error || `Coupon "${session.couponCode}" is no longer valid.`;
+        }
+      } else {
+        couponInvalidReason = "Cart items are no longer available.";
+      }
+    }
 
     return res.json({
       ok: true,
@@ -321,6 +381,9 @@ r.get("/:token", async (req, res, next) => {
         },
         items: verifiedItems,
         subtotal: liveSubtotal,
+        discount,
+        coupon: validCoupon,
+        couponInvalidReason,
         shipping,
         total,
         hasUnavailableItems,

@@ -20,6 +20,7 @@ import { SimpleRichEditor, FormattedText } from "@/components/SimpleRichEditor";
 import { DeliveryOperationsView } from "@/components/DeliveryOperationsView";
 import { InventoryManager } from "@/components/InventoryManager";
 import { ConversionAnalyticsPanel } from "@/components/admin/ConversionAnalyticsPanel";
+import { CouponsManager } from "@/components/admin/CouponsManager";
 import { slugify } from "@/lib/seo";
 import { toast } from "sonner";
 import {
@@ -36,6 +37,7 @@ import {
   TrendingUp,
   Users,
   Tag,
+  Percent,
   CreditCard,
   Settings as SettingsIcon,
   Truck,
@@ -97,6 +99,7 @@ type Tab =
   | "orders"
   | "delivery"
   | "categories"
+  | "coupons"
   | "blogs"
   | "users"
   | "finance"
@@ -525,6 +528,9 @@ function AdminRoot() {
               </NavBtn>
               <NavBtn active={tab === "categories"} onClick={() => setTab("categories")} icon={Tag}>
                 Categories
+              </NavBtn>
+              <NavBtn active={tab === "coupons"} onClick={() => setTab("coupons")} icon={Percent}>
+                Coupons & Promos
               </NavBtn>
               <NavBtn active={tab === "orders"} onClick={() => setTab("orders")} icon={ShoppingCart}>
                 Orders
@@ -1278,6 +1284,7 @@ function AdminRoot() {
         )}
 
         {tab === "settings" && <SettingsPanel settings={settings} onSave={updateSettings} />}
+        {tab === "coupons" && <CouponsManager />}
         {tab === "finance" && (
           <FinanceAnalyticsPanel
             orders={orders}

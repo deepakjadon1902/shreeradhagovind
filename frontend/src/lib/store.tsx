@@ -53,6 +53,10 @@ export type Order = {
   shipping?: number;
   packagingFee?: number;
   discount?: number;
+  couponCode?: string;
+  couponId?: string;
+  couponDiscountType?: "percentage" | "flat" | "free_shipping";
+  couponDiscountValue?: number;
   taxableAmount?: number;
   cgst?: number;
   sgst?: number;
@@ -284,8 +288,66 @@ export type RegisteredUser = {
 
 export type CourierEvent = { at: string; label: string; description: string };
 
+export type AdminCoupon = {
+  _id: string;
+  id?: string;
+  code: string;
+  title: string;
+  description?: string;
+  discountType: "percentage" | "flat" | "free_shipping";
+  discountValue: number;
+  maxDiscountAmount?: number | null;
+  minOrderValue?: number | null;
+  startDate?: string | null;
+  endDate?: string | null;
+  expiryDate?: string | null;
+  isActive: boolean;
+  usageLimitTotal?: number | null;
+  usageLimitPerUser?: number | null;
+  usedCount: number;
+  applicableProductIds: any[];
+  applicableCategoryIds: string[];
+  allowedPaymentMethods: "both" | "online" | "cod";
+  createdAt: string;
+  updatedAt: string;
+};
+
 type Store = {
   apiEnabled: boolean;
+  validateCoupon: (params: {
+    couponCode: string;
+    items: Array<{ productId: string; qty: number }>;
+    paymentMethod?: "razorpay" | "cod" | "online";
+    email?: string;
+    phone?: string;
+  }) => Promise<{
+    ok: boolean;
+    valid: boolean;
+    coupon?: {
+      code: string;
+      title: string;
+      description?: string;
+      discountType: "percentage" | "flat" | "free_shipping";
+      discountValue: number;
+      maxDiscountAmount?: number | null;
+      minOrderValue?: number | null;
+      allowedPaymentMethods?: "both" | "online" | "cod";
+    };
+    grossSubtotal: number;
+    eligibleSubtotal: number;
+    discount: number;
+    shipping: number;
+    isFreeShipping: boolean;
+    freeShipping?: boolean;
+    total: number;
+    error?: string;
+    message?: string;
+  }>;
+  getCoupons: (params?: { search?: string; filter?: string }) => Promise<{ coupons: AdminCoupon[]; stats: any }>;
+  createCoupon: (payload: any) => Promise<AdminCoupon>;
+  updateCoupon: (id: string, payload: any) => Promise<AdminCoupon>;
+  toggleCoupon: (id: string) => Promise<{ coupon: AdminCoupon; message: string }>;
+  deleteCoupon: (id: string) => Promise<{ ok: boolean; archived?: boolean; deleted?: boolean; message: string }>;
   user: User;
   login: (email: string, passwordOrName?: string) => Promise<void> | void;
   sendLoginOtp: (email: string) => Promise<{ ok: boolean; message: string }>;
@@ -579,7 +641,11 @@ const mapOrder = (o: any, productLookup: Map<string, Product>): Order => {
     subtotal: typeof o?.subtotal === "number" ? o.subtotal : undefined,
     shipping: typeof o?.shipping === "number" ? o.shipping : undefined,
     packagingFee: typeof o?.packagingFee === "number" ? o.packagingFee : undefined,
-    discount: typeof o?.discount === "number" ? o.discount : undefined,
+    discount: typeof o?.discount === "number" ? o.discount : 0,
+    couponCode: typeof o?.couponCode === "string" ? o.couponCode : undefined,
+    couponId: o?.couponId ? String(o.couponId) : undefined,
+    couponDiscountType: o?.couponDiscountType ?? undefined,
+    couponDiscountValue: typeof o?.couponDiscountValue === "number" ? o.couponDiscountValue : undefined,
     taxableAmount: typeof o?.taxableAmount === "number" ? o.taxableAmount : undefined,
     cgst: typeof o?.cgst === "number" ? o.cgst : undefined,
     sgst: typeof o?.sgst === "number" ? o.sgst : undefined,
@@ -1226,6 +1292,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
             needsGstInvoice: o.needsGstInvoice,
             businessName: o.businessName,
             gstin: o.gstin,
+            couponCode: o.couponCode,
             items: o.items.map((i) => ({ productId: i.product.id, qty: i.qty })),
             address: o.address,
             billingAddress: o.billingAddress,
@@ -1650,6 +1717,69 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     loginGoogle,
     logout,
     updateProfile,
+    validateCoupon: async (paramsOrCode: any, maybeItems?: any, maybeEmail?: any, maybePhone?: any, maybePaymentMethod?: any) => {
+      let body: any;
+      if (typeof paramsOrCode === "string") {
+        body = {
+          couponCode: paramsOrCode,
+          items: maybeItems || [],
+          email: maybeEmail,
+          phone: maybePhone,
+          paymentMethod: maybePaymentMethod,
+        };
+      } else {
+        body = paramsOrCode;
+      }
+      if (apiEnabled) {
+        return api("/coupons/validate", {
+          method: "POST",
+          body,
+        });
+      }
+      return {
+        ok: false,
+        valid: false,
+        error: "API not enabled",
+        grossSubtotal: 0,
+        eligibleSubtotal: 0,
+        discount: 0,
+        shipping: 49,
+        isFreeShipping: false,
+        freeShipping: false,
+        total: 49,
+      };
+    },
+    getCoupons: async (params) => {
+      const q = new URLSearchParams();
+      if (params?.search) q.set("search", params.search);
+      if (params?.filter) q.set("filter", params.filter);
+      const qs = q.toString() ? `?${q.toString()}` : "";
+      return api(`/admin/coupons${qs}`);
+    },
+    createCoupon: async (payload) => {
+      const r = await api<{ coupon: AdminCoupon }>("/admin/coupons", {
+        method: "POST",
+        body: payload,
+      });
+      return r.coupon;
+    },
+    updateCoupon: async (id, payload) => {
+      const r = await api<{ coupon: AdminCoupon }>(`/admin/coupons/${id}`, {
+        method: "PATCH",
+        body: payload,
+      });
+      return r.coupon;
+    },
+    toggleCoupon: async (id) => {
+      return api(`/admin/coupons/${id}/toggle`, {
+        method: "PATCH",
+      });
+    },
+    deleteCoupon: async (id) => {
+      return api(`/admin/coupons/${id}`, {
+        method: "DELETE",
+      });
+    },
     cart,
     addToCart: (productId, qty = 1) => {
       const product = adminProducts.find((item) => item.id === productId);

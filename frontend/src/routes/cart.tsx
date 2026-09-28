@@ -194,7 +194,7 @@ function CartPage() {
               <div className="space-y-2.5 text-sm">
                 <Row label={`Price (${totalQty} items)`} value={formatINR(mrpTotal)} />
                 <Row
-                  label="Discount"
+                  label="Product Savings"
                   value={savings > 0 ? `- ${formatINR(savings)}` : "-"}
                   valueClass={savings > 0 ? "text-emerald-700 font-medium" : ""}
                 />

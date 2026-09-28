@@ -20,6 +20,8 @@ export type EmailOrderPayload = {
   needsGstInvoice?: boolean;
   items: Item[];
   subtotal: number;
+  discount?: number;
+  couponCode?: string;
   shipping: number;
   total: number;
   address: Addr;
@@ -57,6 +59,8 @@ export function buildEmailOrderPayload(o: any): EmailOrderPayload {
     needsGstInvoice: o.needsGstInvoice,
     items: o.items as any,
     subtotal: o.subtotal ?? 0,
+    discount: o.discount ?? 0,
+    couponCode: o.couponCode ?? undefined,
     shipping: o.shipping ?? 0,
     total: o.total ?? 0,
     address: o.address as any,
@@ -127,6 +131,8 @@ export async function sendOrderConfirmationWithInvoice(
       needsGstInvoice: order.needsGstInvoice,
       items: order.items,
       subtotal: order.subtotal,
+      discount: order.discount,
+      couponCode: order.couponCode,
       shipping: order.shipping,
       total: order.total,
       address: order.address,
@@ -453,6 +459,8 @@ export async function sendOrderStatusUpdateWithInvoice(
       needsGstInvoice: order.needsGstInvoice,
       items: order.items,
       subtotal: order.subtotal,
+      discount: order.discount,
+      couponCode: order.couponCode,
       shipping: order.shipping,
       total: order.total,
       address: order.address,
@@ -521,7 +529,14 @@ type Addr = {
 
 const rupee = (n?: number) => `₹${Number(n || 0).toLocaleString("en-IN")}`;
 
-const invoiceTable = (items?: Item[], subtotal?: number, shipping?: number, total?: number) => `
+const invoiceTable = (
+  items?: Item[],
+  subtotal?: number,
+  shipping?: number,
+  total?: number,
+  discount?: number,
+  couponCode?: string
+) => `
   <table style="width:100%;border-collapse:collapse;margin-top:12px;font-size:14px">
     <thead>
       <tr style="background:#f4f4f1;text-align:left">
@@ -542,6 +557,7 @@ const invoiceTable = (items?: Item[], subtotal?: number, shipping?: number, tota
     </tbody>
     <tfoot>
       <tr><td colspan="3" style="padding:8px 12px;text-align:right">Subtotal</td><td style="padding:8px 12px;text-align:right">${rupee(subtotal || 0)}</td></tr>
+      ${discount && discount > 0 ? `<tr><td colspan="3" style="padding:8px 12px;text-align:right;color:#047857">Coupon Discount ${couponCode ? `(${couponCode})` : ""}</td><td style="padding:8px 12px;text-align:right;color:#047857">-${rupee(discount)}</td></tr>` : ""}
       <tr><td colspan="3" style="padding:8px 12px;text-align:right">Shipping</td><td style="padding:8px 12px;text-align:right">${!shipping || shipping === 0 ? "FREE" : rupee(shipping)}</td></tr>
       <tr style="background:#f4f4f1;font-weight:700">
         <td colspan="3" style="padding:10px 12px;text-align:right">Total Paid</td>
@@ -632,7 +648,7 @@ export const tpl = {
 
         <h3 style="margin:18px 0 4px">Invoice & Order Details</h3>
         <div style="font-size:12px;color:#888">Order ID: #${orderNum}${hasTracking ? ` | Tracking ID: ${order.trackingId}` : ""} | Payment: ${order.payment.method.toUpperCase()} | ${order.payment.status.toUpperCase()}${order.payment.razorpayPaymentId ? ` | Txn ${order.payment.razorpayPaymentId}` : ""}</div>
-        ${invoiceTable(order.items, order.subtotal, order.shipping, order.total)}
+        ${invoiceTable(order.items, order.subtotal, order.shipping, order.total, order.discount, order.couponCode)}
 
         ${customerBlock(name, order.customerEmail, order.address, order.businessName, order.gstin)}
       `),
@@ -723,7 +739,7 @@ export const tpl = {
         ${order ? `
           <h3 style="margin:18px 0 4px">Order details</h3>
           <div style="font-size:12px;color:#888">Order ID: #${orderNum}${hasTracking ? ` | Tracking ID: ${effectiveTrackingId}` : ""}${order.payment ? ` | Payment: ${(order.payment.method || "ONLINE").toUpperCase()} | ${(order.payment.status || "PAID").toUpperCase()}` : ""}</div>
-          ${invoiceTable(order.items, order.subtotal, order.shipping, order.total)}
+          ${invoiceTable(order.items, order.subtotal, order.shipping, order.total, order.discount, order.couponCode)}
           ${customerBlock(name, order.customerEmail, order.address, order?.businessName, order?.gstin)}
         ` : ""}
       `),

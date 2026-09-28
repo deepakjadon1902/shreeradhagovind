@@ -33,6 +33,11 @@ import { computeOrderFinances } from "./admin.routes";
 import { env } from "../config/env";
 import { decrementOrderStockSafely } from "../services/inventory.service";
 import { recordDailyOrder } from "../models/DailyAnalytics";
+import {
+  validateAndCalculateCoupon,
+  reserveCouponUsage,
+  rollbackCouponUsage,
+} from "../services/coupon.service";
 
 const r = Router();
 const FIRST_ORDER_NO = 5000;
@@ -648,6 +653,7 @@ const createSchema = z.object({
   }),
   sessionId: z.string().optional(),
   recoveryToken: z.string().optional(),
+  couponCode: z.string().optional(),
   analytics: z
     .object({
       visitorId: z.string().max(100).optional(),
@@ -801,138 +807,16 @@ r.post("/", optionalAuth, async (req, res, next) => {
     });
     if (products.length !== requested.length)
       throw new HttpError(400, "One or more products are unavailable");
-    const items = requested.map((i) => {
-      const p = products.find((p) => String(p._id) === i.productId)!;
+
+    for (const i of requested) {
+      const p = products.find((candidate) => String(candidate._id) === i.productId)!;
       if ((p.stock ?? 0) < i.qty)
         throw new HttpError(
           400,
           `${p.name} has only ${p.stock ?? 0} left in stock`,
         );
-      const price = p.price;
-      const gstRate = Number(p.gstRate ?? 0);
-      const gstInclusive = p.gstInclusive !== false;
-      const hsnCode = p.hsnCode || "";
+    }
 
-      let taxableUnit = price;
-      let gstUnit = 0;
-      if (gstRate > 0) {
-        if (gstInclusive) {
-          taxableUnit = Math.round((price / (1 + gstRate / 100)) * 100) / 100;
-          gstUnit = Math.round((price - taxableUnit) * 100) / 100;
-        } else {
-          taxableUnit = price;
-          gstUnit = Math.round((price * (gstRate / 100)) * 100) / 100;
-        }
-      }
-
-      let comboSnapshot: any[] | undefined = undefined;
-      let finalTaxableAmount = Math.round(taxableUnit * i.qty * 100) / 100;
-      let finalGstAmount = Math.round(gstUnit * i.qty * 100) / 100;
-
-      if (Array.isArray(p.comboComponents) && p.comboComponents.length > 0) {
-        // Strict GST Validation: Every combo component must have a valid HSN code and configured GST rate
-        for (const c of p.comboComponents) {
-          const compName = (c?.name || "Component").trim();
-          const compHsn = (c?.hsnCode || "").trim();
-          const compGst = c?.gstRate;
-          if (!compHsn) {
-            throw new HttpError(
-              400,
-              `Order creation blocked: Combo component "${compName}" in product "${p.name}" is missing an HSN code. Please update the product GST configuration.`
-            );
-          }
-          if (typeof compGst !== "number" || isNaN(compGst) || compGst < 0 || compGst > 28) {
-            throw new HttpError(
-              400,
-              `Order creation blocked: Combo component "${compName}" in product "${p.name}" has an invalid GST rate (${compGst}). Please configure a valid GST rate (0% to 28%).`
-            );
-          }
-        }
-
-        const totalBaseValue = p.comboComponents.reduce(
-          (sum: number, c: any) => sum + (Number(c.baseValue) || 0) * (Number(c.qty) || 1),
-          0,
-        );
-        comboSnapshot = p.comboComponents.map((c: any) => {
-          const cQty = (Number(c.qty) || 1) * i.qty;
-          const cRate = Number(c.gstRate) || 0;
-          const cInclusive = c.gstInclusive !== false;
-          const compBase = (Number(c.baseValue) || 0) * (Number(c.qty) || 1);
-          const ratio = totalBaseValue > 0 ? compBase / totalBaseValue : 1 / p.comboComponents.length;
-          const allocatedPrice = Math.round(price * i.qty * ratio * 100) / 100;
-
-          let compTaxable = allocatedPrice;
-          let compGst = 0;
-          if (cRate > 0) {
-            if (cInclusive) {
-              compTaxable = Math.round((allocatedPrice / (1 + cRate / 100)) * 100) / 100;
-              compGst = Math.round((allocatedPrice - compTaxable) * 100) / 100;
-            } else {
-              compTaxable = allocatedPrice;
-              compGst = Math.round((allocatedPrice * (cRate / 100)) * 100) / 100;
-            }
-          }
-
-          return {
-            name: c.name,
-            qty: cQty,
-            hsnCode: c.hsnCode || "",
-            gstRate: cRate,
-            gstInclusive: cInclusive,
-            costPrice: typeof c.costPrice === "number" && c.costPrice > 0 ? Number(c.costPrice) : undefined,
-            baseValue: Number(c.baseValue) || 0,
-            allocatedPrice,
-            taxableAmount: compTaxable,
-            gstAmount: compGst,
-          };
-        });
-
-        // Reconcile rounding differences on allocatedPrice so sum(allocatedPrice) === price * i.qty exactly
-        const totalAllocated = comboSnapshot.reduce((s, c) => s + c.allocatedPrice, 0);
-        const expectedTotal = Math.round(price * i.qty * 100) / 100;
-        const diff = Math.round((expectedTotal - totalAllocated) * 100) / 100;
-        if (diff !== 0 && comboSnapshot.length > 0) {
-          const last = comboSnapshot[comboSnapshot.length - 1];
-          last.allocatedPrice = Math.round((last.allocatedPrice + diff) * 100) / 100;
-          if (last.gstRate > 0) {
-            if (last.gstInclusive) {
-              last.taxableAmount = Math.round((last.allocatedPrice / (1 + last.gstRate / 100)) * 100) / 100;
-              last.gstAmount = Math.round((last.allocatedPrice - last.taxableAmount) * 100) / 100;
-            } else {
-              last.taxableAmount = last.allocatedPrice;
-              last.gstAmount = Math.round((last.allocatedPrice * (last.gstRate / 100)) * 100) / 100;
-            }
-          } else {
-            last.taxableAmount = last.allocatedPrice;
-            last.gstAmount = 0;
-          }
-        }
-
-        finalTaxableAmount = Math.round(comboSnapshot.reduce((s, c) => s + c.taxableAmount, 0) * 100) / 100;
-        finalGstAmount = Math.round(comboSnapshot.reduce((s, c) => s + c.gstAmount, 0) * 100) / 100;
-      }
-
-      const itemCostPrice =
-        typeof (p as any).costPrice === "number" && (p as any).costPrice > 0
-          ? Number((p as any).costPrice)
-          : undefined;
-
-      return {
-        productId: p._id,
-        name: p.name,
-        image: p.image,
-        price: p.price,
-        costPrice: itemCostPrice,
-        qty: i.qty,
-        hsnCode,
-        gstRate,
-        gstInclusive,
-        taxableAmount: finalTaxableAmount,
-        gstAmount: finalGstAmount,
-        comboComponents: comboSnapshot,
-      };
-    });
-    const subtotal = items.reduce((s, i) => s + i.price * i.qty, 0);
     const settings =
       (await Settings.findOne({ key: "global" })) ??
       (await Settings.create({ key: "global" }));
@@ -942,9 +826,54 @@ r.post("/", optionalAuth, async (req, res, next) => {
         "Cash on Delivery is currently unavailable",
       );
     }
-    const shipping =
-      subtotal >= settings.freeShipThreshold ? 0 : settings.shippingFee;
-    const total = subtotal + shipping;
+
+    const calculation = await validateAndCalculateCoupon({
+      couponCode: body.couponCode,
+      items: requested,
+      paymentMethod: body.payment.method,
+      customerInfo: {
+        userId: orderUserId,
+        email: normalizedEmail,
+        phone: body.address.phone,
+      },
+      customSettings: {
+        freeShipThreshold: settings.freeShipThreshold ?? 999,
+        shippingFee: settings.shippingFee ?? 49,
+      },
+    });
+
+    if (!calculation.valid) {
+      throw new HttpError(400, calculation.error || "Coupon could not be applied");
+    }
+
+    const subtotal = calculation.grossSubtotal;
+    const discount = calculation.discount;
+    const shipping = calculation.shipping;
+    const total = calculation.total;
+
+    const items = calculation.itemBreakdown.map((b) => {
+      const p = products.find((candidate) => String(candidate._id) === b.productId)!;
+      const itemCostPrice =
+        typeof (p as any).costPrice === "number" && (p as any).costPrice > 0
+          ? Number((p as any).costPrice)
+          : undefined;
+
+      return {
+        productId: p._id,
+        name: b.name,
+        image: b.image,
+        price: b.price,
+        costPrice: itemCostPrice,
+        qty: b.qty,
+        hsnCode: b.hsnCode,
+        gstRate: b.gstRate,
+        gstInclusive: b.gstInclusive,
+        taxableAmount: b.taxableAmount,
+        gstAmount: b.gstAmount,
+        discountAmount: b.allocatedDiscount,
+        comboComponents: b.comboComponents,
+      };
+    });
 
     // Packaging Cost = ORDER VALUE x 2% (subtotal, excluding shipping)
     const packagingCost = Math.round(subtotal * 0.02 * 100) / 100;
@@ -992,6 +921,11 @@ r.post("/", optionalAuth, async (req, res, next) => {
         gstin: cleanGstin,
         items,
         subtotal,
+        discount,
+        couponCode: calculation.coupon ? calculation.coupon.code : "",
+        couponId: calculation.coupon ? calculation.coupon._id : null,
+        couponDiscountType: calculation.coupon ? calculation.coupon.discountType : null,
+        couponDiscountValue: calculation.coupon ? calculation.coupon.discountValue : 0,
         shipping,
         total,
         courierCharge,
@@ -1060,6 +994,25 @@ r.post("/", optionalAuth, async (req, res, next) => {
             }
           : undefined,
       });
+
+      if (calculation.coupon && discount > 0) {
+        try {
+          await reserveCouponUsage({
+            couponId: calculation.coupon._id,
+            orderId: order._id,
+            orderNo: order.orderNo,
+            customerInfo: {
+              userId: orderUserId,
+              email: normalizedEmail,
+              phone: body.address.phone,
+            },
+            discountAmount: discount,
+          });
+        } catch (couponErr) {
+          await Order.findByIdAndDelete(order._id);
+          throw couponErr;
+        }
+      }
     } catch (orderCreateErr) {
       // Compensating rollback: if Order.create fails, restore all decremented items immediately
       await decrementResult.rollback();
@@ -1084,6 +1037,8 @@ r.post("/", optionalAuth, async (req, res, next) => {
         status: order.status,
         items,
         subtotal,
+        discount,
+        couponCode: calculation.coupon?.code,
         shipping,
         total,
         businessName: order.businessName || undefined,

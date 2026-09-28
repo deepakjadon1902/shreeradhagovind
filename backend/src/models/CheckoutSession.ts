@@ -29,6 +29,8 @@ export interface ICheckoutSession extends Document {
   address?: ICheckoutSessionAddress;
   items: ICheckoutSessionItem[];
   subtotal: number;
+  discount?: number;
+  couponCode?: string;
   shipping: number;
   total: number;
   status: "active" | "abandoned" | "recovered" | "cancelled";
@@ -79,6 +81,8 @@ const checkoutSessionSchema = new Schema<ICheckoutSession>(
     address: { type: checkoutSessionAddressSchema, default: () => ({}) },
     items: { type: [checkoutSessionItemSchema], default: [] },
     subtotal: { type: Number, default: 0 },
+    discount: { type: Number, default: 0 },
+    couponCode: { type: String, default: "", uppercase: true, trim: true },
     shipping: { type: Number, default: 0 },
     total: { type: Number, default: 0 },
     status: {

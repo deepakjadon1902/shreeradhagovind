@@ -9,6 +9,7 @@ import { Product } from "../models/Product";
 import { Settings } from "../models/Settings";
 import { Order } from "../models/Order";
 import { WebhookEvent } from "../models/WebhookEvent";
+import { validateAndCalculateCoupon } from "../services/coupon.service";
 import {
   sendEmail,
   sendOrderConfirmationWithInvoice,
@@ -237,7 +238,7 @@ r.post("/razorpay/order", optionalAuth, async (req, res, next) => {
     const keyId = getRazorpayKeyId();
     if (!rzp || !keyId) throw new HttpError(400, "Razorpay not configured on server");
 
-    const { items } = z
+    const { items, couponCode } = z
       .object({
         items: z
           .array(
@@ -247,30 +248,47 @@ r.post("/razorpay/order", optionalAuth, async (req, res, next) => {
             })
           )
           .min(1),
+        couponCode: z.string().optional(),
       })
       .parse(req.body);
 
-    const products = await Product.find({
-      _id: { $in: items.map((item) => item.productId) },
-      isActive: true,
+    const calculation = await validateAndCalculateCoupon({
+      couponCode,
+      items,
+      paymentMethod: "razorpay",
+      customerInfo: {
+        userId: req.user?.sub,
+      },
     });
 
-    if (products.length !== new Set(items.map((item) => item.productId)).size) {
-      throw new HttpError(400, "One or more products are unavailable");
+    if (!calculation.valid) {
+      throw new HttpError(400, calculation.error || "Coupon could not be applied");
     }
 
-    const subtotal = items.reduce((sum, item) => {
-      const product = products.find((candidate) => String(candidate._id) === item.productId);
-      if (!product) throw new HttpError(400, "Invalid product in cart");
-      if ((product.stock ?? 0) < item.qty) {
-        throw new HttpError(400, `${product.name} has insufficient stock`);
-      }
-      return sum + product.price * item.qty;
-    }, 0);
+    // Verify stock availability
+    for (const item of items) {
+      const breakdown = calculation.itemBreakdown.find((b) => b.productId === item.productId);
+      if (!breakdown) throw new HttpError(400, "Invalid product in cart");
+    }
 
-    const settings =
-      (await Settings.findOne({ key: "global" })) ?? (await Settings.create({ key: "global" }));
-    const amount = subtotal + (subtotal >= settings.freeShipThreshold ? 0 : settings.shippingFee);
+    const products = await Product.find({
+      _id: { $in: items.map((i) => i.productId) },
+      isActive: true,
+    });
+    for (const item of items) {
+      const p = products.find((candidate) => String(candidate._id) === item.productId);
+      if (!p || (p.stock ?? 0) < item.qty) {
+        throw new HttpError(400, `${p ? p.name : "Product"} has insufficient stock`);
+      }
+    }
+
+    const amount = calculation.total;
+    if (amount <= 0) {
+      throw new HttpError(
+        400,
+        "Total payable amount is ₹0. Online payment gateway is not required for zero-value orders."
+      );
+    }
 
     const order = await rzp.orders.create({
       amount: Math.round(amount * 100), // paise
@@ -278,11 +296,21 @@ r.post("/razorpay/order", optionalAuth, async (req, res, next) => {
       receipt: `rcpt_${Date.now()}`,
       notes: {
         userId: req.user?.sub || "guest",
+        couponCode: calculation.coupon ? calculation.coupon.code : "",
+        discount: calculation.discount ? String(calculation.discount) : "0",
         source: "shri-radha-govind-store",
       },
     });
 
-    res.json({ order, keyId });
+    res.json({
+      order,
+      keyId,
+      discount: calculation.discount,
+      couponCode: calculation.coupon?.code,
+      grossSubtotal: calculation.grossSubtotal,
+      shipping: calculation.shipping,
+      total: calculation.total,
+    });
   } catch (e) {
     next(e);
   }
