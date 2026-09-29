@@ -29,6 +29,8 @@ import walletRoutes from "./routes/wallet.routes";
 import wishlistRoutes from "./routes/wishlist.routes";
 import marketingRoutes from "./routes/marketing.routes";
 import adminRetentionRoutes from "./routes/admin.retention.routes";
+import returnsRouter from "./routes/returns.routes";
+import adminReturnsRouter from "./routes/admin.returns.routes";
 
 export const app = express();
 
@@ -89,6 +91,8 @@ app.use("/api/wallet", walletRoutes);
 app.use("/api/wishlist", wishlistRoutes);
 app.use("/api/marketing", marketingRoutes);
 app.use("/api/admin/retention", adminRetentionRoutes);
+app.use("/api/returns", returnsRouter);
+app.use("/api/admin/returns", adminReturnsRouter);
 app.use(llmsRoutes);
 
 app.use(notFound);

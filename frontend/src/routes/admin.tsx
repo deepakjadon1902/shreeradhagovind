@@ -22,6 +22,7 @@ import { InventoryManager } from "@/components/InventoryManager";
 import { ConversionAnalyticsPanel } from "@/components/admin/ConversionAnalyticsPanel";
 import { CouponsManager } from "@/components/admin/CouponsManager";
 import { RetentionLoyaltyManager } from "@/components/admin/RetentionLoyaltyManager";
+import { ReturnsManager } from "@/components/admin/ReturnsManager";
 import { slugify } from "@/lib/seo";
 import { toast } from "sonner";
 import {
@@ -99,6 +100,7 @@ type Tab =
   | "products"
   | "inventory"
   | "orders"
+  | "returns"
   | "delivery"
   | "categories"
   | "coupons"
@@ -537,6 +539,9 @@ function AdminRoot() {
               </NavBtn>
               <NavBtn active={tab === "orders"} onClick={() => setTab("orders")} icon={ShoppingCart}>
                 Orders
+              </NavBtn>
+              <NavBtn active={tab === "returns"} onClick={() => setTab("returns")} icon={RotateCcw}>
+                Returns & Refunds
               </NavBtn>
               <NavBtn active={tab === "delivery"} onClick={() => setTab("delivery")} icon={Truck}>
                 Delivery Operations
@@ -1292,6 +1297,7 @@ function AdminRoot() {
         {tab === "settings" && <SettingsPanel settings={settings} onSave={updateSettings} />}
         {tab === "coupons" && <CouponsManager />}
         {tab === "retention" && <RetentionLoyaltyManager />}
+        {tab === "returns" && <ReturnsManager />}
         {tab === "finance" && (
           <FinanceAnalyticsPanel
             orders={orders}
@@ -1372,15 +1378,18 @@ function FinanceAnalyticsPanel({
 
     for (const o of validOrders) {
       const orderTotal = Number(o.total) || 0;
-      totalRevenue += orderTotal;
+      const refunded = Number(o.refundedAmount) || 0;
+      const realizedRevenue = Math.max(0, orderTotal - refunded);
+      totalRevenue += realizedRevenue;
 
       const subtotal = Number(o.subtotal);
       const shipping = Number(o.shipping) || 0;
       const orderValue = !isNaN(subtotal) && subtotal > 0 ? subtotal : Math.max(0, orderTotal - shipping);
+      const netOrderValue = Math.max(0, orderValue - refunded);
       const packCost =
         typeof o.packagingCost === "number" && o.packagingCost > 0
           ? o.packagingCost
-          : Math.round(orderValue * 0.02 * 100) / 100;
+          : Math.round(netOrderValue * 0.02 * 100) / 100;
       totalPackagingCost += packCost;
 
       const cCharge = typeof o.courierCharge === "number" ? o.courierCharge : 0;
@@ -1402,7 +1411,7 @@ function FinanceAnalyticsPanel({
           knownNetProfit += o.netProfit;
         } else {
           const exp = Math.round((o.productCost + packCost + cCharge + rFee) * 100) / 100;
-          knownNetProfit += Math.round((orderTotal - exp) * 100) / 100;
+          knownNetProfit += Math.round((realizedRevenue - exp) * 100) / 100;
         }
       }
     }
@@ -3355,6 +3364,18 @@ function SettingsPanel({
             value={String(s.shippingFee)}
             onChange={(v) => setS({ ...s, shippingFee: +v })}
           />
+          <In
+            label="Return Window Period (Hours)"
+            type="number"
+            value={String(s.returnWindowHours ?? 48)}
+            onChange={(v) => {
+              const val = parseInt(v, 10);
+              setS({ ...s, returnWindowHours: isNaN(val) || val <= 0 ? 48 : val });
+            }}
+          />
+          <p className="text-[11px] text-muted-foreground">
+            Allowable return window post-delivery for customer return claims. Default is 48 hours.
+          </p>
         </section>
 
         {/* Section 4: Payments */}

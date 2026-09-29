@@ -20,6 +20,7 @@ const loyaltyTransactionSchema = new Schema(
         "order_redeemed",
         "order_cancelled",
         "order_refunded",
+        "order_returned",
         "admin_adjustment",
         "expiry",
         "initial_grant",

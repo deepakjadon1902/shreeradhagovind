@@ -921,6 +921,63 @@ export const tpl = {
       </div>
     `),
   }),
+  returnRequested: (name: string, orderNum: string, items: Array<{name: string; qty: number}>) => ({
+    subject: `Return Request Received — Order #${orderNum}`,
+    html: shell(`
+      <h2 style="margin:0 0 6px">Hare Krishna, ${name} 🙏</h2>
+      <p style="margin:0 0 12px;color:#555">We have received your return request for order <b>#${orderNum}</b> and will review it shortly.</p>
+      <div style="margin:16px 0;padding:14px 16px;background:#f0fdfa;border:1px solid #ccfbf1;border-radius:10px">
+        <div style="font-size:12px;color:#0f766e;letter-spacing:.1em;text-transform:uppercase;font-weight:600">Items Requested for Return</div>
+        ${items.map(i => `<div style="margin-top:6px;font-size:14px;color:#333">${i.name} — Qty: ${i.qty}</div>`).join('')}
+      </div>
+      <p style="font-size:13px;color:#666;line-height:1.5">Our team will review your request and respond within 1–2 business days. For queries, contact us at <a href="mailto:support@shriradhagovindstore.com" style="color:#0f766e">support@shriradhagovindstore.com</a>.</p>
+    `),
+  }),
+
+  returnApproved: (name: string, orderNum: string, resolution: string, items: Array<{name: string; qty: number}>) => ({
+    subject: `Return Approved — Order #${orderNum}`,
+    html: shell(`
+      <h2 style="margin:0 0 6px">Hare Krishna, ${name} 🙏</h2>
+      <p style="margin:0 0 12px;color:#555">Your return request for order <b>#${orderNum}</b> has been <b style="color:#0f766e">approved</b>.</p>
+      <div style="margin:16px 0;padding:14px 16px;background:#f0fdfa;border:1px solid #ccfbf1;border-radius:10px">
+        <div style="font-size:12px;color:#0f766e;letter-spacing:.1em;text-transform:uppercase;font-weight:600">Return Decision</div>
+        <div style="margin-top:6px;font-size:14px;color:#333">Resolution: <b>${resolution === 'replacement' ? 'Replacement' : 'Refund'}</b></div>
+        ${items.map(i => `<div style="margin-top:4px;font-size:13px;color:#555">${i.name} — Qty: ${i.qty}</div>`).join('')}
+      </div>
+      ${resolution === 'refund' ? '<p style="font-size:13px;color:#666;line-height:1.5">Please ship the item(s) back to us as instructed. Once we receive and verify the goods, we will process your refund.</p>' : '<p style="font-size:13px;color:#666;line-height:1.5">A replacement will be arranged for you. Our team will contact you with further details.</p>'}
+      <p style="font-size:13px;color:#666">For assistance, contact us at <a href="mailto:support@shriradhagovindstore.com" style="color:#0f766e">support@shriradhagovindstore.com</a>.</p>
+    `),
+  }),
+
+  returnRejected: (name: string, orderNum: string, reason: string) => ({
+    subject: `Return Request Update — Order #${orderNum}`,
+    html: shell(`
+      <h2 style="margin:0 0 6px">Hare Krishna, ${name} 🙏</h2>
+      <p style="margin:0 0 12px;color:#555">We have reviewed your return request for order <b>#${orderNum}</b>.</p>
+      <div style="margin:16px 0;padding:14px 16px;background:#fef2f2;border:1px solid #fee2e2;border-radius:10px">
+        <div style="font-size:12px;color:#dc2626;letter-spacing:.1em;text-transform:uppercase;font-weight:600">Return Not Approved</div>
+        <div style="margin-top:6px;font-size:14px;color:#333">Reason: <i>${reason || 'Does not meet return policy criteria.'}</i></div>
+      </div>
+      <p style="font-size:13px;color:#666;line-height:1.5">If you believe this decision is incorrect or need further assistance, please contact us at <a href="mailto:support@shriradhagovindstore.com" style="color:#0f766e">support@shriradhagovindstore.com</a>.</p>
+    `),
+  }),
+
+  returnRefunded: (name: string, orderNum: string, amount: number, method: string, upiRef?: string) => ({
+    subject: `Refund Processed — Order #${orderNum}`,
+    html: shell(`
+      <h2 style="margin:0 0 6px">Hare Krishna, ${name} 🙏</h2>
+      <p style="margin:0 0 12px;color:#555">Your refund for order <b>#${orderNum}</b> has been processed.</p>
+      <div style="margin:16px 0;padding:14px 16px;background:#f0fdfa;border:1px solid #ccfbf1;border-radius:10px">
+        <div style="font-size:12px;color:#0f766e;letter-spacing:.1em;text-transform:uppercase;font-weight:600">Refund Details</div>
+        <div style="margin-top:6px;font-size:16px;font-weight:700;color:#0f766e">₹${amount.toFixed(2)}</div>
+        <div style="margin-top:4px;font-size:14px;color:#333">Method: <b>${method === 'wallet' ? 'Store Wallet / Credit' : 'UPI'}</b></div>
+        ${upiRef ? `<div style="margin-top:4px;font-size:13px;color:#555">UPI Reference: <b>${upiRef}</b></div>` : ''}
+        ${method === 'wallet' ? '<div style="margin-top:6px;font-size:13px;color:#555">The amount has been credited to your store wallet and is available for your next purchase.</div>' : '<div style="margin-top:6px;font-size:13px;color:#555">Please allow 1–3 business days for the amount to reflect in your UPI account.</div>'}
+      </div>
+      <p style="font-size:12px;color:#888">Note: Original shipping charges are non-refundable.</p>
+      <p style="font-size:13px;color:#666">Thank you for shopping with Shri Radha Govind Store. Hare Krishna 🙏</p>
+    `),
+  }),
 };
 
 export async function dispatchRequestedInvoiceEmail(opts: {
@@ -1018,5 +1075,112 @@ export async function sendMarketingEmail(opts: {
     return { success: true, skipped: Boolean((res as any)?.skipped) };
   } catch (err: any) {
     return { success: false, error: err?.message || String(err) };
+  }
+}
+
+export async function dispatchReturnRequestedEmail(
+  returnRequestId: any,
+  to: string,
+  name: string,
+  orderNum: string,
+  items: Array<{ name: string; qty: number }>
+): Promise<{ success: boolean; skipped?: boolean; reason?: string }> {
+  if (!returnRequestId || !to) return { success: false, reason: 'missing_args' };
+  const { ReturnRequest } = await import('../models/ReturnRequest');
+  const now = new Date();
+  const locked = await ReturnRequest.findOneAndUpdate(
+    { _id: returnRequestId, requestEmailSentAt: null },
+    { $set: { requestEmailSentAt: now } },
+    { new: true }
+  );
+  if (!locked) return { success: false, skipped: true, reason: 'already_sent' };
+  try {
+    const built = tpl.returnRequested(name, orderNum, items);
+    await sendEmail({ to, subject: built.subject, html: built.html });
+    return { success: true };
+  } catch (err: any) {
+    await ReturnRequest.findByIdAndUpdate(returnRequestId, { $set: { requestEmailSentAt: null } });
+    return { success: false, reason: err?.message || String(err) };
+  }
+}
+
+export async function dispatchReturnApprovedEmail(
+  returnRequestId: any,
+  to: string,
+  name: string,
+  orderNum: string,
+  resolution: string,
+  items: Array<{ name: string; qty: number }>
+): Promise<{ success: boolean; skipped?: boolean; reason?: string }> {
+  if (!returnRequestId || !to) return { success: false, reason: 'missing_args' };
+  const { ReturnRequest } = await import('../models/ReturnRequest');
+  const now = new Date();
+  const locked = await ReturnRequest.findOneAndUpdate(
+    { _id: returnRequestId, approvedEmailSentAt: null },
+    { $set: { approvedEmailSentAt: now } },
+    { new: true }
+  );
+  if (!locked) return { success: false, skipped: true, reason: 'already_sent' };
+  try {
+    const built = tpl.returnApproved(name, orderNum, resolution, items);
+    await sendEmail({ to, subject: built.subject, html: built.html });
+    return { success: true };
+  } catch (err: any) {
+    await ReturnRequest.findByIdAndUpdate(returnRequestId, { $set: { approvedEmailSentAt: null } });
+    return { success: false, reason: err?.message || String(err) };
+  }
+}
+
+export async function dispatchReturnRejectedEmail(
+  returnRequestId: any,
+  to: string,
+  name: string,
+  orderNum: string,
+  reason: string
+): Promise<{ success: boolean; skipped?: boolean; reason?: string }> {
+  if (!returnRequestId || !to) return { success: false, reason: 'missing_args' };
+  const { ReturnRequest } = await import('../models/ReturnRequest');
+  const now = new Date();
+  const locked = await ReturnRequest.findOneAndUpdate(
+    { _id: returnRequestId, rejectedEmailSentAt: null },
+    { $set: { rejectedEmailSentAt: now } },
+    { new: true }
+  );
+  if (!locked) return { success: false, skipped: true, reason: 'already_sent' };
+  try {
+    const built = tpl.returnRejected(name, orderNum, reason);
+    await sendEmail({ to, subject: built.subject, html: built.html });
+    return { success: true };
+  } catch (err: any) {
+    await ReturnRequest.findByIdAndUpdate(returnRequestId, { $set: { rejectedEmailSentAt: null } });
+    return { success: false, reason: err?.message || String(err) };
+  }
+}
+
+export async function dispatchReturnRefundedEmail(
+  returnRequestId: any,
+  to: string,
+  name: string,
+  orderNum: string,
+  amount: number,
+  method: string,
+  upiRef?: string
+): Promise<{ success: boolean; skipped?: boolean; reason?: string }> {
+  if (!returnRequestId || !to) return { success: false, reason: 'missing_args' };
+  const { ReturnRequest } = await import('../models/ReturnRequest');
+  const now = new Date();
+  const locked = await ReturnRequest.findOneAndUpdate(
+    { _id: returnRequestId, refundedEmailSentAt: null },
+    { $set: { refundedEmailSentAt: now } },
+    { new: true }
+  );
+  if (!locked) return { success: false, skipped: true, reason: 'already_sent' };
+  try {
+    const built = tpl.returnRefunded(name, orderNum, amount, method, upiRef);
+    await sendEmail({ to, subject: built.subject, html: built.html });
+    return { success: true };
+  } catch (err: any) {
+    await ReturnRequest.findByIdAndUpdate(returnRequestId, { $set: { refundedEmailSentAt: null } });
+    return { success: false, reason: err?.message || String(err) };
   }
 }

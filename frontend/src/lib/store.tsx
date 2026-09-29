@@ -67,6 +67,7 @@ export type Order = {
   igst?: number;
   gstTotal?: number;
   total: number;
+  refundedAmount?: number;
   courierCharge?: number;
   packagingCost?: number;
   razorpayFee?: number;
@@ -242,9 +243,11 @@ export type Settings = {
   showDeveloperProfile?: boolean;
   homeHeroVideo?: string;
   aboutStoryVideo?: string;
+  returnWindowHours?: number;
 };
 
 const DEFAULT_SETTINGS: Settings = {
+  returnWindowHours: 48,
   siteName: "Shri Radha Govind Store",
   tagline: "Made With Love From The Heart Of Vrindavan",
   supportEmail: "support@shriradhagovindstore.com",

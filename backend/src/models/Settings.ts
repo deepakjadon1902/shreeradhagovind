@@ -34,6 +34,7 @@ const settingsSchema = new Schema(
       earnPointsOnShipping: { type: Boolean, default: false },
       earnPointsOnDiscountedSubtotal: { type: Boolean, default: true },
     },
+    returnWindowHours: { type: Number, default: 48 },
     tiers: [
       {
         id: { type: String, required: true },

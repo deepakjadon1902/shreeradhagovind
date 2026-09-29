@@ -54,6 +54,7 @@ export function computeOrderFinances(order: any, customCourierCharge?: number) {
   let totalProductCost = 0;
 
   for (const item of items) {
+    const retainedQty = Math.max(0, (Number(item.qty) || 1) - (Number(item.returnedQty) || 0));
     if (item.comboComponents && item.comboComponents.length > 0) {
       const allCompsHaveCost = item.comboComponents.every(
         (c: any) => typeof c.costPrice === "number" && c.costPrice > 0
@@ -63,16 +64,16 @@ export function computeOrderFinances(order: any, customCourierCharge?: number) {
           (sum: number, c: any) => sum + Number(c.costPrice) * (Number(c.qty) || 1),
           0
         );
-        totalProductCost += compCost * (Number(item.qty) || 1);
+        totalProductCost += compCost * retainedQty;
       } else if (typeof item.costPrice === "number" && item.costPrice > 0) {
-        totalProductCost += Number(item.costPrice) * (Number(item.qty) || 1);
+        totalProductCost += Number(item.costPrice) * retainedQty;
       } else {
         isCostAvailable = false;
         break;
       }
     } else {
       if (typeof item.costPrice === "number" && item.costPrice > 0) {
-        totalProductCost += Number(item.costPrice) * (Number(item.qty) || 1);
+        totalProductCost += Number(item.costPrice) * retainedQty;
       } else {
         isCostAvailable = false;
         break;
@@ -83,9 +84,15 @@ export function computeOrderFinances(order: any, customCourierCharge?: number) {
   const subtotal = Number(order.subtotal);
   const total = Number(order.total) || 0;
   const shipping = Number(order.shipping) || 0;
-  // Packaging Cost = ORDER VALUE x 2%. Excludes shipping! Only applicable to paid sales
+  const refundedAmount = Number(order.refundedAmount) || 0;
+
+  // Net realized revenue excludes refunded amount from partial returns
+  const realizedRevenue = Math.max(0, total - refundedAmount);
+
+  // Packaging Cost = Net Retained Order Value x 2%. Excludes shipping! Only applicable to paid sales
   const orderValue = !isNaN(subtotal) && subtotal > 0 ? subtotal : Math.max(0, total - shipping);
-  const packagingCost = isPaidSale ? Math.round(orderValue * 0.02 * 100) / 100 : 0;
+  const netOrderValue = Math.max(0, orderValue - refundedAmount);
+  const packagingCost = isPaidSale ? Math.round(netOrderValue * 0.02 * 100) / 100 : 0;
 
   const isPaidOnline = order.payment?.method === "razorpay" && order.payment?.status === "paid";
   const razorpayFee = isPaidOnline ? Math.round(total * 0.0236 * 100) / 100 : 0;
@@ -99,6 +106,7 @@ export function computeOrderFinances(order: any, customCourierCharge?: number) {
     return {
       isCostAvailable,
       isPaidSale: false,
+      realizedRevenue: 0,
       productCost: isCostAvailable ? Math.round(totalProductCost * 100) / 100 : null,
       packagingCost: 0,
       razorpayFee: 0,
@@ -111,10 +119,11 @@ export function computeOrderFinances(order: any, customCourierCharge?: number) {
   if (isCostAvailable) {
     const productCost = Math.round(totalProductCost * 100) / 100;
     const totalExpense = Math.round((productCost + packagingCost + razorpayFee + courierCharge) * 100) / 100;
-    const netProfit = Math.round((total - totalExpense) * 100) / 100;
+    const netProfit = Math.round((realizedRevenue - totalExpense) * 100) / 100;
     return {
       isCostAvailable: true,
       isPaidSale: true,
+      realizedRevenue,
       productCost,
       packagingCost,
       razorpayFee,
@@ -126,6 +135,7 @@ export function computeOrderFinances(order: any, customCourierCharge?: number) {
     return {
       isCostAvailable: false,
       isPaidSale: true,
+      realizedRevenue,
       productCost: null,
       packagingCost,
       razorpayFee,

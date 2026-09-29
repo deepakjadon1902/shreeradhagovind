@@ -32,6 +32,7 @@ import { useEffect, useState, useCallback, useMemo } from "react";
 import { api, isApiEnabled, getToken, API_URL } from "@/lib/api";
 import { slugify } from "@/lib/seo";
 import { toast } from "sonner";
+import { CustomerReturnsSection } from "@/components/returns/CustomerReturnsSection";
 
 type Search = { token?: string; invoiceToken?: string };
 
@@ -991,9 +992,10 @@ function OrderDetail() {
 
         {/* Details Grid */}
         <div className="grid lg:grid-cols-[1fr_360px] gap-4 sm:gap-6 mt-4 sm:mt-5">
-          {/* Ordered Items */}
-          <div className="bg-white rounded-xl sm:rounded-2xl p-3.5 sm:p-6 border border-stone-200 shadow-xs">
-            <h2 className="font-serif text-base sm:text-lg font-bold text-stone-900 mb-3.5 sm:mb-4 flex items-center gap-2">
+          {/* Left Column: Ordered Items & Returns */}
+          <div className="space-y-4 sm:space-y-6">
+            <div className="bg-white rounded-xl sm:rounded-2xl p-3.5 sm:p-6 border border-stone-200 shadow-xs">
+              <h2 className="font-serif text-base sm:text-lg font-bold text-stone-900 mb-3.5 sm:mb-4 flex items-center gap-2">
               <Package className="h-5 w-5 text-[#166F77]" /> Ordered Items ({order.items.length})
             </h2>
             <div className="space-y-3.5 sm:space-y-4 divide-y divide-stone-100">
@@ -1071,6 +1073,14 @@ function OrderDetail() {
               })}
             </div>
           </div>
+
+          {/* Returns & Refund Section */}
+          <CustomerReturnsSection
+            order={order}
+            guestToken={search.token}
+            onReturnCreated={fetchLiveOrder}
+          />
+        </div>
 
           {/* Shipping & Payment Summary */}
           <aside className="space-y-4 sm:space-y-6">
