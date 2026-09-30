@@ -850,7 +850,7 @@ r.post("/", optionalAuth, async (req, res, next) => {
         phone: body.address.phone,
       },
       customSettings: {
-        freeShipThreshold: settings.freeShipThreshold ?? 999,
+        freeShipThreshold: settings.freeShipThreshold ?? 299,
         shippingFee: settings.shippingFee ?? 49,
       },
     });

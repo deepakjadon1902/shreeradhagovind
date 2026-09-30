@@ -148,6 +148,11 @@ export function Footer() {
               </Link>
             </li>
             <li>
+              <Link to="/support" className="transition hover:text-[#166F77]">
+                Help Center & Support
+              </Link>
+            </li>
+            <li>
               <Link to="/shipping" className="transition hover:text-[#166F77]">
                 Shipping Policy
               </Link>

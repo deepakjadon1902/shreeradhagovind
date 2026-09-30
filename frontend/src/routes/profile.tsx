@@ -1,5 +1,5 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { Layout } from "@/components/Layout";
 import { displayOrderNumber, formatINR, useStore, type Address, type LoyaltyInfo, type WalletInfo } from "@/lib/store";
 import {
@@ -25,14 +25,26 @@ import {
   ArrowUpRight,
   ArrowDownRight,
   ShieldCheck,
+  LifeBuoy,
+  RefreshCw,
+  Send,
+  MessageSquare,
 } from "lucide-react";
+import { api } from "@/lib/api";
+import { toast } from "sonner";
+import type { SupportTicket } from "@/lib/types/support";
+import {
+  SUPPORT_STATUS_LABELS,
+  SUPPORT_STATUS_COLORS,
+  SUPPORT_CATEGORY_LABELS,
+} from "@/lib/types/support";
 
 export const Route = createFileRoute("/profile")({
   component: Profile,
   head: () => ({ meta: [{ title: "My Profile - Shri Radha Govind Store" }, { name: "robots", content: "noindex" }] }),
 });
 
-type Section = "overview" | "details" | "address" | "orders" | "loyalty" | "wallet";
+type Section = "overview" | "details" | "address" | "orders" | "loyalty" | "wallet" | "support";
 
 function Profile() {
   const { user, logout, orders, wishlist, updateProfile, loyalty, wallet, fetchLoyalty, fetchWallet } = useStore();
@@ -138,6 +150,9 @@ function Profile() {
             <ProfileNav active={section === "orders"} onClick={() => setSection("orders")} icon={ShoppingBag}>
               Order history
             </ProfileNav>
+            <ProfileNav active={section === "support"} onClick={() => setSection("support")} icon={LifeBuoy}>
+              Support Tickets
+            </ProfileNav>
             <Link to="/wishlist" className="flex w-full items-center gap-3 rounded-lg px-3 py-3 text-sm font-medium text-muted-foreground transition hover:bg-muted hover:text-primary">
               <Heart className="h-4 w-4" /> Wishlist <span className="ml-auto rounded-full bg-primary/10 px-2 py-0.5 text-xs text-primary">{wishlist.length}</span>
             </Link>
@@ -156,6 +171,7 @@ function Profile() {
             )}
             {section === "loyalty" && <LoyaltyRewards loyalty={loyalty} />}
             {section === "wallet" && <WalletCredits wallet={wallet} />}
+            {section === "support" && <ProfileSupportTickets />}
             {(section === "details" || section === "address") && (
               <section className="premium-card overflow-hidden">
                 <div className="flex items-center justify-between border-b p-5 sm:p-6">
@@ -601,6 +617,214 @@ function WalletCredits({ wallet }: { wallet: WalletInfo | null }) {
                 </div>
               );
             })}
+          </div>
+        )}
+      </div>
+    </section>
+  );
+}
+
+function ProfileSupportTickets() {
+  const [tickets, setTickets] = useState<SupportTicket[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [activeTicket, setActiveTicket] = useState<SupportTicket | null>(null);
+  const [replyText, setReplyText] = useState("");
+  const [sendingReply, setSendingReply] = useState(false);
+
+  const fetchTickets = useCallback(async () => {
+    try {
+      setLoading(true);
+      const res = await api<{ ok: boolean; tickets: SupportTicket[] }>("/support/tickets/my");
+      if (res?.ok && Array.isArray(res.tickets)) {
+        setTickets(res.tickets);
+      }
+    } catch {
+      // ignore
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchTickets();
+  }, [fetchTickets]);
+
+  const handleReply = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!activeTicket || !replyText.trim()) return;
+
+    try {
+      setSendingReply(true);
+      const res = await api<{ ok: boolean; ticket: SupportTicket; message: string }>(
+        `/support/tickets/${activeTicket.ticketNo}/reply`,
+        {
+          method: "POST",
+          body: { message: replyText.trim() },
+        }
+      );
+      if (res?.ok && res.ticket) {
+        toast.success("Reply submitted to seva team!");
+        setActiveTicket(res.ticket);
+        setReplyText("");
+        fetchTickets();
+      }
+    } catch (err: any) {
+      toast.error(err?.message || "Failed to send reply");
+    } finally {
+      setSendingReply(false);
+    }
+  };
+
+  return (
+    <section className="space-y-6">
+      <div className="premium-card p-6">
+        <div className="flex flex-wrap items-center justify-between gap-4 pb-4 border-b">
+          <div>
+            <h2 className="font-display text-2xl">Support Tickets</h2>
+            <p className="text-xs text-muted-foreground mt-0.5">
+              Direct assistance from our Vrindavan seva team
+            </p>
+          </div>
+          <Link
+            to="/support"
+            search={{ tab: "submit" } as never}
+            className="inline-flex items-center gap-1.5 px-4 py-2 rounded-full bg-primary text-primary-foreground text-xs font-semibold hover:opacity-90 transition"
+          >
+            + New Support Ticket
+          </Link>
+        </div>
+
+        {loading ? (
+          <div className="py-12 text-center">
+            <RefreshCw className="w-5 h-5 animate-spin mx-auto text-primary mb-2" />
+            <p className="text-xs text-muted-foreground">Loading your tickets...</p>
+          </div>
+        ) : tickets.length === 0 ? (
+          <div className="py-12 text-center">
+            <LifeBuoy className="w-10 h-10 text-muted-foreground/40 mx-auto mb-2" />
+            <p className="font-display text-base">No support tickets found</p>
+            <p className="text-xs text-muted-foreground mt-1 max-w-sm mx-auto">
+              If you have any questions regarding your orders, tulsi malas, or devotional seva, we are here to help.
+            </p>
+            <Link
+              to="/support"
+              search={{ tab: "submit" } as never}
+              className="mt-4 inline-flex items-center gap-1.5 px-4 py-2 rounded-full bg-primary text-primary-foreground text-xs font-semibold"
+            >
+              Open a Support Ticket
+            </Link>
+          </div>
+        ) : (
+          <div className="divide-y mt-2">
+            {tickets.map((t) => (
+              <div key={t._id} className="py-4">
+                <div
+                  onClick={() => setActiveTicket(activeTicket?._id === t._id ? null : t)}
+                  className="flex items-center justify-between gap-3 cursor-pointer group"
+                >
+                  <div>
+                    <div className="flex items-center gap-2 mb-1">
+                      <span className="font-mono text-xs font-bold">{t.ticketNo}</span>
+                      <span
+                        className={`text-[10px] font-semibold px-2 py-0.5 rounded-full border ${
+                          SUPPORT_STATUS_COLORS[t.status]?.bg || "bg-muted"
+                        } ${SUPPORT_STATUS_COLORS[t.status]?.text || "text-foreground"} ${
+                          SUPPORT_STATUS_COLORS[t.status]?.border || "border-border"
+                        }`}
+                      >
+                        {SUPPORT_STATUS_LABELS[t.status] || t.status}
+                      </span>
+                      {t.orderNo && (
+                        <span className="text-[10px] font-medium text-primary bg-primary/10 px-1.5 py-0.2 rounded">
+                          Order #{t.orderNo}
+                        </span>
+                      )}
+                    </div>
+                    <h4 className="text-sm font-semibold group-hover:text-primary transition">{t.subject}</h4>
+                    <p className="text-xs text-muted-foreground mt-0.5">
+                      {SUPPORT_CATEGORY_LABELS[t.category]} • Updated{" "}
+                      {new Date(t.updatedAt).toLocaleDateString("en-IN", {
+                        day: "numeric",
+                        month: "short",
+                        hour: "2-digit",
+                        minute: "2-digit",
+                      })}
+                    </p>
+                  </div>
+                  <ChevronRight
+                    className={`w-4 h-4 text-muted-foreground transition-transform ${
+                      activeTicket?._id === t._id ? "rotate-90" : ""
+                    }`}
+                  />
+                </div>
+
+                {activeTicket?._id === t._id && (
+                  <div className="mt-4 rounded-xl border bg-muted/30 p-4 space-y-4">
+                    <div className="space-y-3 max-h-72 overflow-y-auto pr-1">
+                      {activeTicket.messages.map((m, idx) => {
+                        const isAdmin = m.senderType === "admin";
+                        return (
+                          <div
+                            key={idx}
+                            className={`p-3 rounded-lg text-xs leading-relaxed ${
+                              isAdmin
+                                ? "bg-primary/10 border border-primary/20 text-foreground"
+                                : "bg-card border text-foreground"
+                            }`}
+                          >
+                            <div className="flex items-center justify-between text-[10px] text-muted-foreground mb-1">
+                              <span className="font-semibold">
+                                {isAdmin ? `🛡️ Seva Team (${m.senderName})` : `🙏 You`}
+                              </span>
+                              <span>
+                                {new Date(m.createdAt).toLocaleTimeString("en-IN", {
+                                  hour: "2-digit",
+                                  minute: "2-digit",
+                                  day: "numeric",
+                                  month: "short",
+                                })}
+                              </span>
+                            </div>
+                            <p className="whitespace-pre-wrap">{m.message}</p>
+                          </div>
+                        );
+                      })}
+                    </div>
+
+                    {activeTicket.status !== "CLOSED" ? (
+                      <form onSubmit={handleReply} className="space-y-2 pt-2 border-t">
+                        <textarea
+                          required
+                          rows={2}
+                          placeholder="Type your message to reply..."
+                          value={replyText}
+                          onChange={(e) => setReplyText(e.target.value)}
+                          className="w-full p-2.5 rounded-lg border bg-background text-xs focus:outline-none focus:border-primary"
+                        />
+                        <div className="flex justify-end">
+                          <button
+                            type="submit"
+                            disabled={sendingReply}
+                            className="px-4 py-1.5 rounded-lg bg-primary text-primary-foreground text-xs font-semibold hover:opacity-90 transition flex items-center gap-1.5 disabled:opacity-60 cursor-pointer"
+                          >
+                            {sendingReply ? (
+                              <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                            ) : (
+                              <Send className="w-3.5 h-3.5" />
+                            )}
+                            <span>Send Reply</span>
+                          </button>
+                        </div>
+                      </form>
+                    ) : (
+                      <p className="text-xs text-muted-foreground text-center italic py-1">
+                        This support ticket has been closed. Please open a new ticket if you have further inquiries.
+                      </p>
+                    )}
+                  </div>
+                )}
+              </div>
+            ))}
           </div>
         )}
       </div>

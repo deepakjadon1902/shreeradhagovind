@@ -978,6 +978,86 @@ export const tpl = {
       <p style="font-size:13px;color:#666">Thank you for shopping with Shri Radha Govind Store. Hare Krishna 🙏</p>
     `),
   }),
+
+  ticketCreated: (name: string, ticketNo: string, subject: string, category: string, orderNo?: number | null) => ({
+    subject: `Support Ticket Received — #${ticketNo}`,
+    html: shell(`
+      <h2 style="margin:0 0 6px">Hare Krishna, ${name} 🙏</h2>
+      <p style="margin:0 0 12px;color:#555">We have received your support inquiry <b>#${ticketNo}</b> and our seva team will assist you shortly.</p>
+      <div style="margin:16px 0;padding:14px 16px;background:#f0fdfa;border:1px solid #ccfbf1;border-radius:10px">
+        <div style="font-size:12px;color:#0f766e;letter-spacing:.1em;text-transform:uppercase;font-weight:600">Ticket Details</div>
+        <div style="margin-top:6px;font-size:14px;color:#333">Ticket Number: <b>#${ticketNo}</b></div>
+        <div style="margin-top:4px;font-size:13px;color:#555">Category: <b>${category}</b></div>
+        <div style="margin-top:4px;font-size:13px;color:#555">Subject: <b>${subject}</b></div>
+        ${orderNo ? `<div style="margin-top:4px;font-size:13px;color:#555">Linked Order: <b>#${orderNo}</b></div>` : ''}
+      </div>
+      <p style="font-size:13px;color:#666;line-height:1.5"><b>Response Target:</b> We aim to respond within 24 business hours (Monday to Saturday, 10 AM – 7 PM IST). If you need to share photos or unboxing videos, you may reply to this email or send them on our official WhatsApp at <a href="https://wa.me/917500533505" style="color:#0f766e;font-weight:600">+91 7500533505</a>.</p>
+      <p style="font-size:13px;color:#666">Thank you for reaching out to Shri Radha Govind Store. Hare Krishna 🙏</p>
+    `),
+  }),
+
+  ticketAdminReply: (name: string, ticketNo: string, subject: string, replyMessage: string) => ({
+    subject: `Update on Support Ticket #${ticketNo} — ${subject}`,
+    html: shell(`
+      <h2 style="margin:0 0 6px">Hare Krishna, ${name} 🙏</h2>
+      <p style="margin:0 0 12px;color:#555">Our seva team has responded to your support ticket <b>#${ticketNo}</b>.</p>
+      <div style="margin:16px 0;padding:14px 16px;background:#f0fdfa;border:1px solid #ccfbf1;border-radius:10px">
+        <div style="font-size:12px;color:#0f766e;letter-spacing:.1em;text-transform:uppercase;font-weight:600">Message from Store Support</div>
+        <div style="margin-top:8px;font-size:14px;color:#333;white-space:pre-wrap;line-height:1.5">${replyMessage}</div>
+      </div>
+      <p style="font-size:13px;color:#666;line-height:1.5">You can view your ticket and reply directly through our website or reply to this email.</p>
+      <p style="font-size:13px;color:#666">At your service in Braj Seva, <br /><b>Shri Radha Govind Store</b></p>
+    `),
+  }),
+
+  ticketWaitingForCustomer: (name: string, ticketNo: string, subject: string, instructions: string) => ({
+    subject: `Action Required for Support Ticket #${ticketNo}`,
+    html: shell(`
+      <h2 style="margin:0 0 6px">Hare Krishna, ${name} 🙏</h2>
+      <p style="margin:0 0 12px;color:#555">We need a little more information to resolve your support ticket <b>#${ticketNo}</b>.</p>
+      <div style="margin:16px 0;padding:14px 16px;background:#fffbeb;border:1px solid #fef3c7;border-radius:10px">
+        <div style="font-size:12px;color:#b45309;letter-spacing:.1em;text-transform:uppercase;font-weight:600">Information Needed</div>
+        <div style="margin-top:8px;font-size:14px;color:#78350f;white-space:pre-wrap;line-height:1.5">${instructions}</div>
+      </div>
+      <p style="font-size:13px;color:#666;line-height:1.5">Please reply to this email or visit our website to provide the requested details so we can assist you promptly.</p>
+    `),
+  }),
+
+  ticketResolved: (name: string, ticketNo: string, subject: string, resolutionNote?: string) => ({
+    subject: `Support Ticket Resolved — #${ticketNo}`,
+    html: shell(`
+      <h2 style="margin:0 0 6px">Hare Krishna, ${name} 🙏</h2>
+      <p style="margin:0 0 12px;color:#555">Your support ticket <b>#${ticketNo}</b> (${subject}) has been marked as <b style="color:#0f766e">Resolved</b>.</p>
+      ${resolutionNote ? `
+      <div style="margin:16px 0;padding:14px 16px;background:#f0fdfa;border:1px solid #ccfbf1;border-radius:10px">
+        <div style="font-size:12px;color:#0f766e;letter-spacing:.1em;text-transform:uppercase;font-weight:600">Resolution Summary</div>
+        <div style="margin-top:8px;font-size:14px;color:#333;white-space:pre-wrap;line-height:1.5">${resolutionNote}</div>
+      </div>
+      ` : ''}
+      <p style="font-size:13px;color:#666;line-height:1.5">If your inquiry has not been fully resolved, you can simply reply to this email or send a message on the ticket to <b>reopen it within 72 hours</b>. After 72 hours of inactivity, the ticket will be automatically closed.</p>
+      <p style="font-size:13px;color:#666">Thank you for your devotion and patience. Hare Krishna 🙏</p>
+    `),
+  }),
+
+  ticketClosed: (name: string, ticketNo: string, subject: string) => ({
+    subject: `Support Ticket Closed — #${ticketNo}`,
+    html: shell(`
+      <h2 style="margin:0 0 6px">Hare Krishna, ${name} 🙏</h2>
+      <p style="margin:0 0 12px;color:#555">Your support ticket <b>#${ticketNo}</b> (${subject}) is now closed.</p>
+      <p style="font-size:13px;color:#666;line-height:1.5">If you have any further questions or require assistance in the future, please feel free to open a new support ticket on our website or contact our support team at <a href="mailto:support@shriradhagovindstore.com" style="color:#0f766e">support@shriradhagovindstore.com</a>.</p>
+      <p style="font-size:13px;color:#666">Always in your service, <br /><b>Shri Radha Govind Store</b></p>
+    `),
+  }),
+
+  ticketReopened: (name: string, ticketNo: string, subject: string) => ({
+    subject: `Support Ticket Reopened — #${ticketNo}`,
+    html: shell(`
+      <h2 style="margin:0 0 6px">Hare Krishna, ${name} 🙏</h2>
+      <p style="margin:0 0 12px;color:#555">Your support ticket <b>#${ticketNo}</b> (${subject}) has been reopened.</p>
+      <p style="font-size:13px;color:#666;line-height:1.5">Our seva team will review your latest message and get back to you as soon as possible.</p>
+      <p style="font-size:13px;color:#666">Thank you for your patience. Hare Krishna 🙏</p>
+    `),
+  }),
 };
 
 export async function dispatchRequestedInvoiceEmail(opts: {
@@ -1181,6 +1261,123 @@ export async function dispatchReturnRefundedEmail(
     return { success: true };
   } catch (err: any) {
     await ReturnRequest.findByIdAndUpdate(returnRequestId, { $set: { refundedEmailSentAt: null } });
+    return { success: false, reason: err?.message || String(err) };
+  }
+}
+
+export async function dispatchTicketCreatedEmail(
+  ticketId: any,
+  to: string,
+  name: string,
+  ticketNo: string,
+  subject: string,
+  category: string,
+  orderNo?: number | null
+): Promise<{ success: boolean; skipped?: boolean; reason?: string }> {
+  if (!ticketId || !to) return { success: false, reason: "missing_args" };
+  const { SupportTicket } = await import("../models/SupportTicket");
+  const now = new Date();
+  const locked = await SupportTicket.findOneAndUpdate(
+    { _id: ticketId, createdEmailSentAt: null },
+    { $set: { createdEmailSentAt: now } },
+    { new: true }
+  );
+  if (!locked) return { success: false, skipped: true, reason: "already_sent" };
+  try {
+    const built = tpl.ticketCreated(name, ticketNo, subject, category, orderNo);
+    await sendEmail({ to, subject: built.subject, html: built.html, bcc: SUPPORT_EMAIL_BCC });
+    return { success: true };
+  } catch (err: any) {
+    await SupportTicket.findByIdAndUpdate(ticketId, { $set: { createdEmailSentAt: null } });
+    return { success: false, reason: err?.message || String(err) };
+  }
+}
+
+export async function dispatchTicketAdminReplyEmail(
+  to: string,
+  name: string,
+  ticketNo: string,
+  subject: string,
+  replyMessage: string,
+  isWaitingForCustomer = false
+): Promise<{ success: boolean; reason?: string }> {
+  if (!to) return { success: false, reason: "missing_to" };
+  try {
+    const built = isWaitingForCustomer
+      ? tpl.ticketWaitingForCustomer(name, ticketNo, subject, replyMessage)
+      : tpl.ticketAdminReply(name, ticketNo, subject, replyMessage);
+    await sendEmail({ to, subject: built.subject, html: built.html, bcc: SUPPORT_EMAIL_BCC });
+    return { success: true };
+  } catch (err: any) {
+    return { success: false, reason: err?.message || String(err) };
+  }
+}
+
+export async function dispatchTicketResolvedEmail(
+  ticketId: any,
+  to: string,
+  name: string,
+  ticketNo: string,
+  subject: string,
+  resolutionNote?: string
+): Promise<{ success: boolean; skipped?: boolean; reason?: string }> {
+  if (!ticketId || !to) return { success: false, reason: "missing_args" };
+  const { SupportTicket } = await import("../models/SupportTicket");
+  const now = new Date();
+  const locked = await SupportTicket.findOneAndUpdate(
+    { _id: ticketId, resolvedEmailSentAt: null },
+    { $set: { resolvedEmailSentAt: now } },
+    { new: true }
+  );
+  if (!locked) return { success: false, skipped: true, reason: "already_sent" };
+  try {
+    const built = tpl.ticketResolved(name, ticketNo, subject, resolutionNote);
+    await sendEmail({ to, subject: built.subject, html: built.html, bcc: SUPPORT_EMAIL_BCC });
+    return { success: true };
+  } catch (err: any) {
+    await SupportTicket.findByIdAndUpdate(ticketId, { $set: { resolvedEmailSentAt: null } });
+    return { success: false, reason: err?.message || String(err) };
+  }
+}
+
+export async function dispatchTicketClosedEmail(
+  ticketId: any,
+  to: string,
+  name: string,
+  ticketNo: string,
+  subject: string
+): Promise<{ success: boolean; skipped?: boolean; reason?: string }> {
+  if (!ticketId || !to) return { success: false, reason: "missing_args" };
+  const { SupportTicket } = await import("../models/SupportTicket");
+  const now = new Date();
+  const locked = await SupportTicket.findOneAndUpdate(
+    { _id: ticketId, closedEmailSentAt: null },
+    { $set: { closedEmailSentAt: now } },
+    { new: true }
+  );
+  if (!locked) return { success: false, skipped: true, reason: "already_sent" };
+  try {
+    const built = tpl.ticketClosed(name, ticketNo, subject);
+    await sendEmail({ to, subject: built.subject, html: built.html, bcc: SUPPORT_EMAIL_BCC });
+    return { success: true };
+  } catch (err: any) {
+    await SupportTicket.findByIdAndUpdate(ticketId, { $set: { closedEmailSentAt: null } });
+    return { success: false, reason: err?.message || String(err) };
+  }
+}
+
+export async function dispatchTicketReopenedEmail(
+  to: string,
+  name: string,
+  ticketNo: string,
+  subject: string
+): Promise<{ success: boolean; reason?: string }> {
+  if (!to) return { success: false, reason: "missing_to" };
+  try {
+    const built = tpl.ticketReopened(name, ticketNo, subject);
+    await sendEmail({ to, subject: built.subject, html: built.html, bcc: SUPPORT_EMAIL_BCC });
+    return { success: true };
+  } catch (err: any) {
     return { success: false, reason: err?.message || String(err) };
   }
 }

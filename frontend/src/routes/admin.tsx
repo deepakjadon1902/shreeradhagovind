@@ -23,10 +23,12 @@ import { ConversionAnalyticsPanel } from "@/components/admin/ConversionAnalytics
 import { CouponsManager } from "@/components/admin/CouponsManager";
 import { RetentionLoyaltyManager } from "@/components/admin/RetentionLoyaltyManager";
 import { ReturnsManager } from "@/components/admin/ReturnsManager";
+import { SupportManager } from "@/components/admin/SupportManager";
 import { slugify } from "@/lib/seo";
 import { toast } from "sonner";
 import {
   Lock,
+  LifeBuoy,
   LayoutDashboard,
   Package,
   Boxes,
@@ -101,6 +103,7 @@ type Tab =
   | "inventory"
   | "orders"
   | "returns"
+  | "support"
   | "delivery"
   | "categories"
   | "coupons"
@@ -542,6 +545,9 @@ function AdminRoot() {
               </NavBtn>
               <NavBtn active={tab === "returns"} onClick={() => setTab("returns")} icon={RotateCcw}>
                 Returns & Refunds
+              </NavBtn>
+              <NavBtn active={tab === "support"} onClick={() => setTab("support")} icon={LifeBuoy}>
+                Customer Support
               </NavBtn>
               <NavBtn active={tab === "delivery"} onClick={() => setTab("delivery")} icon={Truck}>
                 Delivery Operations
@@ -1298,6 +1304,7 @@ function AdminRoot() {
         {tab === "coupons" && <CouponsManager />}
         {tab === "retention" && <RetentionLoyaltyManager />}
         {tab === "returns" && <ReturnsManager />}
+        {tab === "support" && <SupportManager />}
         {tab === "finance" && (
           <FinanceAnalyticsPanel
             orders={orders}

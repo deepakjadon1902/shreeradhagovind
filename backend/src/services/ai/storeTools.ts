@@ -181,7 +181,7 @@ export async function getStorePolicy(
   policyType: "shipping" | "returns" | "privacy" | "terms" | "contact"
 ): Promise<StorePolicyInfo> {
   const settings = (await Settings.findOne({ key: "global" }).lean()) as any;
-  const freeShip = settings?.freeShipThreshold ?? 999;
+  const freeShip = settings?.freeShipThreshold ?? 299;
   const shipFee = settings?.shippingFee ?? 49;
   const codAvailable = settings?.codEnabled ?? true;
   const storeEmail = settings?.email || "support@shreeradhagovind.com";

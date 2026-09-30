@@ -103,7 +103,7 @@ export async function validateAndCalculateCoupon(params: {
   });
 
   // 1. Fetch store global settings
-  let freeShipThreshold = 999;
+  let freeShipThreshold = 299;
   let shippingFee = 49;
   if (customSettings) {
     freeShipThreshold = customSettings.freeShipThreshold;
@@ -112,7 +112,7 @@ export async function validateAndCalculateCoupon(params: {
     const settings =
       (await Settings.findOne({ key: "global" })) ??
       (await Settings.create({ key: "global" }));
-    freeShipThreshold = settings.freeShipThreshold ?? 999;
+    freeShipThreshold = settings.freeShipThreshold ?? 299;
     shippingFee = settings.shippingFee ?? 49;
   }
 

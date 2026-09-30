@@ -109,7 +109,7 @@ r.post("/capture", optionalAuth, async (req, res, next) => {
 
     const settings =
       (await Settings.findOne({ key: "global" })) ?? (await Settings.create({ key: "global" }));
-    const freeShipThreshold = settings?.freeShipThreshold ?? 999;
+    const freeShipThreshold = settings?.freeShipThreshold ?? 299;
     const shippingFee = settings?.shippingFee ?? 49;
     let shipping = subtotal >= freeShipThreshold ? 0 : shippingFee;
     let total = subtotal + shipping;
@@ -319,7 +319,7 @@ r.get("/:token", async (req, res, next) => {
     });
 
     const settings = await Settings.findOne({ key: "global" });
-    const freeShipThreshold = settings?.freeShipThreshold ?? 999;
+    const freeShipThreshold = settings?.freeShipThreshold ?? 299;
     const shippingFee = settings?.shippingFee ?? 49;
     let shipping = liveSubtotal >= freeShipThreshold || liveSubtotal === 0 ? 0 : shippingFee;
     let total = liveSubtotal + shipping;

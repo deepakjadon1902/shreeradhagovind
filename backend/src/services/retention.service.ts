@@ -5,6 +5,7 @@ import { CouponRedemption } from "../models/CouponRedemption";
 import { Review } from "../models/Review";
 import { LoyaltyTransaction } from "../models/LoyaltyTransaction";
 import { WalletTransaction } from "../models/WalletTransaction";
+import { SupportTicket } from "../models/SupportTicket";
 import { isOrderPaidForFinance } from "../routes/admin.routes";
 import { getLoyaltySettings, calculateCustomerTier, type TierConfig } from "./loyalty.service";
 
@@ -80,6 +81,9 @@ export interface UnifiedCustomerMetrics {
   };
   loyaltyPointsBalance: number;
   walletBalance: number;
+  supportTicketCount: number;
+  openSupportTickets: number;
+  lastSupportTicketAt: Date | null;
 }
 
 /**
@@ -283,6 +287,22 @@ export async function getUnifiedCustomerMetrics(lookup: {
   const averageRatingGiven =
     reviewCount > 0 ? Math.round((reviews.reduce((s, r) => s + (r.rating || 5), 0) / reviewCount) * 10) / 10 : 0;
 
+  // Support ticket activity
+  const supportTickets = await SupportTicket.find({
+    $or: [
+      ...(user ? [{ userId: user._id }] : []),
+      ...(cleanEmail ? [{ customerEmail: cleanEmail }] : []),
+    ],
+  })
+    .select("status createdAt")
+    .sort({ createdAt: -1 })
+    .lean();
+  const supportTicketCount = supportTickets.length;
+  const openSupportTickets = supportTickets.filter((t) =>
+    ["OPEN", "IN_PROGRESS", "WAITING_FOR_CUSTOMER"].includes(t.status)
+  ).length;
+  const lastSupportTicketAt = supportTickets.length > 0 ? supportTickets[0].createdAt : null;
+
   // Recency in days
   const now = Date.now();
   const recencyDays = lastQualifiedPurchaseDate
@@ -370,6 +390,9 @@ export async function getUnifiedCustomerMetrics(lookup: {
     },
     loyaltyPointsBalance: Math.max(0, user?.loyaltyPointsBalance ?? 0),
     walletBalance: Math.max(0, user?.walletBalance ?? 0),
+    supportTicketCount,
+    openSupportTickets,
+    lastSupportTicketAt,
   };
 }
 

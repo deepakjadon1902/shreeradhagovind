@@ -26,6 +26,7 @@ import {
   Copy,
   Star,
   Sparkles,
+  LifeBuoy,
   X as XIcon,
 } from "lucide-react";
 import { useEffect, useState, useCallback, useMemo } from "react";
@@ -499,6 +500,19 @@ function OrderDetail() {
               className="h-11 sm:h-10 px-5 rounded-xl sm:rounded-full bg-[#166F77] hover:bg-[#125B62] text-white text-xs sm:text-sm font-semibold inline-flex items-center justify-center gap-2 transition shadow-xs active:scale-[0.98] w-full sm:w-auto"
             >
               Public Tracker <ExternalLink className="w-3.5 h-3.5" />
+            </Link>
+            <Link
+              to="/support"
+              search={{
+                tab: "submit",
+                orderId: order.id,
+                orderNo: String(displayOrderNumber(order)),
+                category: "ORDER_TRACKING",
+              } as never}
+              className="h-11 sm:h-10 px-4 rounded-xl sm:rounded-full border border-stone-300 hover:border-[#166F77] bg-white hover:bg-stone-50 text-stone-700 hover:text-[#166F77] text-xs sm:text-sm font-semibold inline-flex items-center justify-center gap-1.5 transition shadow-xs active:scale-[0.98] w-full sm:w-auto"
+            >
+              <LifeBuoy className="w-4 h-4 text-[#166F77]" />
+              Need Help?
             </Link>
           </div>
         </div>
@@ -1188,6 +1202,38 @@ function OrderDetail() {
               <div className="flex justify-between items-center font-semibold text-stone-900">
                 <span>Grand Total</span>
                 <span className="text-base font-bold text-[#166F77]">{formatINR(order.total)}</span>
+              </div>
+            </div>
+
+            {/* Need Help? Seva Assistance Card */}
+            <div className="bg-white rounded-xl sm:rounded-2xl p-4 sm:p-5 border border-stone-200 shadow-xs">
+              <h3 className="font-serif text-base font-bold text-stone-900 mb-1.5 flex items-center gap-2">
+                <LifeBuoy className="h-4 w-4 text-[#166F77]" /> Need Help with this Order?
+              </h3>
+              <p className="text-xs text-stone-600 leading-relaxed">
+                Have questions about your delivery, poshak sizing, or order updates? Our Vrindavan seva team is here to assist you.
+              </p>
+              <div className="mt-3 flex flex-col gap-2">
+                <Link
+                  to="/support"
+                  search={{
+                    tab: "submit",
+                    orderId: order.id,
+                    orderNo: String(displayOrderNumber(order)),
+                    category: "ORDER_TRACKING",
+                  } as never}
+                  className="w-full py-2 px-3 rounded-xl bg-[#166F77]/10 hover:bg-[#166F77] text-[#166F77] hover:text-white transition text-xs font-semibold text-center flex items-center justify-center gap-1.5 cursor-pointer"
+                >
+                  <LifeBuoy className="w-3.5 h-3.5" />
+                  <span>Open Support Ticket</span>
+                </Link>
+                <Link
+                  to="/support"
+                  search={{ tab: "faq" } as never}
+                  className="w-full py-2 px-3 rounded-xl border border-stone-200 hover:bg-stone-50 text-stone-700 transition text-xs font-semibold text-center cursor-pointer"
+                >
+                  Browse FAQs & Help Center
+                </Link>
               </div>
             </div>
           </aside>
