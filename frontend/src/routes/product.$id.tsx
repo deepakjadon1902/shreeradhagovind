@@ -17,7 +17,6 @@ import {
   Lock,
   MapPin,
   Eye,
-  Sparkles,
   X,
   ChevronRight,
   Info,
@@ -872,7 +871,7 @@ function ProductDetail() {
                 <div className="rounded-xl border border-[#E7E1D6]/80 bg-[#FAF7F2] p-2 text-center flex flex-col items-center justify-center min-h-[64px]">
                   <RotateCcw className="h-3.5 w-3.5 text-[#166F77] mb-0.5 shrink-0" />
                   <p className="text-[10.5px] font-semibold text-stone-800 leading-tight">
-                    7-Day Easy Returns
+                    48-Hour Return Window
                   </p>
                 </div>
                 <div className="rounded-xl border border-[#E7E1D6]/80 bg-[#FAF7F2] p-2 text-center flex flex-col items-center justify-center min-h-[64px]">
@@ -1000,7 +999,7 @@ function ProductDetail() {
                     : "border-transparent text-stone-500 hover:text-stone-800"
                 }`}
               >
-                <Sparkles className="h-3.5 w-3.5" /> Sacred Care & Guidelines
+                Sacred Care & Guidelines
               </button>
               <button
                 type="button"
@@ -1023,8 +1022,8 @@ function ProductDetail() {
                     <FormattedText content={product.description} />
                   </div>
                   <div className="mt-5 rounded-xl bg-[#FAF7F2] border border-[#E7E1D6]/80 p-3.5 text-xs text-stone-600 space-y-1">
-                    <p className="font-semibold text-[#166F77] flex items-center gap-1.5">
-                      <Sparkles className="h-3.5 w-3.5 text-amber-600" /> Authentic Vrindavan Dham Seva
+                    <p className="font-semibold text-[#166F77]">
+                      Authentic Vrindavan Dham Seva
                     </p>
                     <p>
                       Every parcel is packed with reverent care and dispatched directly from our sacred
@@ -1145,7 +1144,7 @@ function ProductDetail() {
                       <li className="flex items-start gap-2">
                         <span className="text-[#166F77] font-bold">•</span>
                         <span>
-                          <strong>7-Day Returns:</strong> Return or replacement claims are accepted within 7 days
+                          <strong>48-Hour Returns:</strong> Return or replacement claims are accepted within 48 hours
                           of delivery for unused items in their original sacred packaging.
                         </span>
                       </li>

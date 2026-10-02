@@ -3,7 +3,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Layout } from "@/components/Layout";
 import { ProductCard } from "@/components/ProductCard";
 import { useStore } from "@/lib/store";
-import { SlidersHorizontal, ChevronRight, Home, Sparkles, X, RotateCcw } from "lucide-react";
+import { SlidersHorizontal, ChevronRight, Home, X, RotateCcw } from "lucide-react";
 import { pageSeo, SITE_URL, cleanMetaText, DEFAULT_IMAGE } from "@/lib/seo";
 
 type Search = { q?: string; cat?: string; filter?: string };
@@ -138,7 +138,7 @@ export const Route = createFileRoute("/shop")({
 function Shop() {
   const search = Route.useSearch();
   const navigate = useNavigate();
-  const { adminProducts, categories, categoryTree } = useStore();
+  const { visibleProducts, categories, categoryTree } = useStore();
   const [cat, setCat] = useState<string>(search.cat ?? "All");
   const [sort, setSort] = useState("featured");
   const [filterDrawerOpen, setFilterDrawerOpen] = useState(false);
@@ -151,8 +151,8 @@ function Shop() {
   }, [search.q, search.filter]);
 
   const catalogMaxPrice = useMemo(
-    () => Math.max(100, ...adminProducts.map((product) => product.price || 0)),
-    [adminProducts],
+    () => Math.max(100, ...visibleProducts.map((product) => product.price || 0)),
+    [visibleProducts],
   );
   const [maxPrice, setMaxPrice] = useState(catalogMaxPrice);
 
@@ -229,7 +229,7 @@ function Shop() {
   }, [cat, categoryTree, isSacredPicks]);
 
   const products = useMemo(() => {
-    let p = [...adminProducts];
+    let p = [...visibleProducts];
 
     if (isSacredPicks) {
       // Sacred Picks: Featured deals or highest rated products
@@ -270,7 +270,12 @@ function Shop() {
     if (sort === "high") p.sort((a, b) => b.price - a.price);
     if (sort === "rating") p.sort((a, b) => b.rating - a.rating);
     return p;
-  }, [adminProducts, cat, isSacredPicks, search.q, sort, maxPrice, categoryTree]);
+  }, [visibleProducts, cat, isSacredPicks, search.q, sort, maxPrice, categoryTree]);
+
+  // Customer-facing recovery shelf: strictly customer-visible active items
+  const recoveryProducts = useMemo(() => {
+    return visibleProducts.slice(0, 4);
+  }, [visibleProducts]);
 
   const pageTitle = isSacredPicks
     ? "Sacred Picks"
@@ -399,13 +404,12 @@ function Shop() {
               <button
                 type="button"
                 onClick={selectSacredPicks}
-                className={`inline-flex items-center gap-1 h-8 rounded-full px-3 text-xs font-medium shrink-0 transition ${
+                className={`inline-flex items-center h-8 rounded-full px-3 text-xs font-medium shrink-0 transition ${
                   isSacredPicks
                     ? "bg-[#D9A441] text-white shadow-sm font-semibold"
                     : "bg-[#FFF9EE] border border-[#D9A441]/40 text-[#9C6D18] hover:bg-[#FFF2D6]"
                 }`}
               >
-                <Sparkles className="h-3 w-3" />
                 Sacred Picks
               </button>
 
@@ -525,6 +529,24 @@ function Shop() {
               >
                 View All Products
               </button>
+
+              {recoveryProducts.length > 0 && (
+                <div className="mt-10 pt-8 border-t border-[#E7E1D6]/70 max-w-4xl mx-auto text-left">
+                  <div className="mb-4 text-center sm:text-left">
+                    <p className="text-[11px] sm:text-xs font-semibold uppercase tracking-wider text-[#166F77]">
+                      Explore Available Sacred Items
+                    </p>
+                    <p className="text-xs text-stone-500 mt-0.5">
+                      Devotional offerings handcrafted in Shri Dham Vrindavan
+                    </p>
+                  </div>
+                  <div className="grid grid-cols-2 gap-2.5 sm:gap-3 sm:grid-cols-4">
+                    {recoveryProducts.map((p) => (
+                      <ProductCard key={p.id} product={p} />
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
           ) : (
             <div className="grid grid-cols-2 gap-2.5 sm:gap-3 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">

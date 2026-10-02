@@ -1,7 +1,8 @@
 import React, { useState, useRef, useEffect } from "react";
 import { Link } from "@tanstack/react-router";
 import {
-  Sparkles,
+  BotMessageSquare,
+  Loader2,
   X,
   Send,
   RotateCcw,
@@ -154,7 +155,7 @@ export default function AiChatPanel({ onClose }: { onClose: () => void }) {
       <div className="bg-gradient-to-r from-[#5a1a24] via-[#752431] to-[#5a1a24] text-white px-4 py-3.5 flex items-center justify-between border-b border-[#e4c895]/30 shrink-0 shadow-sm">
         <div className="flex items-center gap-2.5 min-w-0">
           <div className="h-8 w-8 rounded-full bg-amber-400/20 border border-amber-300/40 grid place-items-center shrink-0">
-            <Sparkles className="h-4 w-4 text-amber-300 animate-pulse" />
+            <BotMessageSquare className="h-4 w-4 text-amber-300" />
           </div>
           <div className="min-w-0">
             <h3 className="font-serif font-bold text-sm sm:text-base text-amber-100 truncate leading-tight">
@@ -277,7 +278,7 @@ export default function AiChatPanel({ onClose }: { onClose: () => void }) {
         {loading && (
           <div className="flex items-start">
             <div className="bg-white border border-[#e8dfcf] rounded-2xl rounded-tl-xs px-3.5 py-2.5 text-xs text-stone-500 flex items-center gap-2 shadow-2xs">
-              <Sparkles className="h-3.5 w-3.5 text-amber-600 animate-spin" />
+              <Loader2 className="h-3.5 w-3.5 text-amber-600 animate-spin" />
               <span>Checking Vrindavan store catalogue...</span>
             </div>
           </div>

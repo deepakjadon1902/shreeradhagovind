@@ -77,6 +77,7 @@ const orderSchema = new Schema(
     },
     billingAddress: {
       name: { type: String, default: "" },
+      phone: { type: String, default: "" },
       line1: { type: String, default: "" },
       line2: { type: String, default: "" },
       postOffice: { type: String, default: "" },

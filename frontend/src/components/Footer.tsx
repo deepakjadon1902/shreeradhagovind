@@ -1,4 +1,4 @@
-import { Link } from "@tanstack/react-router";
+import { Link, useLocation } from "@tanstack/react-router";
 import {
   Youtube,
   Instagram,
@@ -15,6 +15,13 @@ const logo = "/brand-logo-112.png";
 
 export function Footer() {
   const { settings, user } = useStore();
+  const location = useLocation();
+  const isCheckoutPage = location.pathname.startsWith("/checkout");
+
+  // On mobile checkout (< lg), elevate WhatsApp above the sticky payment bar so it never overlaps Total Amount or CTA:
+  const waPositionClasses = isCheckoutPage
+    ? "bottom-[calc(4.75rem+env(safe-area-inset-bottom,0px))] lg:bottom-5 left-4 sm:left-5"
+    : "bottom-5 left-5";
 
   return (
     <footer className="mt-12 shrink-0 border-t border-[#E7E1D6] bg-[#FFFFF4] text-[#2B211C]">
@@ -248,7 +255,7 @@ export function Footer() {
         target="_blank"
         rel="noreferrer"
         aria-label="Chat on WhatsApp"
-        className="whatsapp-bounce fixed bottom-5 left-5 z-50 grid h-14 w-14 place-items-center rounded-full bg-[#25D366] text-white shadow-[0_12px_30px_-10px_rgba(37,211,102,.8)] transition hover:scale-110 hover:bg-[#20bd5a]"
+        className={`whatsapp-bounce fixed ${waPositionClasses} z-40 grid h-14 w-14 place-items-center rounded-full bg-[#25D366] text-white shadow-[0_12px_30px_-10px_rgba(37,211,102,.8)] transition hover:scale-110 hover:bg-[#20bd5a]`}
       >
         <svg viewBox="0 0 32 32" aria-hidden="true" className="h-8 w-8 fill-current">
           <path d="M16.04 3C9.39 3 4 8.27 4 14.77c0 2.3.68 4.55 1.96 6.47L4 28l6.95-1.82a12.2 12.2 0 0 0 5.08 1.1h.01c6.64 0 12.05-5.28 12.05-11.76C28.09 9.02 22.69 3 16.04 3Zm0 21.98h-.01a9.9 9.9 0 0 1-5.04-1.35l-.36-.21-4.12 1.08 1.1-4.02-.23-.37a9.46 9.46 0 0 1-1.5-5.34c0-5.23 4.56-9.48 10.17-9.48 5.6 0 10.16 4.25 10.16 9.48 0 5.23-4.56 10.21-10.17 10.21Zm5.58-7.66c-.3-.15-1.8-.87-2.08-.97-.28-.1-.48-.15-.69.15-.2.3-.79.97-.97 1.17-.18.2-.36.23-.66.08-.31-.15-1.29-.47-2.46-1.49a9.22 9.22 0 0 1-1.7-2.06c-.18-.3-.02-.46.13-.61.14-.14.31-.36.46-.54.15-.18.2-.31.31-.51.1-.2.05-.38-.03-.54-.08-.15-.69-1.62-.94-2.22-.25-.6-.5-.51-.69-.52h-.58c-.2 0-.53.08-.81.38-.28.31-1.06 1.02-1.06 2.48s1.09 2.87 1.24 3.08c.15.2 2.14 3.2 5.2 4.49.72.31 1.29.49 1.73.63.73.23 1.39.2 1.91.12.58-.09 1.8-.72 2.05-1.41.25-.69.25-1.28.18-1.41-.08-.13-.28-.2-.59-.35Z" />

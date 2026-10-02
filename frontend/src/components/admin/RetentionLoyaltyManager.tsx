@@ -11,7 +11,6 @@ import {
   CheckCircle2,
   AlertCircle,
   Clock,
-  Sparkles,
   ArrowUpRight,
   ArrowDownRight,
   ShieldCheck,
@@ -693,8 +692,7 @@ export function RetentionLoyaltyManager() {
                           )}
                         </td>
                         <td className="py-3 px-3">
-                          <span className="inline-flex items-center gap-1 rounded-full bg-amber-50 border border-amber-200 px-2 py-0.5 text-[10px] font-semibold text-amber-900">
-                            <Sparkles className="h-2.5 w-2.5 text-amber-600" />
+                          <span className="inline-flex items-center rounded-full bg-amber-50 border border-amber-200 px-2 py-0.5 text-[10px] font-semibold text-amber-900">
                             {c.tier?.name || "Bronze"}
                           </span>
                         </td>

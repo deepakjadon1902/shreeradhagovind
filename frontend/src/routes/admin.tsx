@@ -364,6 +364,7 @@ function AdminRoot() {
     adminLogout,
     adminProducts,
     refreshProducts,
+    refreshCategories,
     saveProduct,
     deleteProduct,
     orders,
@@ -407,6 +408,7 @@ function AdminRoot() {
 
   const fetchProductsSafely = () => {
     refreshProducts().catch(() => {});
+    refreshCategories(true).catch(() => {});
   };
 
   if (!adminAuthed) {

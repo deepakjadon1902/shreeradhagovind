@@ -12,7 +12,6 @@ import {
   ShoppingBag,
   Loader2,
   User as UserIcon,
-  Sparkles,
   MapPin,
   FileText,
   AlertCircle,
@@ -138,6 +137,25 @@ function loadRazorpayScript(): Promise<boolean> {
   });
 }
 
+export function validateIndianMobile(raw: string): { valid: boolean; digits: string; error?: string } {
+  if (!raw || !raw.trim()) {
+    return { valid: false, digits: "", error: "Phone number is required" };
+  }
+  let digits = raw.replace(/\D/g, "");
+  if (digits.length === 12 && digits.startsWith("91")) {
+    digits = digits.slice(2);
+  } else if (digits.length === 11 && digits.startsWith("0")) {
+    digits = digits.slice(1);
+  }
+  if (digits.length !== 10) {
+    return { valid: false, digits, error: "Please enter a valid 10-digit mobile number" };
+  }
+  if (!/^[6-9]/.test(digits)) {
+    return { valid: false, digits, error: "Indian mobile numbers must start with 6, 7, 8, or 9" };
+  }
+  return { valid: true, digits };
+}
+
 function Checkout() {
   const { cart, adminProducts, user, placeOrder, settings, setCart, validateCoupon, loyalty, fetchLoyalty } = useStore();
   const search = Route.useSearch();
@@ -230,6 +248,7 @@ function Checkout() {
   const [billingSameAsShipping, setBillingSameAsShipping] = useState(true);
   const [billingForm, setBillingForm] = useState({
     name: "",
+    phone: user?.phone ?? "",
     line1: "",
     line2: "",
     pincode: "",
@@ -263,10 +282,11 @@ function Checkout() {
   // Billing address pincode lookup state
   const [billingPostalStatus, setBillingPostalStatus] = useState<"idle" | "loading" | "success" | "not_found">("idle");
   const [billingAvailablePostOffices, setBillingAvailablePostOffices] = useState<string[]>([]);
-  const billingManualEditsRef = useRef<{ city: boolean; state: boolean; postOffice: boolean }>({
+  const billingManualEditsRef = useRef<{ city: boolean; state: boolean; postOffice: boolean; phone: boolean }>({
     city: false,
     state: false,
     postOffice: false,
+    phone: false,
   });
   const lastBillingPincodeRef = useRef<string>("");
 
@@ -291,6 +311,12 @@ function Checkout() {
       businessName: current.businessName,
       gstin: current.gstin,
     }));
+    if (!billingManualEditsRef.current.phone) {
+      setBillingForm((prev) => ({
+        ...prev,
+        phone: prev.phone || user.phone || "",
+      }));
+    }
   }, [user]);
 
   // Hydrate checkout session from recovery link (?session=<token>)
@@ -808,6 +834,7 @@ function Checkout() {
     const resolvedBillingAddress = billingSameAsShipping
       ? {
           name: form.name.trim(),
+          phone: form.phone.trim(),
           line1: form.line1.trim(),
           line2: form.line2.trim() || undefined,
           postOffice: form.postOffice.trim() || undefined,
@@ -817,6 +844,7 @@ function Checkout() {
         }
       : {
           name: (billingForm.name || form.name).trim(),
+          phone: (billingForm.phone || form.phone).trim(),
           line1: billingForm.line1.trim(),
           line2: billingForm.line2.trim() || undefined,
           postOffice: billingForm.postOffice.trim() || undefined,
@@ -1022,9 +1050,9 @@ function Checkout() {
       return;
     }
 
-    const cleanPhone = form.phone.replace(/\D/g, "");
-    if (!cleanPhone || cleanPhone.length < 10) {
-      toast.error("Please enter a valid 10-digit primary phone number");
+    const shipPhoneResult = validateIndianMobile(form.phone);
+    if (!shipPhoneResult.valid) {
+      toast.error(`Primary Phone Number: ${shipPhoneResult.error}`);
       return;
     }
 
@@ -1036,13 +1064,24 @@ function Checkout() {
       }
     }
 
-    if (!form.name.trim() || !form.line1.trim() || !form.pincode.trim() || !form.city.trim() || !form.state.trim() || !form.postOffice.trim()) {
+    if (!form.name.trim() || !form.line1.trim() || !form.pincode.trim() || !form.city.trim() || !form.state.trim()) {
       toast.error("Please complete all required delivery address fields");
       return;
     }
 
     // Validate billing address if different
     if (!billingSameAsShipping) {
+      const billPhoneResult = validateIndianMobile(billingForm.phone || form.phone);
+      if (!billPhoneResult.valid) {
+        toast.error(`Billing Contact Number: ${billPhoneResult.error}`);
+        return;
+      }
+
+      if (!billingForm.name.trim()) {
+        toast.error("Please enter Billing Name / Company");
+        return;
+      }
+
       if (!billingForm.line1.trim() || !billingForm.pincode.trim() || !billingForm.city.trim() || !billingForm.state.trim()) {
         toast.error("Please complete all required billing address fields");
         return;
@@ -1097,8 +1136,7 @@ function Checkout() {
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 pb-5 border-b border-stone-200">
               <div>
                 <div className="flex items-center gap-2 mb-1">
-                  <span className="text-xs font-semibold uppercase tracking-wider text-[#166F77] bg-[#166F77]/10 px-2.5 py-0.5 rounded-full inline-flex items-center gap-1">
-                    <Sparkles className="h-3 w-3 text-[#D9A441]" />
+                  <span className="text-xs font-semibold uppercase tracking-wider text-[#166F77] bg-[#166F77]/10 px-2.5 py-0.5 rounded-full inline-flex items-center">
                     Direct From Vrindavan Dham
                   </span>
                 </div>
@@ -1141,22 +1179,22 @@ function Checkout() {
                 </div>
 
                 {user ? (
-                  <div className="bg-[#FAF7F2] border border-[#D9A441]/30 rounded-xl p-4 flex items-center justify-between gap-3">
-                    <div className="flex items-center gap-3">
+                  <div className="bg-[#FAF7F2] border border-[#D9A441]/30 rounded-xl p-3.5 sm:p-4 flex flex-wrap sm:flex-nowrap items-center justify-between gap-3">
+                    <div className="flex items-center gap-3 min-w-0 flex-1">
                       <div className="w-10 h-10 rounded-full bg-[#166F77]/10 flex items-center justify-center text-[#166F77] shrink-0 font-serif font-bold text-base">
                         {user.name ? user.name[0].toUpperCase() : "D"}
                       </div>
-                      <div>
-                        <div className="flex items-center gap-1.5">
-                          <p className="text-sm font-semibold text-stone-900">
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          <p className="text-sm font-semibold text-stone-900 truncate">
                             Signed in as {user.name || "Devotee"}
                           </p>
-                          <CheckCircle2 className="h-4 w-4 text-emerald-600" />
+                          <CheckCircle2 className="h-4 w-4 text-emerald-600 shrink-0" />
                         </div>
-                        <p className="text-xs text-stone-500">{user.email}</p>
+                        <p className="text-xs text-stone-500 break-all">{user.email}</p>
                       </div>
                     </div>
-                    <span className="text-[11px] font-medium text-[#166F77] bg-[#166F77]/10 px-2.5 py-1 rounded-full shrink-0">
+                    <span className="text-[11px] font-medium text-[#166F77] bg-[#166F77]/10 px-2.5 py-1 rounded-full shrink-0 self-start sm:self-center">
                       Saved Account
                     </span>
                   </div>
@@ -1225,11 +1263,8 @@ function Checkout() {
                     </div>
 
                     {accountChoice === "create" && (
-                      <div className="mt-2 text-[11px] text-emerald-800 bg-emerald-50/80 border border-emerald-200/80 rounded-lg p-2.5 flex items-start gap-2">
-                        <Sparkles className="h-4 w-4 text-emerald-600 shrink-0 mt-0.5" />
-                        <div>
-                          <span className="font-semibold">Account Benefits:</span> Live order tracking, downloadable tax invoices, and express 1-click checkout for future Vrindavan orders.
-                        </div>
+                      <div className="mt-2 text-[11px] text-emerald-800 bg-emerald-50/80 border border-emerald-200/80 rounded-lg p-2.5">
+                        <span className="font-semibold">Account Benefits:</span> Live order tracking, downloadable tax invoices, and express 1-click checkout for future Vrindavan orders.
                       </div>
                     )}
                   </div>
@@ -1280,7 +1315,13 @@ function Checkout() {
                         autoComplete="tel"
                         maxLength={10}
                         value={form.phone}
-                        onChange={(e) => setForm({ ...form, phone: e.target.value })}
+                        onChange={(e) => {
+                          const val = e.target.value;
+                          setForm((prev) => ({ ...prev, phone: val }));
+                          if (!billingManualEditsRef.current.phone) {
+                            setBillingForm((prev) => ({ ...prev, phone: val }));
+                          }
+                        }}
                         onBlur={() => captureSession()}
                         placeholder="10-digit mobile number"
                         className="w-full h-11 px-3.5 rounded-xl border border-stone-200 bg-white text-sm text-stone-900 placeholder:text-stone-400 focus:border-[#166F77] focus:ring-2 focus:ring-[#166F77]/10 focus:outline-none transition"
@@ -1458,11 +1499,10 @@ function Checkout() {
 
                   <div>
                     <label className="block text-xs font-medium text-stone-700 mb-1.5">
-                      Post Office / Locality <span className="text-rose-500">*</span>
+                      Post Office / Locality <span className="text-xs text-stone-400 font-normal">(Optional)</span>
                     </label>
                     {availablePostOffices.length > 0 ? (
                       <select
-                        required
                         value={form.postOffice}
                         onChange={(e) => {
                           manualEditsRef.current.postOffice = e.target.value.trim().length > 0;
@@ -1480,7 +1520,6 @@ function Checkout() {
                     ) : (
                       <input
                         type="text"
-                        required
                         value={form.postOffice}
                         onChange={(e) => {
                           manualEditsRef.current.postOffice = e.target.value.trim().length > 0;
@@ -1510,7 +1549,13 @@ function Checkout() {
                     <input
                       type="checkbox"
                       checked={billingSameAsShipping}
-                      onChange={(e) => setBillingSameAsShipping(e.target.checked)}
+                      onChange={(e) => {
+                        const checked = e.target.checked;
+                        setBillingSameAsShipping(checked);
+                        if (!checked && !billingManualEditsRef.current.phone && !billingForm.phone.trim()) {
+                          setBillingForm((prev) => ({ ...prev, phone: form.phone }));
+                        }
+                      }}
                       className="w-4 h-4 rounded text-[#166F77] focus:ring-[#166F77] border-stone-300 transition"
                     />
                     <span className="text-sm font-medium text-stone-800">
@@ -1536,6 +1581,28 @@ function Checkout() {
                           placeholder="Name as registered for billing"
                           className="w-full h-11 px-3.5 rounded-xl border border-stone-200 bg-white text-sm text-stone-900 placeholder:text-stone-400 focus:border-[#166F77] focus:ring-2 focus:ring-[#166F77]/10 focus:outline-none transition"
                         />
+                      </div>
+
+                      <div>
+                        <label className="block text-xs font-medium text-stone-700 mb-1.5">
+                          Billing Contact Number <span className="text-rose-500">*</span>
+                        </label>
+                        <input
+                          type="tel"
+                          required={!billingSameAsShipping}
+                          autoComplete="tel"
+                          maxLength={10}
+                          value={billingForm.phone}
+                          onChange={(e) => {
+                            billingManualEditsRef.current.phone = true;
+                            setBillingForm({ ...billingForm, phone: e.target.value });
+                          }}
+                          placeholder="10-digit mobile number"
+                          className="w-full h-11 px-3.5 rounded-xl border border-stone-200 bg-white text-sm text-stone-900 placeholder:text-stone-400 focus:border-[#166F77] focus:ring-2 focus:ring-[#166F77]/10 focus:outline-none transition"
+                        />
+                        <p className="mt-1 text-[11px] text-stone-500">
+                          For billing communications and tax invoice records
+                        </p>
                       </div>
 
                       <div>
@@ -2186,7 +2253,6 @@ function Checkout() {
                 {/* Reassurance Badges */}
                 <div className="pt-2 border-t border-stone-100 space-y-2">
                   <div className="flex items-center gap-2 text-[11px] text-stone-600">
-                    <Sparkles className="h-3.5 w-3.5 text-[#D9A441] shrink-0" />
                     <span>Blessed & Consecrated in Vrindavan Dham</span>
                   </div>
                   <div className="flex items-center gap-2 text-[11px] text-stone-600">

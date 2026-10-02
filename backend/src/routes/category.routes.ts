@@ -4,6 +4,7 @@ import { Category } from "../models/Category";
 import { Product } from "../models/Product";
 import { requireAuth, requireAdmin } from "../middleware/auth";
 import { HttpError } from "../middleware/error";
+import { OUT_OF_STOCK_WINDOW_MS } from "../services/inventory.service";
 
 const r = Router();
 const slugify = (s: string) =>
@@ -21,16 +22,115 @@ const categorySchema = z.object({
   sortOrder: z.number().optional().default(0),
 });
 
-async function withProductCounts(filter: any = {}) {
+async function withProductCounts(categoryFilter: any = {}, productFilter: any = { isActive: true }) {
   const [categories, counts] = await Promise.all([
-    Category.find(filter).sort({ sortOrder: 1, name: 1 }),
-    Product.aggregate([{ $match: { isActive: true } }, { $group: { _id: "$category", count: { $sum: 1 } } }]),
+    Category.find(categoryFilter).sort({ sortOrder: 1, name: 1 }),
+    Product.aggregate([{ $match: productFilter }, { $group: { _id: "$category", count: { $sum: 1 } } }]),
   ]);
   const countMap = new Map(counts.map((x) => [x._id, x.count]));
   return categories.map((c: any) => ({ ...c.toObject(), productCount: countMap.get(c.name) ?? 0 }));
 }
 
+function getCustomerProductFilter() {
+  const cutoff = new Date(Date.now() - OUT_OF_STOCK_WINDOW_MS);
+  return {
+    isActive: true,
+    $or: [
+      { stock: { $gt: 0 } },
+      { stock: { $lte: 0 }, outOfStockSince: { $gt: cutoff } },
+    ],
+  };
+}
+
+function buildCustomerCategoryTree(categories: any[]) {
+  const allIds = new Set(categories.map((c) => String(c._id)));
+  const byParent = new Map<string, any[]>();
+  for (const c of categories) {
+    if (c.parentId && allIds.has(String(c.parentId))) {
+      const pId = String(c.parentId);
+      byParent.set(pId, [...(byParent.get(pId) ?? []), c]);
+    }
+  }
+
+  function processCategory(c: any): any | null {
+    const rawChildren = byParent.get(String(c._id)) ?? [];
+    const processedChildren: any[] = [];
+    for (const child of rawChildren) {
+      if (child.isActive) {
+        const processed = processCategory(child);
+        if (processed) {
+          processedChildren.push(processed);
+        }
+      }
+    }
+
+    const hasDirectProducts = (c.productCount ?? 0) > 0;
+    const hasVisibleChildren = processedChildren.length > 0;
+
+    if (!hasDirectProducts && !hasVisibleChildren) {
+      return null;
+    }
+
+    return {
+      ...c,
+      children: processedChildren,
+    };
+  }
+
+  const rootCategories = categories.filter((c) => !c.parentId || !allIds.has(String(c.parentId)));
+  const visibleRoots: any[] = [];
+  for (const root of rootCategories) {
+    if (root.isActive) {
+      const processed = processCategory(root);
+      if (processed) {
+        visibleRoots.push(processed);
+      }
+    }
+  }
+
+  return visibleRoots;
+}
+
+function flattenCategoryTree(tree: any[]): any[] {
+  const flat: any[] = [];
+  function walk(items: any[]) {
+    for (const item of items) {
+      const { children, ...rest } = item;
+      flat.push(rest);
+      if (children && children.length > 0) {
+        walk(children);
+      }
+    }
+  }
+  walk(tree);
+  return flat;
+}
+
+// Customer: List only categories that have customer-visible products
 r.get("/", async (_req, res, next) => {
+  try {
+    const categories = await withProductCounts({ isActive: true }, getCustomerProductFilter());
+    const tree = buildCustomerCategoryTree(categories);
+    const visibleCategories = flattenCategoryTree(tree);
+    res.json({ categories: visibleCategories });
+  } catch (e) {
+    next(e);
+  }
+});
+
+// Customer: Category tree with non-empty categories only
+r.get("/tree", async (_req, res, next) => {
+  try {
+    const categories = await withProductCounts({ isActive: true }, getCustomerProductFilter());
+    const tree = buildCustomerCategoryTree(categories);
+    res.json({ categories: tree });
+  } catch (e) {
+    next(e);
+  }
+});
+
+// Admin: List all categories including empty ones
+r.get(["/admin", "/admin/all"], requireAuth, requireAdmin, async (_req, res, next) => {
   try {
     const categories = await withProductCounts();
     res.json({ categories });
@@ -39,9 +139,42 @@ r.get("/", async (_req, res, next) => {
   }
 });
 
-r.get("/tree", async (_req, res, next) => {
+// Admin: Category tree with all categories
+r.get("/admin/tree", requireAuth, requireAdmin, async (_req, res, next) => {
   try {
-    const categories = await withProductCounts({ isActive: true });
+    const categories = await withProductCounts();
+    const rootCategories = categories.filter((c) => !c.parentId);
+    const byParent = new Map<string, any[]>();
+    for (const c of categories) {
+      if (c.parentId) {
+        const pId = String(c.parentId);
+        byParent.set(pId, [...(byParent.get(pId) ?? []), c]);
+      }
+    }
+    const attach = (items: any[]): any[] =>
+      items.map((c) => ({ ...c, children: attach(byParent.get(String(c._id)) ?? []) }));
+    res.json({ categories: attach(rootCategories) });
+  } catch (e) {
+    next(e);
+  }
+});
+
+// Dedicated Admin Category Router (mirroring existing admin routers like adminCouponRouter)
+export const adminCategoryRouter = Router();
+adminCategoryRouter.use(requireAuth, requireAdmin);
+
+adminCategoryRouter.get(["/", "/all"], async (_req, res, next) => {
+  try {
+    const categories = await withProductCounts();
+    res.json({ categories });
+  } catch (e) {
+    next(e);
+  }
+});
+
+adminCategoryRouter.get("/tree", async (_req, res, next) => {
+  try {
+    const categories = await withProductCounts();
     const rootCategories = categories.filter((c) => !c.parentId);
     const byParent = new Map<string, any[]>();
     for (const c of categories) {

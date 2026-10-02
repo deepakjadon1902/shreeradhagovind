@@ -89,7 +89,7 @@ function WishlistPage() {
                     <p
                       className={`mt-0.5 text-xs ${p.stock > 0 ? "text-green-700" : "text-destructive"}`}
                     >
-                      {p.stock > 0 ? "In stock - Free delivery" : "Out of stock"}
+                      {p.stock > 0 ? "In stock" : "Out of stock"}
                     </p>
 
                     <div className="mt-auto pt-3 flex items-center gap-2 flex-wrap">

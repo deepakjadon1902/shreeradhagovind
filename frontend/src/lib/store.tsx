@@ -93,6 +93,7 @@ export type Order = {
   };
   billingAddress?: {
     name?: string;
+    phone?: string;
     line1?: string;
     line2?: string;
     postOffice?: string;
@@ -427,7 +428,9 @@ type Store = {
   adminLogin: (u: string, p: string) => Promise<boolean> | boolean;
   adminLogout: () => void;
   adminProducts: Product[];
+  visibleProducts: Product[];
   refreshProducts: () => Promise<Product[]>;
+  refreshCategories: (asAdmin?: boolean) => Promise<Category[]>;
   refreshOrders: (asAdmin?: boolean) => Promise<void>;
   saveProduct: (p: Product) => Promise<void> | void;
   deleteProduct: (id: string) => Promise<void> | void;
@@ -529,6 +532,16 @@ const mapProduct = (p: any): Product => ({
       }))
     : [],
 });
+
+export const OUT_OF_STOCK_WINDOW_MS = 24 * 60 * 60 * 1000;
+
+export function isCustomerVisibleProduct(p: Product): boolean {
+  if (!p) return false;
+  if (Number(p.stock) > 0) return true;
+  if (!p.outOfStockSince) return false;
+  const elapsed = Date.now() - new Date(p.outOfStockSince).getTime();
+  return elapsed >= 0 && elapsed <= OUT_OF_STOCK_WINDOW_MS;
+}
 
 const mapSettings = (s: any): Partial<Settings> => ({
   siteName: s.siteName,
@@ -723,6 +736,7 @@ const mapOrder = (o: any, productLookup: Map<string, Product>): Order => {
     billingAddress: o?.billingAddress
       ? {
           name: String(o.billingAddress.name || ""),
+          phone: String(o.billingAddress.phone || ""),
           line1: String(o.billingAddress.line1 || ""),
           line2: String(o.billingAddress.line2 || ""),
           postOffice: String(o.billingAddress.postOffice || ""),
@@ -854,6 +868,29 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       return [];
     }
   }, [apiEnabled]);
+
+  const visibleProducts = useMemo(() => {
+    return adminProducts.filter(isCustomerVisibleProduct);
+  }, [adminProducts]);
+
+  const refreshCategories = useCallback(
+    async (asAdmin = false) => {
+      if (!apiEnabled) return [];
+      try {
+        const endpoint = asAdmin ? "/admin/categories" : "/categories";
+        const catRes = await api<{ categories: any[] }>(endpoint, { retries: 1, retryDelayMs: 1000 });
+        const mapped = (catRes?.categories || []).map(mapCategory);
+        setCategoryDetails(mapped);
+        setCategories(mapped.filter((c: any) => c.isActive).map((c: any) => c.name));
+        setCategoryIds(Object.fromEntries(mapped.map((c: any) => [c.name, c.id])));
+        return mapped;
+      } catch (e: any) {
+        console.warn("[api] fetch categories failed:", e?.message);
+        return [];
+      }
+    },
+    [apiEnabled],
+  );
 
   // ---- initial load (local + remote) ----
   useEffect(() => {
@@ -1060,17 +1097,56 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     }));
   }, [categoryDetails]);
 
-  // Storefront active category tree (active root categories and active subcategories only)
+  // Storefront active category tree (active root categories and active subcategories only, hiding empty dead ends)
   const categoryTree = useMemo(() => {
     const all = [...categoryDetails].sort(
       (a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0) || a.name.localeCompare(b.name)
     );
     const allIds = new Set(all.map((c) => c.id));
-    const activeRoots = all.filter((c) => c.isActive && (!c.parentId || !allIds.has(c.parentId)));
-    return activeRoots.map((parent) => ({
-      ...parent,
-      children: all.filter((c) => c.parentId === parent.id && c.isActive),
-    }));
+    const activeCategories = all.filter((c) => c.isActive);
+
+    const byParent = new Map<string, Category[]>();
+    for (const c of activeCategories) {
+      if (c.parentId && allIds.has(c.parentId)) {
+        byParent.set(c.parentId, [...(byParent.get(c.parentId) ?? []), c]);
+      }
+    }
+
+    function processCategory(c: Category): (Category & { children: Category[] }) | null {
+      const rawChildren = byParent.get(c.id) ?? [];
+      const processedChildren: (Category & { children: Category[] })[] = [];
+      for (const child of rawChildren) {
+        if (child.isActive) {
+          const proc = processCategory(child);
+          if (proc) {
+            processedChildren.push(proc);
+          }
+        }
+      }
+
+      const hasDirectProducts = (c.productCount ?? 0) > 0;
+      const hasVisibleChildren = processedChildren.length > 0;
+
+      if (!hasDirectProducts && !hasVisibleChildren) {
+        return null;
+      }
+
+      return {
+        ...c,
+        children: processedChildren,
+      };
+    }
+
+    const activeRoots = activeCategories.filter((c) => !c.parentId || !allIds.has(c.parentId));
+    const visibleRoots: (Category & { children: Category[] })[] = [];
+    for (const root of activeRoots) {
+      const proc = processCategory(root);
+      if (proc) {
+        visibleRoots.push(proc);
+      }
+    }
+
+    return visibleRoots;
   }, [categoryDetails]);
 
   // ---- auth ----
@@ -1088,6 +1164,9 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     syncWishlist(wishlist);
     fetchLoyalty();
     fetchWallet();
+    if (u.role === "admin") {
+      refreshCategories(true);
+    }
     toast.success(`Welcome, ${u.name}!`);
   };
 
@@ -1983,7 +2062,9 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     adminLogin,
     adminLogout,
     adminProducts,
+    visibleProducts,
     refreshProducts,
+    refreshCategories,
     refreshOrders,
     saveProduct,
     deleteProduct,

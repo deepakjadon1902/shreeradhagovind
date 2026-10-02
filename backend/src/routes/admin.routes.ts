@@ -691,7 +691,10 @@ export function normalizeIndianPhone(raw: unknown): { valid: boolean; digits: st
   if (rawDigits.length === 10 && /^[6-9]/.test(rawDigits)) {
     return { valid: true, digits: `91${rawDigits}` };
   }
-  if (rawDigits.length === 12 && rawDigits.startsWith("91")) {
+  if (rawDigits.length === 11 && rawDigits.startsWith("0") && /^[6-9]/.test(rawDigits.slice(1))) {
+    return { valid: true, digits: `91${rawDigits.slice(1)}` };
+  }
+  if (rawDigits.length === 12 && rawDigits.startsWith("91") && /^[6-9]/.test(rawDigits.slice(2))) {
     return { valid: true, digits: rawDigits };
   }
   return { valid: false, digits: "", reason: "Customer phone is not a valid 10-digit mobile number" };

@@ -29,7 +29,7 @@ import {
   cancelOrderAtomically,
   CANCELLABLE_STATUSES_CUSTOMER,
 } from "../services/cancellation.service";
-import { computeOrderFinances } from "./admin.routes";
+import { computeOrderFinances, normalizeIndianPhone } from "./admin.routes";
 import { env } from "../config/env";
 import { decrementOrderStockSafely } from "../services/inventory.service";
 import { recordDailyOrder } from "../models/DailyAnalytics";
@@ -648,6 +648,7 @@ const createSchema = z.object({
   billingAddress: z
     .object({
       name: z.string().optional().default(""),
+      phone: z.string().optional().default(""),
       line1: z.string().optional().default(""),
       line2: z.string().optional().default(""),
       postOffice: z.string().optional().default(""),
@@ -707,6 +708,22 @@ r.post("/", optionalAuth, async (req, res, next) => {
           );
         }
         cleanGstin = rawGstin;
+      }
+    }
+
+    // Validate shipping primary phone number
+    const shipPhone = (body.address.phone || "").trim();
+    const shipPhoneCheck = normalizeIndianPhone(shipPhone);
+    if (!shipPhoneCheck.valid) {
+      throw new HttpError(400, "A valid 10-digit primary phone number is required for delivery");
+    }
+
+    // Validate billing contact number if separate billing address is provided
+    if (body.billingAddress && body.billingAddress.line1?.trim()) {
+      const billPhone = (body.billingAddress.phone || body.address.phone || "").trim();
+      const billPhoneCheck = normalizeIndianPhone(billPhone);
+      if (!billPhoneCheck.valid) {
+        throw new HttpError(400, "A valid 10-digit billing contact number is required");
       }
     }
 
@@ -1016,6 +1033,7 @@ r.post("/", optionalAuth, async (req, res, next) => {
         billingAddress: body.billingAddress
           ? {
               name: body.billingAddress.name || "",
+              phone: body.billingAddress.phone || "",
               line1: body.billingAddress.line1 || "",
               line2: body.billingAddress.line2 || "",
               postOffice: body.billingAddress.postOffice?.trim() || "",

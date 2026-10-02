@@ -22,7 +22,6 @@ import {
   Package,
   RotateCcw,
   CreditCard,
-  Sparkles,
   ArrowRight,
   User,
   ShieldCheck,
@@ -306,8 +305,7 @@ function SupportHelpCenterPage() {
         {/* Hero Section */}
         <section className="relative overflow-hidden bg-gradient-to-b from-[#166F77]/10 via-[#FAF8F5] to-[#FAF8F5] pt-12 pb-8 border-b border-[#E7E1D6]">
           <div className="container-app text-center max-w-3xl mx-auto">
-            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-[#166F77]/10 text-[#166F77] text-xs font-semibold uppercase tracking-wider mb-4">
-              <Sparkles className="w-3.5 h-3.5 text-[#D9A441]" />
+            <div className="inline-flex items-center px-3 py-1 rounded-full bg-[#166F77]/10 text-[#166F77] text-xs font-semibold uppercase tracking-wider mb-4">
               Vrindavan Seva & Devotee Care
             </div>
             <h1 className="font-serif text-3xl sm:text-4xl md:text-5xl font-bold text-[#2B211C] tracking-tight">
@@ -746,8 +744,7 @@ function SupportHelpCenterPage() {
                   </div>
 
                   {/* Photo / WhatsApp Notice Banner */}
-                  <div className="bg-amber-50/60 border border-amber-200/80 rounded-xl p-3.5 text-xs text-amber-900 flex items-start gap-2.5">
-                    <Sparkles className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+                  <div className="bg-amber-50/60 border border-amber-200/80 rounded-xl p-3.5 text-xs text-amber-900">
                     <div>
                       <span className="font-semibold">Have photos or courier unboxing evidence?</span>{" "}
                       You can send attachments directly to our official WhatsApp helpline at{" "}

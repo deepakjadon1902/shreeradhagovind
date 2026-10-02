@@ -9,7 +9,7 @@ import { notFound, errorHandler } from "./middleware/error";
 
 import authRoutes from "./routes/auth.routes";
 import productRoutes from "./routes/product.routes";
-import categoryRoutes from "./routes/category.routes";
+import categoryRoutes, { adminCategoryRouter } from "./routes/category.routes";
 import orderRoutes from "./routes/order.routes";
 import adminRoutes from "./routes/admin.routes";
 import inventoryRoutes from "./routes/inventory.routes";
@@ -74,6 +74,7 @@ app.get("/api/health", (_req, res) => {
 app.use("/api/auth", authRoutes);
 app.use("/api/products", productRoutes);
 app.use("/api/categories", categoryRoutes);
+app.use("/api/admin/categories", adminCategoryRouter);
 app.use("/api/orders", orderRoutes);
 app.use("/api/admin", adminRoutes);
 app.use("/api/admin/inventory", inventoryRoutes);

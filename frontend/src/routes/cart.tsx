@@ -244,7 +244,7 @@ function CartPage() {
               <ShieldCheck className="h-5 w-5 text-primary shrink-0 mt-0.5" />
               <div>
                 <p className="text-sm font-medium">Safe & secure payments</p>
-                <p className="text-xs text-muted-foreground">100% authentic - Easy 7-day returns</p>
+                <p className="text-xs text-muted-foreground">100% authentic - 48-hour return window</p>
               </div>
             </div>
           </aside>

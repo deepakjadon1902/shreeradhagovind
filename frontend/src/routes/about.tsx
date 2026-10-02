@@ -5,7 +5,6 @@ import { useStore } from "@/lib/store";
 import {
   MapPin,
   Heart,
-  Sparkles,
   Truck,
   CheckCircle2,
   Package,
@@ -407,8 +406,7 @@ function AboutPage() {
         <div className="about-card-container">
           {/* HERO */}
           <section className="about-hero">
-            <div className="inline-flex items-center gap-2 rounded-full border border-amber-300/80 bg-amber-50/90 px-4 py-1 text-xs font-bold uppercase tracking-widest text-[#7a4d20] mb-4">
-              <Sparkles className="h-3.5 w-3.5 text-amber-600" />
+            <div className="inline-flex items-center rounded-full border border-amber-300/80 bg-amber-50/90 px-4 py-1 text-xs font-bold uppercase tracking-widest text-[#7a4d20] mb-4">
               <span>Direct From Madan Mohan Ghera · Vrindavan Dham</span>
             </div>
 
@@ -427,7 +425,7 @@ function AboutPage() {
                 📿 Original Tulsi Malas
               </Link>
               <Link to="/shop" search={{ cat: "Japa Mala" }} className="about-pill">
-                ✨ 108-Bead Japa Malas
+                108-Bead Japa Malas
               </Link>
               <Link to="/shop" search={{ cat: "Puja Essentials" }} className="about-pill">
                 🪔 Gopi Chandan & Tilak
@@ -546,7 +544,6 @@ function AboutPage() {
 
               <div className="about-card">
                 <h3>
-                  <Sparkles className="h-4 w-4 shrink-0 text-amber-600" />
                   Personal Seva Touch
                 </h3>
                 <p>
@@ -914,7 +911,7 @@ function AboutPage() {
               >
                 <div className="flex items-center justify-between mb-2">
                   <h3 className="text-[#166f77] font-bold group-hover:text-[#7a4d20] transition-colors">
-                    ✨ Devotional Jewellery
+                    Devotional Jewellery
                   </h3>
                   <ArrowRight className="h-4 w-4 text-stone-400 group-hover:text-[#7a4d20] group-hover:translate-x-1 transition-all" />
                 </div>

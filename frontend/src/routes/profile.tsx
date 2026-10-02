@@ -21,7 +21,6 @@ import {
   Wallet,
   Coins,
   Clock,
-  Sparkles,
   ArrowUpRight,
   ArrowDownRight,
   ShieldCheck,
@@ -102,8 +101,7 @@ function Profile() {
               <div className="flex flex-wrap items-center gap-2 mb-1">
                 <p className="text-xs font-semibold uppercase tracking-[.2em] text-primary">Devotee account</p>
                 {loyalty?.tier?.name && (
-                  <span className="inline-flex items-center gap-1 rounded-full bg-amber-500/10 px-2.5 py-0.5 text-xs font-semibold text-amber-700">
-                    <Sparkles className="h-3 w-3" />
+                  <span className="inline-flex items-center rounded-full bg-amber-500/10 px-2.5 py-0.5 text-xs font-semibold text-amber-700">
                     {loyalty.tier.name}
                   </span>
                 )}
@@ -424,8 +422,7 @@ function LoyaltyRewards({ loyalty }: { loyalty: LoyaltyInfo | null }) {
         <div className="absolute right-0 top-0 h-48 w-48 rounded-full bg-amber-500/10 blur-3xl pointer-events-none" />
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div>
-            <span className="inline-flex items-center gap-1.5 rounded-full bg-amber-500/10 px-3 py-1 text-xs font-semibold text-amber-700">
-              <Sparkles className="h-3.5 w-3.5" />
+            <span className="inline-flex items-center rounded-full bg-amber-500/10 px-3 py-1 text-xs font-semibold text-amber-700">
               Radha Govind Devotee Loyalty
             </span>
             <h2 className="mt-2 font-display text-3xl">Your Devotee Rewards</h2>
@@ -463,8 +460,7 @@ function LoyaltyRewards({ loyalty }: { loyalty: LoyaltyInfo | null }) {
 
         {tier?.perks && tier.perks.length > 0 && (
           <div className="mt-5 rounded-lg border bg-amber-500/5 p-4 text-xs">
-            <p className="font-semibold text-amber-900 mb-1.5 flex items-center gap-1.5">
-              <Sparkles className="h-3.5 w-3.5 text-amber-600" />
+            <p className="font-semibold text-amber-900 mb-1.5">
               Your {tier.name} VIP Perks:
             </p>
             <ul className="grid sm:grid-cols-2 gap-1 text-muted-foreground">
