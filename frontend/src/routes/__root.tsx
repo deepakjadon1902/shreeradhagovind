@@ -30,17 +30,24 @@ function NotFoundComponent() {
   );
 }
 
-function ErrorComponent({ error, reset }: { error: Error; reset: () => void }) {
+function ErrorComponent({ error, reset }: { error: unknown; reset: () => void }) {
   console.error("[Route Error]", error);
   const router = useRouter();
+  const errorMessage =
+    error instanceof Error
+      ? error.message
+      : typeof error === "string"
+        ? error
+        : "Something went wrong.";
+  const errorStack = error instanceof Error ? error.stack : undefined;
   return (
     <div className="flex min-h-screen items-center justify-center bg-background px-4">
       <div className="max-w-2xl text-center">
         <h1 className="text-xl font-display">This page didn't load</h1>
-        <p className="mt-2 text-sm text-destructive font-medium">{error?.message || "Something went wrong."}</p>
-        {error?.stack && (
+        <p className="mt-2 text-sm text-destructive font-medium">{errorMessage}</p>
+        {errorStack && (
           <pre className="mt-4 p-4 bg-red-50 text-red-900 text-xs text-left rounded-lg overflow-auto max-h-72 font-mono border border-red-200 whitespace-pre-wrap break-all">
-            {error.stack}
+            {errorStack}
           </pre>
         )}
         <div className="mt-6 flex justify-center gap-2">
