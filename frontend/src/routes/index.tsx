@@ -261,14 +261,14 @@ function Home() {
             <div className="mt-8 border-t border-white/15 pt-5">
               <div className="flex flex-wrap items-center gap-6 sm:gap-12">
                 <div>
-                  <div className="text-base sm:text-lg font-bold text-[#FFFDF8]">50K+</div>
+                  <div className="text-base sm:text-lg font-bold text-[#FFFDF8]">1K+</div>
                   <div className="text-[10px] sm:text-[11px] uppercase tracking-wider text-[#D5CBC0]">
-                    Devotees
+                    Happy Devotees
                   </div>
                 </div>
                 <div className="h-6 w-px bg-white/20" />
                 <div>
-                  <div className="text-base sm:text-lg font-bold text-[#FFFDF8]">4.9 / 5</div>
+                  <div className="text-base sm:text-lg font-bold text-[#FFFDF8]">4.5 / 5</div>
                   <div className="text-[10px] sm:text-[11px] uppercase tracking-wider text-[#D5CBC0]">
                     Customer Rating
                   </div>

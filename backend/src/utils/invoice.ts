@@ -69,6 +69,7 @@ export type InvoiceData = {
   shipping: number;
   shippingMethod?: string;
   packagingCost?: number;
+  codFee?: number;
   total: number;
   tax?: InvoiceTax;
   address: InvoiceAddr;
@@ -744,6 +745,10 @@ export async function generateInvoicePDF(data: InvoiceData): Promise<Buffer> {
           : rupee(data.shipping);
 
       renderTotalRow("Shipping", shippingText);
+
+      if (data.codFee && data.codFee > 0) {
+        renderTotalRow("COD Handling Fee", rupee(data.codFee));
+      }
 
       if (data.packagingCost && data.packagingCost > 0) {
         renderTotalRow("Packaging Cost", rupee(data.packagingCost));

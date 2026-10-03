@@ -1187,6 +1187,12 @@ function OrderDetail() {
                         {shippingVal === 0 ? "FREE" : formatINR(shippingVal)}
                       </span>
                     </div>
+                    {typeof order.codFee === "number" && order.codFee > 0 && (
+                      <div className="flex justify-between text-stone-600">
+                        <span>COD Handling Fee</span>
+                        <span className="font-semibold text-stone-900">{formatINR(order.codFee)}</span>
+                      </div>
+                    )}
                     {discountVal > 0 && (
                       <div className="flex justify-between text-emerald-700">
                         <span>Discount</span>

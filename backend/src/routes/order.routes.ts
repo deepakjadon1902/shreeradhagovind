@@ -535,6 +535,7 @@ r.get("/:id/invoice", optionalAuth, async (req, res, next) => {
       items: o.items as any,
       subtotal: o.subtotal,
       shipping: o.shipping,
+      codFee: o.codFee,
       total: o.total,
       address: (o.billingAddress?.line1 ? o.billingAddress : o.address) as any,
       payment: {
@@ -667,6 +668,7 @@ const createSchema = z.object({
   sessionId: z.string().optional(),
   recoveryToken: z.string().optional(),
   couponCode: z.string().optional(),
+  codFee: z.number().optional(),
   redeemPoints: z.number().int().min(0).optional().default(0),
   analytics: z
     .object({
@@ -850,11 +852,27 @@ r.post("/", optionalAuth, async (req, res, next) => {
     const settings =
       (await Settings.findOne({ key: "global" })) ??
       (await Settings.create({ key: "global" }));
-    if (body.payment.method === "cod" && !settings.codEnabled) {
-      throw new HttpError(
-        400,
-        "Cash on Delivery is currently unavailable",
-      );
+
+    const isCod = body.payment.method === "cod";
+    if (isCod) {
+      if (!settings.codEnabled) {
+        throw new HttpError(
+          400,
+          "Cash on Delivery is currently unavailable",
+        );
+      }
+      const hasIneligibleProduct = products.some((p) => p.codEligible === false);
+      if (hasIneligibleProduct) {
+        throw new HttpError(
+          400,
+          "Cash on Delivery is unavailable for one or more items in your cart",
+        );
+      }
+    }
+
+    const codFee = isCod ? 40 : 0;
+    if (body.codFee !== undefined && body.codFee !== codFee) {
+      throw new HttpError(400, "Invalid COD handling fee");
     }
 
     const calculation = await validateAndCalculateCoupon({
@@ -895,7 +913,7 @@ r.post("/", optionalAuth, async (req, res, next) => {
     const subtotal = calculation.grossSubtotal;
     const discount = calculation.discount;
     const shipping = calculation.shipping;
-    const total = Math.max(0, Math.round((calculation.total - pointsDiscount) * 100) / 100);
+    const total = Math.max(0, Math.round((calculation.total - pointsDiscount + codFee) * 100) / 100);
 
     // Apportion pointsDiscount across items if present
     let accumulatedPointsDiscount = 0;
@@ -965,6 +983,7 @@ r.post("/", optionalAuth, async (req, res, next) => {
       items,
       subtotal,
       shipping,
+      codFee,
       total,
       payment: body.payment,
       courierCharge,
@@ -1010,6 +1029,8 @@ r.post("/", optionalAuth, async (req, res, next) => {
         loyaltyPointsRedeemed: pointsToRedeem,
         loyaltyPointsDiscount: pointsDiscount,
         shipping,
+        codFee,
+        codFeeNonTaxable: true,
         total,
         courierCharge,
         packagingCost,

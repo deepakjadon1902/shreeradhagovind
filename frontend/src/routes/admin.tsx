@@ -2285,6 +2285,7 @@ function ProductEditor({
     additionalImage: product?.additionalImage ?? "",
     additionalHeading: product?.additionalHeading ?? "",
     additionalContent: product?.additionalContent ?? "",
+    codEligible: product?.codEligible !== false,
   }));
   const [comboComponents, setComboComponents] = useState<Array<{
     name: string;
@@ -2380,6 +2381,7 @@ function ProductEditor({
         additionalContent: (p.additionalContent || "").trim(),
         rating: Math.max(0, Math.min(5, Number(p.rating) || 0)),
         reviews: Math.max(0, Number(p.reviews) || 0),
+        codEligible: p.codEligible !== false,
         comboComponents: activeComponents,
       });
     } finally {
@@ -2577,6 +2579,38 @@ function ProductEditor({
                 <p className="text-[11px] text-stone-500 bg-stone-50 border border-stone-200/60 rounded-md px-2.5 py-1.5 flex items-center gap-1.5">
                   <span className="font-semibold text-stone-700">Tip:</span> Stock receipts, physical recounts, and damaged write-offs can also be adjusted with full audit history under the <span className="font-medium text-stone-900">Inventory</span> tab.
                 </p>
+              </div>
+
+              {/* Cash on Delivery Eligibility */}
+              <div className="rounded-lg border border-border bg-white p-3 space-y-1.5 col-span-full">
+                <span className="block font-semibold text-xs text-[var(--foreground)] uppercase tracking-wider">
+                  Cash on Delivery
+                </span>
+                <span className="text-xs text-muted-foreground block">
+                  Allow COD for this product
+                </span>
+                <div className="flex items-center gap-4 pt-1">
+                  <label className="flex items-center gap-2 text-xs font-medium cursor-pointer">
+                    <input
+                      type="radio"
+                      name="codEligible"
+                      checked={p.codEligible !== false}
+                      onChange={() => setP({ ...p, codEligible: true })}
+                      className="text-primary focus:ring-primary"
+                    />
+                    <span>Enabled</span>
+                  </label>
+                  <label className="flex items-center gap-2 text-xs font-medium cursor-pointer">
+                    <input
+                      type="radio"
+                      name="codEligible"
+                      checked={p.codEligible === false}
+                      onChange={() => setP({ ...p, codEligible: false })}
+                      className="text-primary focus:ring-primary"
+                    />
+                    <span>Disabled</span>
+                  </label>
+                </div>
               </div>
             </div>
           </div>
@@ -4469,6 +4503,12 @@ function OrderManager({
                   {order.shipping === 0 ? "FREE" : order.shipping ? formatINR(order.shipping) : "FREE"}
                 </span>
               </div>
+              {order.codFee !== undefined && order.codFee > 0 && (
+                <div className="flex justify-between text-muted-foreground">
+                  <span>COD Handling Fee:</span>
+                  <span className="font-medium text-foreground">{formatINR(order.codFee)}</span>
+                </div>
+              )}
               {order.packagingFee !== undefined && order.packagingFee > 0 && (
                 <div className="flex justify-between text-muted-foreground">
                   <span>Packaging Fee:</span>

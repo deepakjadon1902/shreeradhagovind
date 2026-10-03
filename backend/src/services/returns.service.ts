@@ -133,6 +133,7 @@ export async function createReturnRequest(params: {
     status: 'PENDING',
     totalEligibleRefund,
     originalShipping: order.shipping || 0,
+    originalCodFee: order.codFee || 0,
   });
   
   await rr.save();

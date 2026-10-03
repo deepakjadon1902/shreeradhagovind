@@ -21,6 +21,7 @@ export type Product = {
   metaDescription?: string;
   stock: number;
   outOfStockSince?: string | null;
+  codEligible?: boolean;
   waitlistCount?: number;
   additionalImage?: string;
   additionalHeading?: string;

@@ -51,6 +51,7 @@ export type Order = {
   items: OrderItem[];
   subtotal?: number;
   shipping?: number;
+  codFee?: number;
   packagingFee?: number;
   discount?: number;
   loyaltyPointsRedeemed?: number;
@@ -704,6 +705,7 @@ const mapOrder = (o: any, productLookup: Map<string, Product>): Order => {
       : [],
     subtotal: typeof o?.subtotal === "number" ? o.subtotal : undefined,
     shipping: typeof o?.shipping === "number" ? o.shipping : undefined,
+    codFee: typeof o?.codFee === "number" ? o.codFee : 0,
     packagingFee: typeof o?.packagingFee === "number" ? o.packagingFee : undefined,
     discount: typeof o?.discount === "number" ? o.discount : 0,
     loyaltyPointsRedeemed: typeof o?.loyaltyPointsRedeemed === "number" ? o.loyaltyPointsRedeemed : 0,
@@ -1492,6 +1494,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
             businessName: o.businessName,
             gstin: o.gstin,
             couponCode: o.couponCode,
+            codFee: (o as any).codFee,
             redeemPoints: (o as any).redeemPoints,
             items: o.items.map((i) => ({ productId: i.product.id, qty: i.qty })),
             address: o.address,

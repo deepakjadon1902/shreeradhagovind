@@ -42,6 +42,7 @@ const returnRequestSchema = new Schema(
     },
     totalEligibleRefund: { type: Number, default: 0 },
     originalShipping: { type: Number, default: 0 }, // non-refundable, stored for reference
+    originalCodFee: { type: Number, default: 0 }, // non-refundable, stored for reference
     resolution: { type: String, enum: ['refund', 'replacement', null], default: null },
     adminNote: { type: String, default: '' },
     rejectionReason: { type: String, default: '' },

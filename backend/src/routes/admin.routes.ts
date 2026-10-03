@@ -84,13 +84,14 @@ export function computeOrderFinances(order: any, customCourierCharge?: number) {
   const subtotal = Number(order.subtotal);
   const total = Number(order.total) || 0;
   const shipping = Number(order.shipping) || 0;
+  const codFee = Number(order.codFee) || 0;
   const refundedAmount = Number(order.refundedAmount) || 0;
 
   // Net realized revenue excludes refunded amount from partial returns
   const realizedRevenue = Math.max(0, total - refundedAmount);
 
-  // Packaging Cost = Net Retained Order Value x 2%. Excludes shipping! Only applicable to paid sales
-  const orderValue = !isNaN(subtotal) && subtotal > 0 ? subtotal : Math.max(0, total - shipping);
+  // Packaging Cost = Net Retained Order Value x 2%. Excludes shipping & COD fee! Only applicable to paid sales
+  const orderValue = !isNaN(subtotal) && subtotal > 0 ? subtotal : Math.max(0, total - shipping - codFee);
   const netOrderValue = Math.max(0, orderValue - refundedAmount);
   const packagingCost = isPaidSale ? Math.round(netOrderValue * 0.02 * 100) / 100 : 0;
 
@@ -664,6 +665,7 @@ r.get("/orders/:id/invoice", async (req, res, next) => {
       items: o.items as any,
       subtotal: o.subtotal,
       shipping: o.shipping,
+      codFee: o.codFee,
       total: o.total,
       address: (o.billingAddress?.line1 ? o.billingAddress : o.address) as any,
       payment: {
@@ -783,6 +785,7 @@ r.post("/orders/:id/send-invoice", async (req, res, next) => {
       items: o.items as any,
       subtotal: o.subtotal,
       shipping: o.shipping,
+      codFee: o.codFee,
       total: o.total,
       address: (o.billingAddress?.line1 ? o.billingAddress : o.address) as any,
       payment: {

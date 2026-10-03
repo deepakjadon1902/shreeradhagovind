@@ -26,6 +26,7 @@ export type EmailOrderPayload = {
   loyaltyDiscount?: number;
   walletUsed?: number;
   shipping: number;
+  codFee?: number;
   total: number;
   address: Addr;
   payment: { method: string; status: string; razorpayPaymentId?: string };
@@ -68,6 +69,7 @@ export function buildEmailOrderPayload(o: any): EmailOrderPayload {
     loyaltyDiscount: o.loyaltyPointsDiscount ?? undefined,
     walletUsed: o.walletAmountUsed ?? undefined,
     shipping: o.shipping ?? 0,
+    codFee: o.codFee ?? 0,
     total: o.total ?? 0,
     address: o.address as any,
     payment: {
@@ -142,6 +144,7 @@ export async function sendOrderConfirmationWithInvoice(
       discount: order.discount,
       couponCode: order.couponCode,
       shipping: order.shipping,
+      codFee: order.codFee,
       total: order.total,
       address: order.address,
       payment: order.payment,
@@ -222,6 +225,7 @@ export async function dispatchOrderInvoiceEmailOnce(
       items: order.items,
       subtotal: order.subtotal,
       shipping: order.shipping,
+      codFee: order.codFee,
       total: order.total,
       address: order.address,
       payment: order.payment,
@@ -543,7 +547,8 @@ const invoiceTable = (
   shipping?: number,
   total?: number,
   discount?: number,
-  couponCode?: string
+  couponCode?: string,
+  codFee?: number
 ) => `
   <table style="width:100%;border-collapse:collapse;margin-top:12px;font-size:14px">
     <thead>
@@ -567,6 +572,7 @@ const invoiceTable = (
       <tr><td colspan="3" style="padding:8px 12px;text-align:right">Subtotal</td><td style="padding:8px 12px;text-align:right">${rupee(subtotal || 0)}</td></tr>
       ${discount && discount > 0 ? `<tr><td colspan="3" style="padding:8px 12px;text-align:right;color:#047857">Coupon Discount ${couponCode ? `(${couponCode})` : ""}</td><td style="padding:8px 12px;text-align:right;color:#047857">-${rupee(discount)}</td></tr>` : ""}
       <tr><td colspan="3" style="padding:8px 12px;text-align:right">Shipping</td><td style="padding:8px 12px;text-align:right">${!shipping || shipping === 0 ? "FREE" : rupee(shipping)}</td></tr>
+      ${codFee && codFee > 0 ? `<tr><td colspan="3" style="padding:8px 12px;text-align:right">COD Handling Fee</td><td style="padding:8px 12px;text-align:right">${rupee(codFee)}</td></tr>` : ""}
       <tr style="background:#f4f4f1;font-weight:700">
         <td colspan="3" style="padding:10px 12px;text-align:right">Total Paid</td>
         <td style="padding:10px 12px;text-align:right;color:${ACCENT}">${rupee(total || 0)}</td>
@@ -656,7 +662,7 @@ export const tpl = {
 
         <h3 style="margin:18px 0 4px">Invoice & Order Details</h3>
         <div style="font-size:12px;color:#888">Order ID: #${orderNum}${hasTracking ? ` | Tracking ID: ${order.trackingId}` : ""} | Payment: ${order.payment.method.toUpperCase()} | ${order.payment.status.toUpperCase()}${order.payment.razorpayPaymentId ? ` | Txn ${order.payment.razorpayPaymentId}` : ""}</div>
-        ${invoiceTable(order.items, order.subtotal, order.shipping, order.total, order.discount, order.couponCode)}
+        ${invoiceTable(order.items, order.subtotal, order.shipping, order.total, order.discount, order.couponCode, order.codFee)}
 
         ${customerBlock(name, order.customerEmail, order.address, order.businessName, order.gstin)}
       `),
@@ -747,7 +753,7 @@ export const tpl = {
         ${order ? `
           <h3 style="margin:18px 0 4px">Order details</h3>
           <div style="font-size:12px;color:#888">Order ID: #${orderNum}${hasTracking ? ` | Tracking ID: ${effectiveTrackingId}` : ""}${order.payment ? ` | Payment: ${(order.payment.method || "ONLINE").toUpperCase()} | ${(order.payment.status || "PAID").toUpperCase()}` : ""}</div>
-          ${invoiceTable(order.items, order.subtotal, order.shipping, order.total, order.discount, order.couponCode)}
+          ${invoiceTable(order.items, order.subtotal, order.shipping, order.total, order.discount, order.couponCode, order.codFee)}
           ${customerBlock(name, order.customerEmail, order.address, order?.businessName, order?.gstin)}
         ` : ""}
       `),

@@ -50,6 +50,8 @@ const orderSchema = new Schema(
     items: { type: [orderItemSchema], required: true },
     subtotal: { type: Number, required: true },
     shipping: { type: Number, default: 0 },
+    codFee: { type: Number, default: 0, min: 0 },
+    codFeeNonTaxable: { type: Boolean, default: true },
     total: { type: Number, required: true },
     discount: { type: Number, default: 0, min: 0 },
     couponCode: { type: String, default: "", uppercase: true, trim: true },

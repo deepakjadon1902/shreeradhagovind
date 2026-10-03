@@ -222,7 +222,16 @@ function Checkout() {
     ? (typeof pointsInput === "number" && pointsInput > 0 ? Math.min(pointsInput, maxUsablePoints) : maxUsablePoints)
     : 0;
   const loyaltyDiscount = Math.round(actualRedeemedPoints * pointValue * 100) / 100;
-  const total = Math.max(0, subtotal - couponDiscount - loyaltyDiscount + shipping);
+
+  const [method, setMethod] = useState<"razorpay" | "cod">("razorpay");
+  const [processing, setProcessing] = useState(false);
+
+  const isEveryProductCodEligible = items.length > 0 && items.every((i) => i.product.codEligible !== false);
+  const hasCodIneligibleItem = items.some((i) => i.product.codEligible === false);
+  const codAvailable = Boolean(settings.codEnabled && isEveryProductCodEligible);
+
+  const codFee = method === "cod" && codAvailable ? 40 : 0;
+  const total = Math.max(0, subtotal - couponDiscount - loyaltyDiscount + shipping + codFee);
 
   // Account vs Guest selection (default guest for non-logged in)
   const [accountChoice, setAccountChoice] = useState<"guest" | "create">("guest");
@@ -260,10 +269,6 @@ function Checkout() {
   // Terms & Conditions Consent (mandatory unchecked by default)
   const [acceptedTerms, setAcceptedTerms] = useState(false);
   const [termsError, setTermsError] = useState(false);
-
-  const [method, setMethod] = useState<"razorpay" | "cod">("razorpay");
-  const [processing, setProcessing] = useState(false);
-  const codAvailable = settings.codEnabled;
 
   // Indian Pincode -> Post Office lookup state for Shipping
   const [postalStatus, setPostalStatus] = useState<"idle" | "loading" | "success" | "not_found">("idle");
@@ -870,6 +875,7 @@ function Checkout() {
       createAccount: !user && accountChoice === "create",
       items: items.map((i) => ({ product: i.product, qty: i.qty })),
       total,
+      codFee,
       couponCode: appliedCoupon?.code || undefined,
       redeemPoints: actualRedeemedPoints > 0 ? actualRedeemedPoints : undefined,
       alternatePhone: form.alternatePhone.trim() || undefined,
@@ -1836,7 +1842,7 @@ function Checkout() {
                   </button>
 
                   {/* Option 2: Cash on Delivery */}
-                  {codAvailable && (
+                  {settings.codEnabled && isEveryProductCodEligible && (
                     <button
                       type="button"
                       onClick={() => setMethod("cod")}
@@ -1857,18 +1863,20 @@ function Checkout() {
                           {method === "cod" && <Check className="h-3 w-3 text-white stroke-[3]" />}
                         </div>
                         <div>
-                          <p className="text-sm font-semibold text-stone-900">Cash on Delivery (COD)</p>
-                          <p className="text-xs text-stone-500 mt-0.5">Pay in cash when your sacred package arrives</p>
+                          <p className="text-sm font-semibold text-stone-900">Cash on Delivery</p>
+                          <p className="text-xs text-stone-500 mt-0.5">₹40 COD Handling Fee · Pay in cash upon delivery</p>
                         </div>
                       </div>
-                      <span className="text-xs text-stone-500">COD Available</span>
+                      <span className="text-xs font-semibold text-amber-900 bg-amber-100/70 border border-amber-200/80 px-2 py-0.5 rounded-md">
+                        +₹40 Fee
+                      </span>
                     </button>
                   )}
 
-                  {!codAvailable && (
-                    <p className="text-xs text-stone-400 px-1 py-0.5">
-                      Cash on Delivery is currently unavailable.
-                    </p>
+                  {settings.codEnabled && hasCodIneligibleItem && (
+                    <div className="rounded-xl border border-amber-200 bg-amber-50/70 p-3 text-xs text-amber-900">
+                      Cash on Delivery is unavailable for one or more items in your cart.
+                    </div>
                   )}
                 </div>
 
@@ -2214,6 +2222,13 @@ function Checkout() {
                       <span className="font-medium text-stone-800">{formatINR(shipping)}</span>
                     )}
                   </div>
+
+                  {method === "cod" && codAvailable && (
+                    <div className="flex justify-between text-stone-700 items-center">
+                      <span>COD Handling Fee</span>
+                      <span className="font-semibold text-stone-900">{formatINR(40)}</span>
+                    </div>
+                  )}
 
                   <div className="flex justify-between text-stone-500 text-[11px] pt-1">
                     <span>Taxes & GST</span>
